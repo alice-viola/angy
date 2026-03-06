@@ -1,7 +1,18 @@
 <template>
   <div class="h-screen w-screen flex flex-col bg-[var(--bg-surface)] text-[var(--text-primary)]">
+    <!-- Mission Control: full-screen graph dashboard -->
+    <MissionControlView
+      v-if="ui.viewMode === 'mission-control'"
+      class="flex-1 !min-h-0"
+      @exit-mission-control="$emit('exit-mission-control')"
+      @filter-changed="$emit('mission-control-filter', $event)"
+      @agent-selected="(nodeId: string) => emit('agent-selected', nodeId.startsWith('agent:') ? nodeId.slice(6) : nodeId)"
+      @file-clicked="(path: string) => emit('file-clicked', path)"
+      @turn-clicked="(turn: number) => emit('turn-clicked', turn)"
+    />
+
     <!-- Main content area (all 5 panes always in DOM; hidden panes collapse to size 0) -->
-    <Splitpanes class="flex-1 !min-h-0">
+    <Splitpanes v-else class="flex-1 !min-h-0">
       <!-- Panel 0: Agent Fleet (Manager only) -->
       <Pane :size="panelSizes[0]" :min-size="inManager ? 15 : 0" :max-size="inManager ? 25 : 0">
         <AgentFleetPanel
@@ -9,13 +20,14 @@
           @agent-selected="(sid: string) => $emit('agent-selected', sid)"
           @new-agent-requested="$emit('new-chat')"
           @delete-requested="(sid: string) => $emit('delete-agent', sid)"
-          @rename-requested="(sid: string) => $emit('rename-agent', sid)"
+          @rename-requested="(sid: string, title: string) => $emit('rename-agent', sid, title)"
           @favorite-toggled="(sid: string) => $emit('favorite-toggled', sid)"
           @delete-all-requested="$emit('delete-all')"
           @delete-older-requested="$emit('delete-older')"
           @keep-today-requested="$emit('keep-today')"
           @toggle-view="$emit('toggle-view')"
           @orchestrate="$emit('orchestrate')"
+          @enter-mission-control="$emit('enter-mission-control')"
         />
       </Pane>
 
@@ -61,20 +73,33 @@
         </div>
       </Pane>
 
-      <!-- Panel 2: Center (CodeViewer in Editor mode or Manager inline preview) -->
+      <!-- Panel 2: Center (CodeViewer / DiffSplitView / Manager inline preview) -->
       <Pane :size="panelSizes[2]" :min-size="0" :max-size="showCodePane ? 100 : 0">
         <div v-if="showCodePane" class="h-full flex flex-col">
           <!-- Back bar for inline preview in Manager mode -->
           <div
-            v-if="inManager && ui.inlinePreviewFile"
+            v-if="inManager && (ui.inlinePreviewFile || ui.diffView)"
             class="flex items-center h-8 px-3 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)] cursor-pointer"
-            @click="ui.dismissInlinePreview()"
+            @click="closeCenterPane"
           >
             <span class="text-[11px] text-[var(--accent-teal)]">← Back to Chat</span>
             <span class="text-[11px] text-[var(--text-faint)] mx-2">·</span>
             <span class="text-[11px] text-[var(--text-primary)] font-medium">{{ previewFileName }}</span>
           </div>
-          <slot name="code-viewer" />
+          <!-- Git diff view -->
+          <DiffSplitView
+            v-if="ui.diffView"
+            :filePath="ui.diffView.filePath"
+            :oldContent="ui.diffView.oldContent"
+            :newContent="ui.diffView.newContent"
+            :leftLabel="ui.diffView.leftLabel"
+            :rightLabel="ui.diffView.rightLabel"
+            @close="ui.closeDiffView()"
+          />
+          <!-- Normal code viewer -->
+          <template v-else>
+            <slot name="code-viewer" />
+          </template>
           <slot name="terminal" v-if="inEditor && ui.terminalVisible" />
         </div>
       </Pane>
@@ -86,10 +111,49 @@
         </div>
       </Pane>
 
-      <!-- Panel 4: Effects Panel (Manager only) -->
+      <!-- Panel 4: Effects / Graph Panel (Manager only) -->
       <Pane :size="panelSizes[4]" :min-size="effectsPaneMin" :max-size="effectsPaneMax">
-        <div v-show="inManager && ui.effectsPanelVisible" class="h-full">
-          <slot name="effects" />
+        <div v-show="inManager && ui.effectsPanelVisible" class="h-full flex flex-col">
+          <!-- Tab switcher -->
+          <div class="flex items-center px-3 h-8 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]">
+            <div class="flex border rounded border-[var(--border-subtle)] overflow-hidden">
+              <button
+                @click="ui.setRightPanelMode('effects')"
+                class="text-[10px] px-2 py-0.5 transition-colors"
+                :class="ui.rightPanelMode === 'effects'
+                  ? 'text-[var(--text-primary)] bg-[var(--bg-raised)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'"
+              >
+                Effects
+              </button>
+              <button
+                @click="ui.setRightPanelMode('graph')"
+                class="text-[10px] px-2 py-0.5 transition-colors"
+                :class="ui.rightPanelMode === 'graph'
+                  ? 'text-[var(--text-primary)] bg-[var(--bg-raised)]'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'"
+              >
+                Graph
+              </button>
+            </div>
+          </div>
+          <!-- Content -->
+          <div class="flex-1 min-h-0 overflow-hidden">
+            <div v-show="ui.rightPanelMode === 'effects'" class="h-full">
+              <slot name="effects" />
+            </div>
+            <AgentGraph
+              v-show="ui.rightPanelMode === 'graph'"
+              :nodes="graphStore.visibleNodes"
+              :edges="graphStore.visibleEdges"
+              :is-live="graphStore.isLive"
+              :min-turn="graphStore.minTurn"
+              :max-turn="graphStore.maxTurn"
+              @agent-selected="(nodeId: string) => emit('agent-selected', nodeId.startsWith('agent:') ? nodeId.slice(6) : nodeId)"
+              @file-clicked="(path: string) => emit('file-clicked', path)"
+              @turn-clicked="(turn: number) => emit('turn-clicked', turn)"
+            />
+          </div>
         </div>
       </Pane>
     </Splitpanes>
@@ -110,6 +174,10 @@ import WorkspaceTree from '../sidebar/WorkspaceTree.vue';
 import GitPanel from '../sidebar/GitPanel.vue';
 import SearchPanel from '../sidebar/SearchPanel.vue';
 import StatusBar from './StatusBar.vue';
+import AgentGraph from '../graph/AgentGraph.vue';
+import MissionControlView from '../graph/MissionControlView.vue';
+import DiffSplitView from '../editor/DiffSplitView.vue';
+import { useGraphStore } from '../../stores/graph';
 
 // ── Emits ─────────────────────────────────────────────────────────────────
 
@@ -117,26 +185,31 @@ const emit = defineEmits<{
   'agent-selected': [sessionId: string];
   'new-chat': [];
   'delete-agent': [sessionId: string];
-  'rename-agent': [sessionId: string];
+  'rename-agent': [sessionId: string, newTitle: string];
   'favorite-toggled': [sessionId: string];
   'delete-all': [];
   'delete-older': [];
   'keep-today': [];
   'file-clicked': [filePath: string];
+  'turn-clicked': [turnId: number];
   'toggle-view': [];
   'orchestrate': [];
+  'exit-mission-control': [];
+  'mission-control-filter': [sessionId: string | null];
+  'enter-mission-control': [];
 }>();
 
 // ── Store ─────────────────────────────────────────────────────────────────
 
 const ui = useUiStore();
 const git = useGitStore();
+const graphStore = useGraphStore();
 
 // ── Computed ──────────────────────────────────────────────────────────────
 
 const inManager = computed(() => ui.viewMode === 'manager');
 const inEditor = computed(() => ui.viewMode === 'editor');
-const showCodePane = computed(() => inEditor.value || (inManager.value && !!ui.inlinePreviewFile));
+const showCodePane = computed(() => inEditor.value || (inManager.value && (!!ui.inlinePreviewFile || !!ui.diffView)));
 
 // Pane constraints — allow collapse when panel is toggled off
 const effectsPaneMin = computed(() => (inManager.value && ui.effectsPanelVisible) ? 15 : 0);
@@ -152,10 +225,15 @@ const chatPaneMax = computed(() => {
 });
 
 const previewFileName = computed(() => {
-  const full = ui.inlinePreviewFile;
+  const full = ui.diffView?.filePath ?? ui.inlinePreviewFile;
   if (!full) return '';
   return full.split('/').pop() ?? full;
 });
+
+function closeCenterPane() {
+  ui.closeDiffView();
+  ui.dismissInlinePreview();
+}
 
 const leftTabs = [
   { id: 'files' as const, label: 'Files' },
@@ -176,7 +254,7 @@ const panelSizes = ref([...MANAGER_DEFAULTS]);
 
 function computeDefaults(): number[] {
   if (ui.viewMode === 'manager') {
-    if (ui.inlinePreviewFile) return [...MANAGER_PREVIEW];
+    if (ui.inlinePreviewFile || ui.diffView) return [...MANAGER_PREVIEW];
     return ui.effectsPanelVisible ? [...MANAGER_DEFAULTS] : [...MANAGER_NO_EFFECTS];
   }
   return ui.editorChatVisible ? [...EDITOR_DEFAULTS] : [...EDITOR_NO_CHAT];
@@ -185,7 +263,7 @@ function computeDefaults(): number[] {
 // Reset to defaults when view mode or panel visibility changes.
 // Dispatch resize event to force Splitpanes to re-read size props.
 watch(
-  [() => ui.viewMode, () => ui.effectsPanelVisible, () => ui.editorChatVisible, () => ui.inlinePreviewFile],
+  [() => ui.viewMode, () => ui.effectsPanelVisible, () => ui.editorChatVisible, () => ui.inlinePreviewFile, () => ui.diffView],
   async () => {
     panelSizes.value = computeDefaults();
     await nextTick();

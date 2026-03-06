@@ -8,6 +8,7 @@
       @keep-today="$emit('keep-today-requested')"
       @toggle-view="$emit('toggle-view')"
       @orchestrate="$emit('orchestrate')"
+      @enter-mission-control="$emit('enter-mission-control')"
     />
 
     <!-- Agent list -->
@@ -29,7 +30,7 @@
           :children-collapsed="fleetStore.isCollapsed(agent.sessionId)"
           @select="onAgentSelect"
           @delete="sid => $emit('delete-requested', sid)"
-          @rename="sid => $emit('rename-requested', sid)"
+          @rename="(sid, title) => $emit('rename-requested', sid, title)"
           @favorite-toggle="sid => $emit('favorite-toggled', sid)"
           @collapse-toggle="onCollapseToggle"
         />
@@ -64,10 +65,11 @@ const emit = defineEmits<{
   'delete-all-requested': [];
   'delete-older-requested': [];
   'keep-today-requested': [];
-  'rename-requested': [sessionId: string];
+  'rename-requested': [sessionId: string, newTitle: string];
   'favorite-toggled': [sessionId: string];
   'toggle-view': [];
   'orchestrate': [];
+  'enter-mission-control': [];
 }>();
 
 // ── Store ────────────────────────────────────────────────────────────────

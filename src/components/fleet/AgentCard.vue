@@ -12,7 +12,7 @@
     @click="$emit('select', agent.sessionId)"
     @mouseenter="hovered = true"
     @mouseleave="hovered = false"
-    @dblclick="$emit('rename', agent.sessionId)"
+    @dblclick="startRename()"
     @contextmenu.prevent="showContextMenu"
   >
     <!-- Collapsed mode: centered status dot only -->
@@ -81,8 +81,18 @@
         <!-- Favorite star -->
         <span v-if="agent.favorite" class="shrink-0 text-[var(--accent-yellow)] text-[10px] leading-none">&#9733;</span>
 
-        <!-- Title -->
-        <span class="text-[13px] font-medium truncate" :class="selected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'">
+        <!-- Title (inline editable) -->
+        <input
+          v-if="isEditing"
+          ref="editInput"
+          v-model="editText"
+          class="text-[13px] font-medium truncate bg-transparent border border-[var(--accent-teal)] rounded px-1 outline-none text-[var(--text-primary)] w-full min-w-0"
+          @keydown.enter="commitRename"
+          @keydown.escape="cancelRename"
+          @blur="commitRename"
+          @click.stop
+        />
+        <span v-else class="text-[13px] font-medium truncate" :class="selected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'">
           {{ agent.title || 'New Agent' }}
         </span>
 
@@ -128,7 +138,7 @@
         :style="{ left: `${contextMenuPos.x}px`, top: `${contextMenuPos.y}px` }"
         @click="contextMenuVisible = false"
       >
-        <button class="w-full text-left px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]" @click="$emit('rename', agent.sessionId)">
+        <button class="w-full text-left px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]" @click="startRename()">
           Rename...
         </button>
         <button class="w-full text-left px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]" @click="$emit('favorite-toggle', agent.sessionId)">
@@ -144,7 +154,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import type { AgentSummary } from '../../engine/types';
 
 // ── Props / Emits ────────────────────────────────────────────────────────
@@ -162,10 +172,10 @@ const props = defineProps<{
   childrenCollapsed?: boolean;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   select: [sessionId: string];
   delete: [sessionId: string];
-  rename: [sessionId: string];
+  rename: [sessionId: string, newTitle: string];
   'favorite-toggle': [sessionId: string];
   'collapse-toggle': [sessionId: string];
 }>();
@@ -175,6 +185,9 @@ defineEmits<{
 const hovered = ref(false);
 const contextMenuVisible = ref(false);
 const contextMenuPos = ref({ x: 0, y: 0 });
+const isEditing = ref(false);
+const editText = ref('');
+const editInput = ref<HTMLInputElement | null>(null);
 
 // ── Computed ─────────────────────────────────────────────────────────────
 
@@ -256,6 +269,30 @@ const relativeTime = computed(() => {
   }
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 });
+
+// ── Inline rename ────────────────────────────────────────────────────────
+
+function startRename() {
+  editText.value = props.agent.title || '';
+  isEditing.value = true;
+  nextTick(() => {
+    editInput.value?.focus();
+    editInput.value?.select();
+  });
+}
+
+function commitRename() {
+  if (!isEditing.value) return;
+  isEditing.value = false;
+  const trimmed = editText.value.trim();
+  if (trimmed && trimmed !== props.agent.title) {
+    emit('rename', props.agent.sessionId, trimmed);
+  }
+}
+
+function cancelRename() {
+  isEditing.value = false;
+}
 
 // ── Context menu ─────────────────────────────────────────────────────────
 

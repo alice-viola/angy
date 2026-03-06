@@ -101,6 +101,7 @@ import ProfileSelector from '../input/ProfileSelector.vue';
 import { useSessionsStore, getDatabase } from '../../stores/sessions';
 import { useFleetStore } from '../../stores/fleet';
 import { useUiStore } from '../../stores/ui';
+import { ClaudeProcess } from '../../engine/ClaudeProcess';
 import { sendMessageToEngine, sendToolResultToEngine, cancelProcess, type ChatPanelHandle } from '../../composables/useEngine';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from '../../engine/Orchestrator';
 import type { AgentStatus, AttachedContext, AttachedImage, MessageRecord } from '../../engine/types';
@@ -351,10 +352,29 @@ const chatPanelHandle: ChatPanelHandle = {
   setThinking,
   setRealSessionId,
   onFileEdited,
+  onCheckpointReceived,
 };
 
 function onFileEdited(sessionId: string, filePath: string, toolName: string, toolInput?: Record<string, any>) {
   emit('file-edited', sessionId, filePath, toolName, toolInput);
+}
+
+function onCheckpointReceived(sessionId: string, uuid: string, replayIndex: number) {
+  const state = sessionStates.value.get(sessionId);
+  if (!state) return;
+
+  const userMessages = state.messages
+    .filter(m => m.role === 'user')
+    .sort((a, b) => a.turnId - b.turnId);
+
+  if (replayIndex < userMessages.length) {
+    getDatabase().saveCheckpoint({
+      sessionId,
+      turnId: userMessages[replayIndex].turnId,
+      uuid,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+  }
 }
 
 function setRealSessionId(sessionId: string, realId: string) {
@@ -431,6 +451,15 @@ function onSend(text: string, _contexts?: AttachedContext[], _images?: AttachedI
       : undefined,
   });
 
+  // Auto-title: use first words of the first user message
+  const session = sessionsStore.sessions.get(sid);
+  if (session && (!session.title || session.title.startsWith('Chat '))) {
+    const words = text.trim().split(/\s+/).slice(0, 6).join(' ');
+    const title = words.length > 40 ? words.substring(0, 40) + '\u2026' : words;
+    sessionsStore.updateSessionTitle(sid, title);
+    fleetStore.rebuildFromSessions();
+  }
+
   // Persist user message to DB
   const db = getDatabase();
   db.saveMessage({
@@ -440,7 +469,7 @@ function onSend(text: string, _contexts?: AttachedContext[], _images?: AttachedI
     turnId: state.turnCounter,
     timestamp: Math.floor(now / 1000),
   });
-  // Persist session if new
+  // Persist session
   sessionsStore.persistSession(sid);
 
   scrollToBottom();
@@ -482,7 +511,7 @@ function onNavigate(payload: { filePath: string; line?: number }) {
   console.log('Navigate to:', payload.filePath, 'line:', payload.line);
 }
 
-function onRevert(turnId: number) {
+async function onRevert(turnId: number) {
   const sid = activeSessionId.value;
   if (!sid) return;
 
@@ -490,6 +519,61 @@ function onRevert(turnId: number) {
 
   const state = sessionStates.value.get(sid);
   if (!state) return;
+
+  // Rewind files to the checkpoint at this turn (= file state when user sent this message)
+  const realSessionId = state.realClaudeSessionId;
+  const db = getDatabase();
+  let rewound = false;
+
+  if (realSessionId) {
+    const uuid = await db.checkpointUuid(sid, turnId);
+    if (uuid) {
+      const proc = new ClaudeProcess();
+      proc.setSessionId(realSessionId);
+      proc.setWorkingDirectory(ui.workspacePath || '.');
+      await proc.rewindFiles(uuid);
+      rewound = true;
+    }
+  }
+
+  // Fallback: if no checkpoint (e.g. most recent message), reverse edits using toolInput
+  if (!rewound) {
+    const EDIT_TOOLS = new Set(['Edit', 'StrReplace', 'MultiEdit']);
+    const editMsgs = state.messages
+      .filter(m => m.turnId >= turnId && m.role === 'tool' && m.toolName && EDIT_TOOLS.has(m.toolName) && m.toolInput)
+      .reverse();
+
+    if (editMsgs.length > 0) {
+      const { readTextFile, writeTextFile } = await import('@tauri-apps/plugin-fs');
+      for (const msg of editMsgs) {
+        const filePath = msg.toolInput!.file_path || msg.toolInput!.path;
+        if (!filePath) continue;
+
+        try {
+          let content = await readTextFile(filePath);
+
+          if (msg.toolName === 'MultiEdit') {
+            const edits = (msg.toolInput!.edits ?? []).slice().reverse();
+            for (const edit of edits) {
+              if (edit.new_string && content.includes(edit.new_string)) {
+                content = content.replace(edit.new_string, edit.old_string ?? '');
+              }
+            }
+          } else {
+            const newStr = msg.toolInput!.new_string ?? '';
+            const oldStr = msg.toolInput!.old_string ?? '';
+            if (newStr && content.includes(newStr)) {
+              content = content.replace(newStr, oldStr);
+            }
+          }
+
+          await writeTextFile(filePath, content);
+        } catch (err) {
+          console.warn(`[Revert] Failed to reverse edit for ${filePath}:`, err);
+        }
+      }
+    }
+  }
 
   // Drop all messages at or after the reverted turn
   state.messages = state.messages.filter(m => m.turnId < turnId);
@@ -505,7 +589,7 @@ function onRevert(turnId: number) {
   state.pendingThinkingContent = '';
   state.thinkingStartTime = 0;
 
-  getDatabase().deleteMessagesFromTurn(sid, turnId);
+  db.deleteMessagesFromTurn(sid, turnId);
   updateFleetStatus(sid, 'idle', '');
   nextTick(() => inputBar.value?.focus());
 }

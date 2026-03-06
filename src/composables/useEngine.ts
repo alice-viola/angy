@@ -62,6 +62,7 @@ export interface ChatPanelHandle {
   setThinking(sessionId: string, thinking: boolean): void;
   setRealSessionId(sessionId: string, realId: string): void;
   onFileEdited?(sessionId: string, filePath: string, toolName: string, toolInput?: Record<string, any>): void;
+  onCheckpointReceived?(sessionId: string, uuid: string, replayIndex: number): void;
 }
 
 /**
@@ -153,6 +154,12 @@ export function sendMessageToEngine(
     if (payload.sessionId) {
       chatPanel.setRealSessionId(sessionId, payload.sessionId);
     }
+  });
+
+  let checkpointIdx = 0;
+  proc.streamParser.events.on('checkpointReceived', (uuid) => {
+    chatPanel.onCheckpointReceived?.(sessionId, uuid, checkpointIdx);
+    checkpointIdx++;
   });
 
   // ── Wire ClaudeProcess lifecycle events ──
@@ -251,6 +258,12 @@ export function sendToolResultToEngine(
     if (payload.sessionId) {
       chatPanel.setRealSessionId(sessionId, payload.sessionId);
     }
+  });
+
+  let checkpointIdx2 = 0;
+  proc.streamParser.events.on('checkpointReceived', (uuid) => {
+    chatPanel.onCheckpointReceived?.(sessionId, uuid, checkpointIdx2);
+    checkpointIdx2++;
   });
 
   proc.events.on('finished', (_exitCode) => {

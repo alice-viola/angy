@@ -1,20 +1,29 @@
 import SqlDatabase from '@tauri-apps/plugin-sql';
 import { mkdir } from '@tauri-apps/plugin-fs';
-import { homeDir, join } from '@tauri-apps/api/path';
+import { appDataDir } from '@tauri-apps/api/path';
 import { DelegationStatus, type SessionInfo, type MessageRecord, type CheckpointRecord } from './types';
 
 export class Database {
   private db: SqlDatabase | null = null;
+  private openPromise: Promise<boolean> | null = null;
 
   // ── Open / Close ──────────────────────────────────────────────────────
 
   async open(path?: string): Promise<boolean> {
+    if (this.db) return true;
+    if (this.openPromise) return this.openPromise;
+    this.openPromise = this._doOpen(path);
+    const result = await this.openPromise;
+    this.openPromise = null;
+    return result;
+  }
+
+  private async _doOpen(path?: string): Promise<boolean> {
     if (!path) {
-      const home = await homeDir();
-      const angyDir = await join(home, '.angy');
-      // Ensure ~/.angy/ directory exists
-      try { await mkdir(angyDir, { recursive: true }); } catch { /* exists */ }
-      path = `sqlite:${angyDir}/history.db`;
+      // Tauri SQL plugin resolves sqlite: paths relative to the app data directory.
+      // Ensure the directory exists before opening.
+      try { await mkdir(await appDataDir(), { recursive: true }); } catch { /* exists */ }
+      path = 'sqlite:history.db';
     }
     try {
       this.db = await SqlDatabase.load(path);
@@ -318,6 +327,17 @@ export class Database {
 
     const rows = await this.db.select<any[]>(
       'SELECT uuid FROM checkpoints WHERE session_id = $1 AND turn_id = $2',
+      [sessionId, turnId],
+    );
+
+    return rows.length > 0 ? rows[0].uuid : '';
+  }
+
+  async latestCheckpointBefore(sessionId: string, turnId: number): Promise<string> {
+    if (!this.db) return '';
+
+    const rows = await this.db.select<any[]>(
+      'SELECT uuid FROM checkpoints WHERE session_id = $1 AND turn_id < $2 ORDER BY turn_id DESC LIMIT 1',
       [sessionId, turnId],
     );
 

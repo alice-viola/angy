@@ -106,6 +106,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     if (info) {
       info.title = title;
       info.updatedAt = Math.floor(Date.now() / 1000);
+      persistSession(sessionId);
     }
   }
 

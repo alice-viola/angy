@@ -13,8 +13,12 @@
       @delete-older="onDeleteOlder"
       @keep-today="onKeepToday"
       @file-clicked="onFileClicked"
+      @turn-clicked="onTurnClicked"
       @toggle-view="ui.toggleViewMode()"
       @orchestrate="onOrchestrate"
+      @exit-mission-control="onExitMissionControl"
+      @mission-control-filter="onMissionControlFilter"
+      @enter-mission-control="onEnterMissionControl"
     >
       <template #code-viewer>
         <CodeViewer ref="codeViewerRef" />
@@ -60,6 +64,7 @@ import MainSplitter from './components/layout/MainSplitter.vue';
 import ChatPanel from './components/chat/ChatPanel.vue';
 import EffectsPanel from './components/effects/EffectsPanel.vue';
 import CodeViewer from './components/editor/CodeViewer.vue';
+import type { GitUnifiedDiff } from './engine/GitManager';
 import TerminalPanel from './components/terminal/TerminalPanel.vue';
 import SettingsDialog from './components/settings/SettingsDialog.vue';
 import ProfileEditor from './components/settings/ProfileEditor.vue';
@@ -68,13 +73,17 @@ import { useUiStore } from './stores/ui';
 import { useThemeStore } from './stores/theme';
 import { useSessionsStore, getDatabase, getSessionManager } from './stores/sessions';
 import { useFleetStore } from './stores/fleet';
+import { useGraphStore } from './stores/graph';
 import { useGitStore } from './stores/git';
 import { useKeyboard } from './composables/useKeyboard';
 import { useOrchestrator } from './composables/useOrchestrator';
+import { useGraphBuilder } from './composables/useGraphBuilder';
+import { useMissionControl } from './composables/useMissionControl';
 import { sendMessageToEngine, setMcpToolInterceptor, setSessionFinishedInterceptor } from './composables/useEngine';
 import { ORCHESTRATOR_SYSTEM_PROMPT } from './engine/Orchestrator';
 import { DelegationStatus } from './engine/types';
 import { DiffEngine } from './engine/DiffEngine';
+import { engineBus } from './engine/EventBus';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 // ── Stores ──────────────────────────────────────────────────────────────
@@ -84,6 +93,32 @@ const sessionsStore = useSessionsStore();
 const fleetStore = useFleetStore();
 const gitStore = useGitStore();
 const themeStore = useThemeStore();
+
+// ── Graph ────────────────────────────────────────────────────────────────
+const { buildFromHistory, startLiveGraph } = useGraphBuilder();
+const graphStore = useGraphStore();
+let graphCleanup: (() => void) | null = null;
+
+// ── Mission Control ──────────────────────────────────────────────────────
+const missionControl = useMissionControl();
+
+function ensureLiveGraph(sessionId: string) {
+  // Start a live graph for the given session if one isn't already running
+  if (graphCleanup) graphCleanup();
+  graphStore.clear();
+  graphCleanup = startLiveGraph(sessionId);
+}
+
+async function showGraphForSession(sessionId: string) {
+  if (graphCleanup) {
+    graphCleanup();
+    graphCleanup = null;
+  }
+  graphStore.clear();
+  graphStore.isLive = false;
+  await buildFromHistory(sessionId);
+  ui.setRightPanelMode('graph');
+}
 
 // ── Dialog visibility ──────────────────────────────────────────────────
 const showSettings = ref(false);
@@ -114,6 +149,14 @@ async function onAgentSelected(sessionId: string) {
   fleetStore.selectAgent(sessionId);
   effectsPanelRef.value?.setCurrentSession(sessionId);
   diffEngine.setCurrentSessionId(sessionId);
+
+  // Show graph replay for completed orchestrator sessions, or live graph for active sessions
+  const sessionInfo = sessionsStore.sessions.get(sessionId);
+  if (sessionInfo?.mode === 'orchestrator' && sessionInfo.delegationStatus === DelegationStatus.Completed) {
+    showGraphForSession(sessionId);
+  } else if (ui.rightPanelMode === 'graph') {
+    ensureLiveGraph(sessionId);
+  }
 
   const db = getDatabase();
 
@@ -174,6 +217,12 @@ function onNewChat() {
   const sessionId = chatPanelRef.value?.newChat() ?? '';
   if (sessionId) {
     fleetStore.selectAgent(sessionId);
+    effectsPanelRef.value?.setCurrentSession(sessionId);
+    diffEngine.setCurrentSessionId(sessionId);
+    // Restart live graph for the new session if graph is active
+    if (ui.rightPanelMode === 'graph') {
+      ensureLiveGraph(sessionId);
+    }
   }
 }
 
@@ -182,13 +231,9 @@ function onDeleteAgent(sessionId: string) {
   fleetStore.rebuildFromSessions();
 }
 
-function onRenameAgent(sessionId: string) {
-  const current = sessionsStore.sessions.get(sessionId);
-  const newTitle = prompt('Rename agent:', current?.title ?? '');
-  if (newTitle !== null && newTitle.trim()) {
-    sessionsStore.updateSessionTitle(sessionId, newTitle.trim());
-    fleetStore.rebuildFromSessions();
-  }
+function onRenameAgent(sessionId: string, newTitle: string) {
+  sessionsStore.updateSessionTitle(sessionId, newTitle);
+  fleetStore.rebuildFromSessions();
 }
 
 function onFavoriteToggled(sessionId: string) {
@@ -295,21 +340,63 @@ function onFileEdited(sessionId: string, filePath: string, toolName: string, too
     sessionId,
     turnId,
   });
+
+  // Emit to engineBus so graph builder picks up file changes
+  engineBus.emit('diff:fileChanged', {
+    sessionId,
+    filePath,
+    diff: { linesAdded, linesRemoved, hunks: [] },
+  });
 }
 
 function onTurnClicked(turnId: number) {
   console.log('Turn clicked:', turnId);
 }
 
+// ── Mission Control handlers ─────────────────────────────────────────────
+
+async function onEnterMissionControl() {
+  await missionControl.enter();
+}
+
+function onExitMissionControl() {
+  missionControl.exit();
+}
+
+async function onMissionControlFilter(sessionId: string | null) {
+  await missionControl.filterBySession(sessionId);
+}
+
+// ── Graph auto-start: start live graph when switching to Graph tab ────────
+
+watch(() => ui.rightPanelMode, (mode) => {
+  if (mode === 'graph' && !graphCleanup) {
+    // Find the current session and start a live graph
+    const currentSessionId = fleetStore.selectedAgentId
+      || (sessionsStore.sessionList[0]?.sessionId);
+    if (currentSessionId) {
+      ensureLiveGraph(currentSessionId);
+    }
+  }
+});
+
 // ── Workspace path changes: reload sessions + git ───────────────────────
 
 watch(() => ui.workspacePath, async (newPath, oldPath) => {
   if (newPath && newPath !== oldPath) {
+    // Ensure database is open before querying
+    const db = getDatabase();
+    await db.open();
+
     // Clear current sessions and reload for new workspace
     sessionsStore.sessions.clear();
     sessionsStore.messages.clear();
     await sessionsStore.loadFromDatabase(newPath);
     fleetStore.rebuildFromSessions();
+
+    // Wait for DOM update so ChatPanel is mounted before loading messages
+    await nextTick();
+
     // Auto-select most recent session
     if (sessionsStore.sessions.size > 0) {
       const mostRecent = sessionsStore.sessionList[0];
@@ -331,8 +418,16 @@ function onOrchestrate() {
 
 function onOrchestratorStart(goal: string) {
   showOrchestratorDialog.value = false;
+  ui.setRightPanelMode('graph');
   orchestrator.setChatPanel({
-    newChat: (workspace: string) => chatPanelRef.value?.newChat(workspace) ?? '',
+    newChat: (workspace: string) => {
+      const sid = chatPanelRef.value?.newChat(workspace) ?? '';
+      if (sid) {
+        if (graphCleanup) graphCleanup();
+        graphCleanup = startLiveGraph(sid);
+      }
+      return sid;
+    },
     configureSession: (sid: string, mode: string, _profileIds: string[]) => {
       // Update the session's mode in the store
       const session = sessionsStore.sessions.get(sid);
@@ -437,6 +532,9 @@ function onOrchestratorStart(goal: string) {
  * and manage child sessions.
  */
 async function onOrchestrateStarted(sessionId: string) {
+  ui.setRightPanelMode('graph');
+  if (graphCleanup) graphCleanup();
+  graphCleanup = startLiveGraph(sessionId);
   orchestrator.setChatPanel({
     newChat: (workspace: string) => chatPanelRef.value?.newChat(workspace) ?? '',
     configureSession: (sid: string, mode: string, _profileIds: string[]) => {
@@ -565,14 +663,22 @@ async function onOrchestrateStarted(sessionId: string) {
   });
 }
 
-// Clean up interceptors when orchestration ends
+// Clean up interceptors and graph subscriptions when orchestration ends
 orchestrator.on('completed', () => {
   setMcpToolInterceptor(null);
   setSessionFinishedInterceptor(null);
+  if (graphCleanup) {
+    graphCleanup();
+    graphCleanup = null;
+  }
 });
 orchestrator.on('failed', () => {
   setMcpToolInterceptor(null);
   setSessionFinishedInterceptor(null);
+  if (graphCleanup) {
+    graphCleanup();
+    graphCleanup = null;
+  }
 });
 
 // ── Global keyboard event: Cmd+N new chat ───────────────────────────────
@@ -593,10 +699,24 @@ function onGlobalOpenProfileEditor() {
   showProfileEditor.value = true;
 }
 
+function onGitFileDiffReady({ filePath, staged, diff }: { filePath: string; staged: boolean; diff: GitUnifiedDiff }) {
+  if (diff.isBinary) return;
+  const rightLabel = staged ? 'Staged' : 'Working Tree';
+  ui.showDiffView(filePath, diff.oldContent, diff.newContent, 'HEAD', rightLabel);
+  // Ensure code pane is visible in editor mode
+  if (ui.viewMode === 'editor') {
+    // diff will show in Panel 2 via MainSplitter
+  } else {
+    // In manager mode, show as inline preview
+    ui.inlinePreviewFile = filePath;
+  }
+}
+
 onMounted(async () => {
   window.addEventListener('angy:new-chat', onGlobalNewChat);
   window.addEventListener('angy:open-settings', onGlobalOpenSettings);
   window.addEventListener('angy:open-profile-editor', onGlobalOpenProfileEditor);
+  gitStore.manager.on('fileDiffReady', onGitFileDiffReady);
   themeStore.loadSavedTheme();
 
   // Initialize database and load saved sessions
@@ -623,5 +743,11 @@ onUnmounted(() => {
   window.removeEventListener('angy:new-chat', onGlobalNewChat);
   window.removeEventListener('angy:open-settings', onGlobalOpenSettings);
   window.removeEventListener('angy:open-profile-editor', onGlobalOpenProfileEditor);
+  gitStore.manager.off('fileDiffReady', onGitFileDiffReady);
+  if (graphCleanup) {
+    graphCleanup();
+    graphCleanup = null;
+  }
+  missionControl.dispose();
 });
 </script>

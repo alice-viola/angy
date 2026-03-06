@@ -55,8 +55,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import type { FileChange } from '../../engine/types';
+import { useSessionsStore } from '../../stores/sessions';
 import FileChangeItem from './FileChangeItem.vue';
 import TurnDivider from './TurnDivider.vue';
 
@@ -69,10 +70,16 @@ defineEmits<{
 
 // ── State ────────────────────────────────────────────────────────────────
 
+const sessionsStore = useSessionsStore();
 const scope = ref<'Session' | 'All'>('Session');
 const rootPath = ref('');
 const currentSessionId = ref('');
 const highlightedTurn = ref(-1);
+
+// Keep currentSessionId in sync with the sessions store
+watch(() => sessionsStore.activeSessionId, (newId) => {
+  if (newId) currentSessionId.value = newId;
+}, { immediate: true });
 
 // sessionId -> turnId -> filePath -> FileChange
 const sessionChanges = ref(new Map<string, Map<number, Map<string, FileChange>>>());

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
-export type ViewMode = 'manager' | 'editor';
+export type ViewMode = 'manager' | 'editor' | 'mission-control';
 
 export const useUiStore = defineStore('ui', () => {
   const viewMode = ref<ViewMode>('manager');
@@ -15,6 +15,17 @@ export const useUiStore = defineStore('ui', () => {
   const inlinePreviewFile = ref<string | null>(null);
   const effectsPanelVisible = ref(true);
   const editorChatVisible = ref(true);
+  const rightPanelMode = ref<'effects' | 'graph'>('effects');
+  const missionControlFilter = ref<string | null>(null);
+
+  // Diff view state (git diff shown in Monaco DiffSplitView)
+  const diffView = ref<{
+    filePath: string;
+    oldContent: string;
+    newContent: string;
+    leftLabel: string;
+    rightLabel: string;
+  } | null>(null);
 
   // Splitter sizes for each mode (pixel hints, splitpanes uses percentages)
   const managerSizes = ref([220, 0, 0, -1, 300]);
@@ -44,12 +55,44 @@ export const useUiStore = defineStore('ui', () => {
     editorChatVisible.value = !editorChatVisible.value;
   }
 
+  function toggleRightPanelMode() {
+    rightPanelMode.value = rightPanelMode.value === 'effects' ? 'graph' : 'effects';
+  }
+
+  function setRightPanelMode(mode: 'effects' | 'graph') {
+    rightPanelMode.value = mode;
+  }
+
+  function enterMissionControl() {
+    viewMode.value = 'mission-control';
+  }
+
+  function exitMissionControl() {
+    viewMode.value = 'manager';
+    missionControlFilter.value = null;
+  }
+
+  function setMissionControlFilter(sessionId: string | null) {
+    missionControlFilter.value = sessionId;
+  }
+
+  function showDiffView(filePath: string, oldContent: string, newContent: string, leftLabel: string, rightLabel: string) {
+    diffView.value = { filePath, oldContent, newContent, leftLabel, rightLabel };
+  }
+
+  function closeDiffView() {
+    diffView.value = null;
+  }
+
   return {
     viewMode, terminalVisible, activeLeftTab,
     workspacePath, currentFile, currentBranch, currentModel, isProcessing,
-    inlinePreviewFile, effectsPanelVisible, editorChatVisible,
+    inlinePreviewFile, effectsPanelVisible, editorChatVisible, rightPanelMode, diffView,
+    missionControlFilter,
     managerSizes, editorSizes,
     switchToMode, toggleViewMode, toggleTerminal, dismissInlinePreview,
-    toggleEffectsPanel, toggleEditorChat,
+    toggleEffectsPanel, toggleEditorChat, toggleRightPanelMode, setRightPanelMode,
+    showDiffView, closeDiffView,
+    enterMissionControl, exitMissionControl, setMissionControlFilter,
   };
 });
