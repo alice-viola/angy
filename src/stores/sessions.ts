@@ -119,6 +119,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     const mgr = getSessionManager();
     mgr.setSessionFavorite(sessionId, newFav);
     info.favorite = newFav;
+    persistSession(sessionId);
   }
 
   function addMessage(sessionId: string, message: MessageRecord) {
