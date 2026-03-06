@@ -123,11 +123,12 @@ const settings = reactive({
   defaultWorkspace: '',
 });
 
-const themeVariants: ThemeVariant[] = ['mocha', 'macchiato', 'frappe', 'latte', 'cursor'];
+const themeVariants: ThemeVariant[] = ['mocha', 'mocha-classic', 'macchiato', 'frappe', 'latte', 'cursor'];
 
 function themePreview(variant: string) {
   const previews: Record<string, string> = {
     mocha: '#cba6f7',
+    'mocha-classic': '#cba6f7',
     macchiato: '#c6a0f6',
     frappe: '#ca9ee6',
     latte: '#8839ef',

@@ -33,7 +33,7 @@ export interface ThemeTokens {
   accentPeach: string;
 }
 
-export type ThemeVariant = "mocha" | "macchiato" | "frappe" | "latte" | "cursor";
+export type ThemeVariant = "mocha" | "mocha-classic" | "macchiato" | "frappe" | "latte" | "cursor";
 
 export const themes: Record<ThemeVariant, ThemeTokens> = {
   mocha: {
@@ -43,6 +43,27 @@ export const themes: Record<ThemeVariant, ThemeTokens> = {
     bgRaised: "#252525",
     borderSubtle: "#1e1e1e",
     borderStandard: "#2a2a2a",
+    textPrimary: "#cdd6f4",
+    textSecondary: "#a6adc8",
+    textMuted: "#6c7086",
+    textFaint: "#45475a",
+    accentMauve: "#cba6f7",
+    accentBlue: "#89b4fa",
+    accentGreen: "#a6e3a1",
+    accentRed: "#f38ba8",
+    accentYellow: "#f9e2af",
+    accentTeal: "#94e2d5",
+    accentPeach: "#fab387",
+  },
+
+  "mocha-classic": {
+    // Standard Catppuccin Mocha palette (official colors, no custom darks)
+    bgBase: "#11111b",      // Crust
+    bgSurface: "#181825",   // Mantle
+    bgWindow: "#1e1e2e",    // Base
+    bgRaised: "#313244",    // Surface0
+    borderSubtle: "#313244", // Surface0
+    borderStandard: "#45475a", // Surface1
     textPrimary: "#cdd6f4",
     textSecondary: "#a6adc8",
     textMuted: "#6c7086",
