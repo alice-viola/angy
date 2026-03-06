@@ -41,12 +41,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick, shallowRef, markRaw } from 'vue';
+import { ref, onMounted, onBeforeUnmount, onUnmounted, nextTick, shallowRef, markRaw } from 'vue';
 import * as monaco from 'monaco-editor';
 import type { FileDiff } from '../../engine/types';
 import BreadcrumbBar from './BreadcrumbBar.vue';
 import InlineEditBar from './InlineEditBar.vue';
 import { getMonacoTheme, detectLanguage } from './monacoSetup';
+import { useEditorStore } from '../../stores/editor';
 
 // ── Emits ─────────────────────────────────────────────────────────────────
 
@@ -79,7 +80,10 @@ const selectionEnd = ref(0);
 const editorContainer = ref<HTMLDivElement | null>(null);
 const inlineEditBar = ref<InstanceType<typeof InlineEditBar> | null>(null);
 
+const editorStore = useEditorStore();
+
 let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+let mounted = true;
 const diffDecorationIds = shallowRef<string[]>([]);
 
 // Streaming edit state
@@ -88,8 +92,49 @@ let streamingStartLine = 0;
 
 // ── Monaco Setup ──────────────────────────────────────────────────────────
 
-onMounted(() => {
+onMounted(async () => {
   monaco.editor.defineTheme('angy-dark', getMonacoTheme());
+
+  // Restore tabs from previous session if any were saved
+  if (editorStore.savedTabs.length > 0) {
+    for (const saved of editorStore.savedTabs) {
+      if (!mounted) return;
+      await loadFile(saved.filePath);
+
+      // Restore dirty content and cursor/scroll positions
+      const tab = findTab(saved.filePath);
+      if (tab) {
+        if (saved.dirty && saved.content && tab.model) {
+          tab.model.setValue(saved.content);
+          tab.dirty = true;
+        }
+        if (editor) {
+          editor.setPosition({ lineNumber: saved.cursorLine, column: saved.cursorColumn });
+          editor.setScrollPosition({ scrollTop: saved.scrollTop, scrollLeft: saved.scrollLeft });
+        }
+      }
+    }
+    if (!mounted) return;
+    if (editorStore.savedActiveFile) {
+      selectTab(editorStore.savedActiveFile);
+    }
+    editorStore.clearTabs();
+  }
+});
+
+onBeforeUnmount(() => {
+  mounted = false;
+  saveViewState();
+  const serializedTabs = tabs.value.map(tab => ({
+    filePath: tab.filePath,
+    dirty: tab.dirty,
+    cursorLine: tab.viewState?.cursorState?.[0]?.position?.lineNumber ?? 1,
+    cursorColumn: tab.viewState?.cursorState?.[0]?.position?.column ?? 1,
+    scrollTop: tab.viewState?.viewState?.scrollTop ?? 0,
+    scrollLeft: tab.viewState?.viewState?.scrollLeft ?? 0,
+    ...(tab.dirty && tab.model ? { content: tab.model.getValue() } : {}),
+  }));
+  editorStore.saveTabs(serializedTabs, activeFile.value);
 });
 
 onUnmounted(() => {

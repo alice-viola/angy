@@ -33,9 +33,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { readDir } from '@tauri-apps/plugin-fs';
 import type { GitFileEntry } from '../../engine/GitManager';
+import { useEditorStore } from '../../stores/editor';
 
 export interface FileNode {
   name: string;
@@ -54,7 +55,9 @@ const emit = defineEmits<{
   'file-selected': [filePath: string];
 }>();
 
-const expanded = ref(false);
+const editorStore = useEditorStore();
+
+const expanded = ref(props.node.isDir && editorStore.isExpanded(props.node.path));
 const children = ref<FileNode[]>([]);
 
 // Git status for this file
@@ -112,8 +115,13 @@ const SKIP_DIRS = new Set(['node_modules', 'target', 'build', 'dist', '.git', '_
 async function onClick() {
   if (props.node.isDir) {
     expanded.value = !expanded.value;
-    if (expanded.value && children.value.length === 0) {
-      await loadChildren();
+    if (expanded.value) {
+      editorStore.saveExpandedDir(props.node.path);
+      if (children.value.length === 0) {
+        await loadChildren();
+      }
+    } else {
+      editorStore.removeExpandedDir(props.node.path);
     }
   }
 }
@@ -123,6 +131,12 @@ function onDblClick() {
     emit('file-selected', props.node.path);
   }
 }
+
+onMounted(async () => {
+  if (expanded.value && props.node.isDir && children.value.length === 0) {
+    await loadChildren();
+  }
+});
 
 async function loadChildren() {
   try {

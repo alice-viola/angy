@@ -149,6 +149,7 @@
               :is-live="graphStore.isLive"
               :min-turn="graphStore.minTurn"
               :max-turn="graphStore.maxTurn"
+              :vertical="true"
               @agent-selected="(nodeId: string) => emit('agent-selected', nodeId.startsWith('agent:') ? nodeId.slice(6) : nodeId)"
               @file-clicked="(path: string) => emit('file-clicked', path)"
               @turn-clicked="(turn: number) => emit('turn-clicked', turn)"

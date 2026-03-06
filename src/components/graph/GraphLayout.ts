@@ -60,10 +60,16 @@ export class GraphLayout {
     // 1. Coulomb repulsion between ALL node pairs
     for (let i = 0; i < nodes.length; i++) {
       for (let j = i + 1; j < nodes.length; j++) {
-        const dx = nodes[j].x - nodes[i].x;
-        const dy = nodes[j].y - nodes[i].y;
-        const distSq = dx * dx + dy * dy;
-        const dist = Math.sqrt(distSq) || 1;
+        let dx = nodes[j].x - nodes[i].x;
+        let dy = nodes[j].y - nodes[i].y;
+        let distSq = dx * dx + dy * dy;
+        if (distSq < 0.01) {
+          const jx = (Math.random() - 0.5) * 0.1;
+          const jy = (Math.random() - 0.5) * 0.1;
+          dx += jx; dy += jy;
+          distSq = dx * dx + dy * dy || 0.01;
+        }
+        const dist = Math.sqrt(distSq);
         const force = this.repulsionForce / distSq;
         const forceX = (dx / dist) * force;
         const forceY = (dy / dist) * force;
@@ -197,5 +203,153 @@ export class GraphLayout {
     }
     node.vx = 0;
     node.vy = 0;
+  }
+
+  /** Static timeline layout: X = time order, Y = hierarchy depth. */
+  timelineLayout(nodes: GraphNode[], _edges: GraphEdge[]): void {
+    if (nodes.length === 0) return;
+
+    const padding = this.boundaryPadding;
+    const usableW = this.viewWidth - padding * 2;
+    const usableH = this.viewHeight - padding * 2;
+
+    // Build parent→children adjacency from parentNodeId
+    const childrenOf = new Map<string, GraphNode[]>();
+    const roots: GraphNode[] = [];
+    for (const n of nodes) {
+      if (n.parentNodeId) {
+        const list = childrenOf.get(n.parentNodeId) ?? [];
+        list.push(n);
+        childrenOf.set(n.parentNodeId, list);
+      } else if (n.type === 'agent') {
+        roots.push(n);
+      }
+    }
+
+    // Compute depth (Y layer) via BFS from roots
+    const depthOf = new Map<string, number>();
+    const queue: GraphNode[] = [...roots];
+    for (const r of roots) depthOf.set(r.id, 0);
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      const d = depthOf.get(node.id) ?? 0;
+      for (const child of (childrenOf.get(node.id) ?? [])) {
+        if (!depthOf.has(child.id)) {
+          depthOf.set(child.id, d + 1);
+          queue.push(child);
+        }
+      }
+    }
+    // Assign unparented nodes to depth 0
+    for (const n of nodes) {
+      if (!depthOf.has(n.id)) depthOf.set(n.id, 0);
+    }
+
+    // Sort nodes by turnId/timestamp for X ordering
+    const sorted = [...nodes].sort((a, b) => {
+      const ta = a.timestamp ?? a.turnId ?? 0;
+      const tb = b.timestamp ?? b.turnId ?? 0;
+      return ta - tb;
+    });
+
+    // Group by depth layer for Y spacing
+    const maxDepth = Math.max(0, ...depthOf.values());
+    const yStep = maxDepth > 0 ? usableH / (maxDepth + 1) : usableH / 2;
+
+    // Within each depth layer, spread nodes evenly by time order
+    const layerCounters = new Map<number, number>();
+    const layerTotals = new Map<number, number>();
+    for (const n of sorted) {
+      const d = depthOf.get(n.id) ?? 0;
+      layerTotals.set(d, (layerTotals.get(d) ?? 0) + 1);
+    }
+
+    for (const n of sorted) {
+      const d = depthOf.get(n.id) ?? 0;
+      const idx = layerCounters.get(d) ?? 0;
+      layerCounters.set(d, idx + 1);
+      const total = layerTotals.get(d) ?? 1;
+      const xStep = usableW / Math.max(total, 1);
+
+      n.x = padding + xStep * (idx + 0.5);
+      n.y = padding + yStep * (d + 0.5);
+      n.vx = 0;
+      n.vy = 0;
+      n.pinned = true;
+    }
+  }
+
+  /** Vertical timeline layout: Y = time order, X = hierarchy depth. Ideal for narrow sidebar panels. */
+  verticalTimelineLayout(nodes: GraphNode[], _edges: GraphEdge[]): void {
+    if (nodes.length === 0) return;
+
+    const padding = this.boundaryPadding;
+    const usableW = this.viewWidth - padding * 2;
+    const usableH = this.viewHeight - padding * 2;
+
+    // Build parent→children adjacency from parentNodeId
+    const childrenOf = new Map<string, GraphNode[]>();
+    const roots: GraphNode[] = [];
+    for (const n of nodes) {
+      if (n.parentNodeId) {
+        const list = childrenOf.get(n.parentNodeId) ?? [];
+        list.push(n);
+        childrenOf.set(n.parentNodeId, list);
+      } else if (n.type === 'agent') {
+        roots.push(n);
+      }
+    }
+
+    // Compute depth (X layer) via BFS from roots
+    const depthOf = new Map<string, number>();
+    const queue: GraphNode[] = [...roots];
+    for (const r of roots) depthOf.set(r.id, 0);
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      const d = depthOf.get(node.id) ?? 0;
+      for (const child of (childrenOf.get(node.id) ?? [])) {
+        if (!depthOf.has(child.id)) {
+          depthOf.set(child.id, d + 1);
+          queue.push(child);
+        }
+      }
+    }
+    // Assign unparented nodes to depth 0
+    for (const n of nodes) {
+      if (!depthOf.has(n.id)) depthOf.set(n.id, 0);
+    }
+
+    // Sort nodes by turnId/timestamp for Y ordering (vertical = time axis)
+    const sorted = [...nodes].sort((a, b) => {
+      const ta = a.timestamp ?? a.turnId ?? 0;
+      const tb = b.timestamp ?? b.turnId ?? 0;
+      return ta - tb;
+    });
+
+    // Group by depth layer for X spacing
+    const maxDepth = Math.max(0, ...depthOf.values());
+    const xStep = maxDepth > 0 ? usableW / (maxDepth + 1) : usableW / 2;
+
+    // Within each depth layer, spread nodes evenly by time order (vertically)
+    const layerCounters = new Map<number, number>();
+    const layerTotals = new Map<number, number>();
+    for (const n of sorted) {
+      const d = depthOf.get(n.id) ?? 0;
+      layerTotals.set(d, (layerTotals.get(d) ?? 0) + 1);
+    }
+
+    for (const n of sorted) {
+      const d = depthOf.get(n.id) ?? 0;
+      const idx = layerCounters.get(d) ?? 0;
+      layerCounters.set(d, idx + 1);
+      const total = layerTotals.get(d) ?? 1;
+      const yStep = usableH / Math.max(total, 1);
+
+      n.x = padding + xStep * (d + 0.5);
+      n.y = padding + yStep * (idx + 0.5);
+      n.vx = 0;
+      n.vy = 0;
+      n.pinned = true;
+    }
   }
 }

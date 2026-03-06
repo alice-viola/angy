@@ -144,6 +144,9 @@
         <button class="w-full text-left px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]" @click="$emit('favorite-toggle', agent.sessionId)">
           {{ agent.favorite ? 'Unfavorite' : 'Favorite' }}
         </button>
+        <button class="w-full text-left px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]" @click="copySessionId()">
+          Copy Session ID
+        </button>
         <div class="h-px bg-[var(--border-subtle)] my-1" />
         <button class="w-full text-left px-3 py-1.5 text-xs text-[var(--accent-red)] hover:bg-[var(--bg-surface)]" @click="$emit('delete', agent.sessionId)">
           Delete
@@ -292,6 +295,10 @@ function commitRename() {
 
 function cancelRename() {
   isEditing.value = false;
+}
+
+function copySessionId() {
+  navigator.clipboard.writeText(props.agent.sessionId);
 }
 
 // ── Context menu ─────────────────────────────────────────────────────────

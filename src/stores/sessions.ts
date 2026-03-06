@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import { type SessionInfo, type MessageRecord } from '../engine/types';
 import { SessionManager } from '../engine/SessionManager';
 import { Database } from '../engine/Database';
+import { engineBus } from '../engine/EventBus';
 
 // ── Singleton engines (initialized once, shared across stores) ──────────
 
@@ -74,6 +75,7 @@ export const useSessionsStore = defineStore('sessions', () => {
       sessions.value.set(childId, info);
       messages.value.set(childId, []);
     }
+    engineBus.emit('session:created', { sessionId: childId, parentSessionId: parentId });
     return childId;
   }
 
@@ -192,6 +194,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     if (!messages.value.has(info.sessionId)) {
       messages.value.set(info.sessionId, []);
     }
+    engineBus.emit('session:created', { sessionId: info.sessionId, parentSessionId: info.parentSessionId });
   }
 
   // Load sessions from database on startup

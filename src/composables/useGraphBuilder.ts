@@ -5,6 +5,16 @@ import type { GraphNode, GraphEdge } from '../components/graph/GraphTypes';
 import { DelegationStatus } from '../engine/types';
 import type { AgentStatus, SessionInfo } from '../engine/types';
 
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+/** Random initial position near center to prevent force-layout division-by-zero. */
+function randomPos(): { x: number; y: number } {
+  return {
+    x: 400 + Math.random() * 200 - 100,
+    y: 300 + Math.random() * 200 - 100,
+  };
+}
+
 // ── useGraphBuilder ──────────────────────────────────────────────────────
 //
 // Builds the agent graph from database history (replay mode)
@@ -61,8 +71,7 @@ export function useGraphBuilder() {
         id: `agent:${session.sessionId}`,
         type: 'agent',
         label: session.title || session.mode || 'agent',
-        x: 0,
-        y: 0,
+        ...randomPos(),
         vx: 0,
         vy: 0,
         pinned: false,
@@ -71,6 +80,8 @@ export function useGraphBuilder() {
           : session.delegationStatus === DelegationStatus.Failed ? 'error'
           : session.delegationStatus === DelegationStatus.Running ? 'working'
           : 'idle',
+        delegationTask: session.delegationTask,
+        delegationResult: session.delegationResult,
         turnId: 0,
         timestamp: session.createdAt,
         parentNodeId: session.parentSessionId
@@ -124,8 +135,7 @@ export function useGraphBuilder() {
             id: toolNodeId,
             type: 'tool',
             label: msg.toolName,
-            x: 0,
-            y: 0,
+            ...randomPos(),
             vx: 0,
             vy: 0,
             pinned: false,
@@ -160,8 +170,7 @@ export function useGraphBuilder() {
                   id: fileNodeId,
                   type: 'file',
                   label: filePath.split('/').pop() || filePath,
-                  x: 0,
-                  y: 0,
+                  ...randomPos(),
                   vx: 0,
                   vy: 0,
                   pinned: false,
@@ -207,8 +216,7 @@ export function useGraphBuilder() {
             id: newFileNodeId,
             type: 'file',
             label: fc.filePath.split('/').pop() || fc.filePath,
-            x: 0,
-            y: 0,
+            ...randomPos(),
             vx: 0,
             vy: 0,
             pinned: false,
@@ -234,14 +242,15 @@ export function useGraphBuilder() {
   function startLiveGraph(rootSessionId: string): () => void {
     graphStore.isLive = true;
 
-    // Ensure root agent node exists
+    // Ensure root agent node exists (skip if buildFromHistory already created it)
     if (!graphStore.nodes.has(`agent:${rootSessionId}`)) {
+      const sessionsStore = useSessionsStore();
+      const sessionInfo = sessionsStore.sessions.get(rootSessionId);
       graphStore.addNode({
         id: `agent:${rootSessionId}`,
         type: 'agent',
-        label: 'root',
-        x: 0,
-        y: 0,
+        label: sessionInfo?.title || sessionInfo?.mode || 'agent',
+        ...randomPos(),
         vx: 0,
         vy: 0,
         pinned: false,
@@ -292,8 +301,7 @@ export function useGraphBuilder() {
         id: toolNodeId,
         type: 'tool',
         label: toolName,
-        x: 0,
-        y: 0,
+        ...randomPos(),
         vx: 0,
         vy: 0,
         pinned: false,
@@ -321,8 +329,7 @@ export function useGraphBuilder() {
           id: fileNodeId,
           type: 'file',
           label: e.filePath.split('/').pop() || e.filePath,
-          x: 0,
-          y: 0,
+          ...randomPos(),
           vx: 0,
           vy: 0,
           pinned: false,
@@ -364,8 +371,7 @@ export function useGraphBuilder() {
         id: childNodeId,
         type: 'agent',
         label: `${e.role}: ${e.task.substring(0, 40)}`,
-        x: 0,
-        y: 0,
+        ...randomPos(),
         vx: 0,
         vy: 0,
         pinned: false,
@@ -437,8 +443,7 @@ export function useGraphBuilder() {
           type: 'milestone',
           label: e.exitCode === 0 ? 'done' : 'failed',
           status: e.exitCode === 0 ? 'done' : 'error',
-          x: 0,
-          y: 0,
+          ...randomPos(),
           vx: 0,
           vy: 0,
           pinned: false,
@@ -458,8 +463,7 @@ export function useGraphBuilder() {
         id: checkpointNodeId,
         type: 'checkpoint',
         label: e.message || e.hash.slice(0, 7),
-        x: 0,
-        y: 0,
+        ...randomPos(),
         vx: 0,
         vy: 0,
         pinned: false,
@@ -560,8 +564,7 @@ export function useGraphBuilder() {
           id: `agent:${session.sessionId}`,
           type: 'agent',
           label: session.title || session.mode || 'agent',
-          x: 0,
-          y: 0,
+          ...randomPos(),
           vx: 0,
           vy: 0,
           pinned: false,
@@ -570,6 +573,8 @@ export function useGraphBuilder() {
             : session.delegationStatus === DelegationStatus.Failed ? 'error'
             : session.delegationStatus === DelegationStatus.Running ? 'working'
             : 'idle',
+          delegationTask: session.delegationTask,
+          delegationResult: session.delegationResult,
           turnId: 0,
           timestamp: session.createdAt,
           parentNodeId: session.parentSessionId
@@ -618,8 +623,7 @@ export function useGraphBuilder() {
               id: toolNodeId,
               type: 'tool',
               label: msg.toolName,
-              x: 0,
-              y: 0,
+              ...randomPos(),
               vx: 0,
               vy: 0,
               pinned: false,
@@ -653,8 +657,7 @@ export function useGraphBuilder() {
                     id: fileNodeId,
                     type: 'file',
                     label: filePath.split('/').pop() || filePath,
-                    x: 0,
-                    y: 0,
+                    ...randomPos(),
                     vx: 0,
                     vy: 0,
                     pinned: false,
@@ -698,8 +701,7 @@ export function useGraphBuilder() {
               id: newFileNodeId,
               type: 'file',
               label: fc.filePath.split('/').pop() || fc.filePath,
-              x: 0,
-              y: 0,
+              ...randomPos(),
               vx: 0,
               vy: 0,
               pinned: false,
@@ -762,8 +764,7 @@ export function useGraphBuilder() {
         id: toolNodeId,
         type: 'tool',
         label: toolName,
-        x: 0,
-        y: 0,
+        ...randomPos(),
         vx: 0,
         vy: 0,
         pinned: false,
@@ -791,8 +792,7 @@ export function useGraphBuilder() {
           id: fileNodeId,
           type: 'file',
           label: e.filePath.split('/').pop() || e.filePath,
-          x: 0,
-          y: 0,
+          ...randomPos(),
           vx: 0,
           vy: 0,
           pinned: false,
@@ -841,8 +841,7 @@ export function useGraphBuilder() {
         id: childNodeId,
         type: 'agent',
         label: `${e.role}: ${e.task.substring(0, 40)}`,
-        x: 0,
-        y: 0,
+        ...randomPos(),
         vx: 0,
         vy: 0,
         pinned: false,
@@ -917,8 +916,7 @@ export function useGraphBuilder() {
           id: realNodeId,
           type: 'agent',
           label: 'agent',
-          x: 0,
-          y: 0,
+          ...randomPos(),
           vx: 0,
           vy: 0,
           pinned: false,
@@ -960,8 +958,7 @@ export function useGraphBuilder() {
           type: 'milestone',
           label: e.exitCode === 0 ? 'done' : 'failed',
           status: e.exitCode === 0 ? 'done' : 'error',
-          x: 0,
-          y: 0,
+          ...randomPos(),
           vx: 0,
           vy: 0,
           pinned: false,
@@ -999,8 +996,7 @@ export function useGraphBuilder() {
         id: checkpointNodeId,
         type: 'checkpoint',
         label: e.message || e.hash.slice(0, 7),
-        x: 0,
-        y: 0,
+        ...randomPos(),
         vx: 0,
         vy: 0,
         pinned: false,

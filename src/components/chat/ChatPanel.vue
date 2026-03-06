@@ -65,6 +65,7 @@
       :workspacePath="ui.workspacePath"
       @send="onSend"
       @stop="onStop"
+      @slash-command="onSlashCommand"
     >
       <template #footer-left>
         <ModeSelector v-model="currentMode" />
@@ -505,7 +506,70 @@ function onSend(text: string, _contexts?: AttachedContext[], _images?: AttachedI
     systemPrompt: isOrchestrate ? ORCHESTRATOR_SYSTEM_PROMPT : undefined,
     resumeSessionId: state.realClaudeSessionId || undefined,
     images: imagePayload,
+    autoCommit: isOrchestrate ? ui.autoCommitEnabled : undefined,
   });
+}
+
+async function onSlashCommand(command: string) {
+  const sid = activeSessionId.value;
+  if (!sid) return;
+
+  if (command === 'export') {
+    await exportChat(sid);
+  } else if (command === 'clear') {
+    clearChat(sid);
+  }
+}
+
+async function exportChat(sessionId: string) {
+  const state = sessionStates.value.get(sessionId);
+  const sessionInfo = sessionsStore.sessions.get(sessionId);
+  if (!state || !sessionInfo) return;
+
+  const exportData = {
+    session: {
+      sessionId: sessionInfo.sessionId,
+      title: sessionInfo.title,
+      workspace: sessionInfo.workspace,
+      mode: sessionInfo.mode,
+      createdAt: sessionInfo.createdAt,
+      updatedAt: sessionInfo.updatedAt,
+    },
+    messages: state.messages.map(msg => ({
+      role: msg.role,
+      content: msg.content,
+      turnId: msg.turnId,
+      toolName: msg.toolName ?? undefined,
+      timestamp: msg.timestamp,
+    })),
+  };
+
+  const { save } = await import('@tauri-apps/plugin-dialog');
+  const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+
+  const safeName = (sessionInfo.title || 'chat').replace(/[^a-z0-9_-]/gi, '_').substring(0, 40);
+  const path = await save({
+    defaultPath: `${safeName}.json`,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+
+  if (path) {
+    await writeTextFile(path, JSON.stringify(exportData, null, 2));
+  }
+}
+
+function clearChat(sessionId: string) {
+  const state = sessionStates.value.get(sessionId);
+  if (!state) return;
+  state.messages = [];
+  state.turnCounter = 0;
+  state.lastPersistedTurnId = 0;
+  state.currentAssistantMsgId = null;
+  state.isProcessing = false;
+  state.isThinking = false;
+  state.realClaudeSessionId = null;
+  state.pendingThinkingContent = '';
+  state.thinkingStartTime = 0;
 }
 
 function onStop() {

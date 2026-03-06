@@ -28,9 +28,9 @@
       @wheel.prevent="onWheel"
     />
 
-    <!-- Timeline scrubber for replay mode -->
+    <!-- Timeline scrubber (always visible) -->
     <div
-      v-if="!isLive"
+      v-if="(maxTurn ?? 0) > 0"
       class="absolute bottom-3 left-4 right-4 z-10 flex items-center gap-3 px-3 py-1.5 rounded bg-[var(--bg-raised)] border border-[var(--border-subtle)]"
     >
       <input
@@ -44,6 +44,13 @@
         Turn {{ currentTurn }} / {{ maxTurn }}
       </span>
     </div>
+
+    <!-- Node detail panel -->
+    <NodeDetailPanel
+      v-if="selectedNodeDetail"
+      :node="selectedNodeDetail"
+      @close="selectedNodeDetail = null"
+    />
 
     <!-- Tooltip overlay -->
     <div
@@ -63,6 +70,7 @@ import type { GraphNode, GraphEdge } from './GraphTypes';
 import { GraphLayout } from './GraphLayout';
 import { GraphRenderer } from './GraphRenderer';
 import { useGraphStore } from '../../stores/graph';
+import NodeDetailPanel from './NodeDetailPanel.vue';
 
 // ── Props & Emits ────────────────────────────────────────────────────────
 
@@ -72,6 +80,7 @@ const props = defineProps<{
   isLive?: boolean;
   minTurn?: number;
   maxTurn?: number;
+  vertical?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -92,13 +101,12 @@ const canvasRef = ref<HTMLCanvasElement | null>(null);
 
 const currentTurn = ref(graphStore.currentTurn);
 const tooltip = ref<{ x: number; y: number; title: string; detail: string } | null>(null);
+const selectedNodeDetail = ref<GraphNode | null>(null);
 
 let layout: GraphLayout | null = null;
 let renderer: GraphRenderer | null = null;
 let resizeObserver: ResizeObserver | null = null;
 let layoutInterval: ReturnType<typeof setInterval> | null = null;
-let settledFrames = 0;
-const SETTLED_THRESHOLD = 10;
 
 // View transform
 let zoom = 1;
@@ -182,6 +190,7 @@ function onMouseDown(e: MouseEvent): void {
   } else {
     // Click on empty space: deselect + start panning
     renderer.setSelectedNode(null);
+    selectedNodeDetail.value = null;
     panning = true;
     panStartX = e.clientX;
     panStartY = e.clientY;
@@ -262,8 +271,21 @@ function onWheel(e: WheelEvent): void {
 function emitNodeEvent(node: GraphNode): void {
   switch (node.type) {
     case 'agent':
+      // Show detail panel if delegation info exists
+      if (node.delegationTask || node.delegationResult) {
+        selectedNodeDetail.value = node;
+      }
       emit('agent-selected', node.id);
       break;
+    case 'tool': {
+      // Show detail panel for Edit/Write/StrReplace tools
+      const tn = node.toolName?.toLowerCase();
+      if (tn === 'edit' || tn === 'write' || tn === 'strreplace' || tn === 'str_replace') {
+        selectedNodeDetail.value = node;
+      }
+      if (node.turnId !== undefined) emit('turn-clicked', node.turnId);
+      break;
+    }
     case 'file':
       if (node.filePath) emit('file-clicked', node.filePath);
       break;
@@ -294,29 +316,6 @@ function buildTooltipDetail(node: GraphNode): string {
   }
 }
 
-// ── Layout interval ──────────────────────────────────────────────────────
-
-function startLayoutInterval(): void {
-  if (layoutInterval !== null) return;
-  settledFrames = 0;
-  layoutInterval = setInterval(() => {
-    if (layout && props.nodes.length > 0) {
-      const moving = layout.step(props.nodes, props.edges);
-      if (moving) {
-        settledFrames = 0;
-        renderer?.setData(props.nodes, props.edges);
-        renderer?.markDirty();
-      } else {
-        settledFrames++;
-        if (settledFrames >= SETTLED_THRESHOLD) {
-          clearInterval(layoutInterval!);
-          layoutInterval = null;
-        }
-      }
-    }
-  }, 32);
-}
-
 // ── Data sync ────────────────────────────────────────────────────────────
 
 function syncData(): void {
@@ -337,14 +336,15 @@ onMounted(() => {
   resizeCanvas();
   syncData();
 
-  // Run initial layout
-  layout.runSimulation(props.nodes, props.edges, 50);
+  // Run static layout (vertical for sidebar, horizontal for full view)
+  if (props.vertical) {
+    layout.verticalTimelineLayout(props.nodes, props.edges);
+  } else {
+    layout.timelineLayout(props.nodes, props.edges);
+  }
   renderer.markDirty();
 
   renderer.start();
-
-  // Live layout stepping for ongoing simulation settling
-  startLayoutInterval();
 
   // Clear drag/pan if mouse is released outside the canvas
   window.addEventListener('mouseup', onMouseUp);
@@ -374,12 +374,13 @@ onUnmounted(() => {
 // Watch for node/edge list changes (not deep — avoids infinite loop from layout position mutations)
 watch([() => props.nodes.length, () => props.edges.length], () => {
   syncData();
-  // Run a few layout steps for new data
   if (layout) {
-    layout.runSimulation(props.nodes, props.edges, 10);
+    if (props.vertical) {
+      layout.verticalTimelineLayout(props.nodes, props.edges);
+    } else {
+      layout.timelineLayout(props.nodes, props.edges);
+    }
   }
-  // Restart layout interval if it was stopped
-  startLayoutInterval();
 });
 
 // Sync scrubber → store (user interaction only)
@@ -387,6 +388,7 @@ let scrubberUserAction = false;
 watch(currentTurn, (turn) => {
   scrubberUserAction = true;
   graphStore.setCurrentTurn(turn);
+  renderer?.setCurrentTurn(turn, graphStore.maxTurn);
   scrubberUserAction = false;
 });
 
@@ -395,6 +397,12 @@ watch(() => graphStore.currentTurn, (turn) => {
   if (!scrubberUserAction && currentTurn.value !== turn) {
     currentTurn.value = turn;
   }
+  renderer?.setCurrentTurn(turn, graphStore.maxTurn);
+});
+
+// Keep renderer in sync with maxTurn changes
+watch(() => graphStore.maxTurn, (max) => {
+  renderer?.setCurrentTurn(graphStore.currentTurn, max);
 });
 
 // ── Expose ───────────────────────────────────────────────────────────────

@@ -138,12 +138,12 @@ export type EngineEvents = {
   'agent:statusChanged': { agentId: string; status: AgentStatus; activity: string };
   'agent:output': { sessionId: string; text: string };
   'agent:costUpdate': { sessionId: string; costUsd: number };
-  'session:created': { sessionId: string };
+  'session:created': { sessionId: string; parentSessionId?: string };
   'session:finished': { sessionId: string; exitCode: number };
   'session:idChanged': { oldId: string; newId: string };
   'diff:fileChanged': { sessionId: string; filePath: string; diff: FileDiff };
   'orchestrator:phaseChanged': { phase: string };
-  'orchestrator:delegationStarted': { role: string; task: string };
+  'orchestrator:delegationStarted': { role: string; task: string; parentSessionId?: string };
   'git:statusChanged': { entries: GitFileEntry[] };
   'orchestrator:checkpointCreated': { hash: string; message: string };
 };

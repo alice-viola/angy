@@ -28,7 +28,7 @@ export interface PendingChild {
 
 export type OrchestratorEvents = {
   phaseChanged: { phase: string };
-  delegationStarted: { role: string; task: string };
+  delegationStarted: { role: string; task: string; parentSessionId?: string };
   validationStarted: { command: string };
   validationResult: { passed: boolean; output: string };
   completed: { summary: string };
@@ -590,7 +590,7 @@ export class Orchestrator {
     const agentName = this.generateAgentName(cmd.role);
     this._currentPhase = `delegating to ${cmd.role}`;
     this.events.emit('phaseChanged', { phase: this._currentPhase });
-    this.events.emit('delegationStarted', { role: cmd.role, task: cmd.task });
+    this.events.emit('delegationStarted', { role: cmd.role, task: cmd.task, parentSessionId: this._sessionId });
 
     const profileId = `specialist-${cmd.role.toLowerCase()}`;
 
@@ -664,7 +664,7 @@ export class Orchestrator {
 
   // ── Parallel Children Aggregation ──────────────────────────────────────
 
-  private checkAllChildrenDone() {
+  private async checkAllChildrenDone() {
     const pending = Array.from(this.pendingChildren.values());
     if (pending.length === 0) return;
     if (pending.some(c => !c.completed)) return;
@@ -675,10 +675,23 @@ export class Orchestrator {
     );
 
     const count = pending.length;
+    const roles = [...new Set(pending.map(pc => pc.role))].join(', ');
     this.pendingChildren.clear();
 
+    // Auto-checkpoint: commit after each delegation batch completes
+    let checkpointInfo = '';
+    if (this.autoCommit && this.gitAvailable) {
+      const commitMsg = `checkpoint: ${roles} phase completed`;
+      const hash = await this.doGitCheckpoint(commitMsg);
+      if (hash) {
+        checkpointInfo = `\n\n**Checkpoint created:** commit ${hash} — "${commitMsg}"`;
+        this.events.emit('checkpointCreated', { hash, message: commitMsg });
+        console.log(`[Orchestrator] Auto-checkpoint after ${roles}: ${hash}`);
+      }
+    }
+
     this.feedResult(
-      `${count} agent(s) completed successfully.\n\n${parts.join('\n\n---\n\n')}\n\n` +
+      `${count} agent(s) completed successfully.${checkpointInfo}\n\n${parts.join('\n\n---\n\n')}\n\n` +
       `What should be done next?`,
     );
   }
@@ -741,23 +754,18 @@ export class Orchestrator {
 
   // ── Checkpoint Execution ──────────────────────────────────────────
 
-  private async executeCheckpoint(message?: string) {
-    if (!this.autoCommit || !this.gitAvailable) {
-      this.feedResult('Checkpoint skipped (git not available or auto-commit disabled).');
-      return;
-    }
-
-    const commitMsg = message || 'checkpoint';
-
+  /**
+   * Low-level git checkpoint: stage all + commit.
+   * Returns the short commit hash on success, or null if nothing to commit / error.
+   */
+  private async doGitCheckpoint(message: string): Promise<string | null> {
     try {
-      // Stage all changes
       const addCmd = Command.create('exec-sh', ['-c', 'git add -A'], {
         cwd: this.workspace || undefined,
       });
       await addCmd.execute();
 
-      // Commit (use single quotes with proper escaping to prevent shell expansion)
-      const safeMsg = commitMsg.replace(/'/g, "'\\''");
+      const safeMsg = message.replace(/'/g, "'\\''");
       const commitCmd = Command.create('exec-sh',
         ['-c', `git commit -m '${safeMsg}'`], {
           cwd: this.workspace || undefined,
@@ -765,30 +773,40 @@ export class Orchestrator {
       const commitOutput = await commitCmd.execute();
 
       if (commitOutput.code !== 0) {
-        // Nothing to commit is fine — not an error
         const stderr = commitOutput.stderr || '';
-        if (stderr.includes('nothing to commit')) {
-          this.feedResult('Checkpoint: nothing to commit, working tree clean.');
-          return;
-        }
-        this.feedResult(`Checkpoint commit failed: ${commitOutput.stderr.substring(0, 200)}`);
-        return;
+        if (stderr.includes('nothing to commit')) return null;
+        console.warn('[Orchestrator] Checkpoint commit failed:', stderr.substring(0, 200));
+        return null;
       }
 
-      // Get short hash
       const hashCmd = Command.create('exec-sh', ['-c', 'git rev-parse --short HEAD'], {
         cwd: this.workspace || undefined,
       });
       const hashOutput = await hashCmd.execute();
-      const hash = hashOutput.stdout.trim();
-
-      console.log(`[Orchestrator] Checkpoint created: ${hash} — ${commitMsg}`);
-      this.events.emit('checkpointCreated', { hash, message: commitMsg });
-
-      this.feedResult(`Checkpoint created: commit ${hash} — "${commitMsg}"`);
+      return hashOutput.stdout.trim();
     } catch (e: any) {
-      this.feedResult(`Checkpoint error: ${e.message}`);
+      console.warn('[Orchestrator] Checkpoint error:', e.message);
+      return null;
     }
+  }
+
+  private async executeCheckpoint(message?: string) {
+    if (!this.autoCommit || !this.gitAvailable) {
+      this.feedResult('Checkpoint skipped (git not available or auto-commit disabled).');
+      return;
+    }
+
+    const commitMsg = message || 'checkpoint';
+    const hash = await this.doGitCheckpoint(commitMsg);
+
+    if (!hash) {
+      this.feedResult('Checkpoint: nothing to commit, working tree clean.');
+      return;
+    }
+
+    console.log(`[Orchestrator] Checkpoint created: ${hash} — ${commitMsg}`);
+    this.events.emit('checkpointCreated', { hash, message: commitMsg });
+    this.feedResult(`Checkpoint created: commit ${hash} — "${commitMsg}"`);
   }
 
   // ── System Prompt (dynamic, includes checkpoint instructions if enabled) ──

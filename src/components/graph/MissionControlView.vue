@@ -1,10 +1,10 @@
 <template>
-  <div class="h-full w-full flex flex-col bg-[var(--bg-primary)]">
+  <div class="h-full w-full flex flex-col bg-[var(--bg-base)]">
     <!-- Toolbar -->
-    <div class="flex items-center gap-3 px-4 py-2 border-b border-[var(--border-primary)]">
+    <div class="flex items-center gap-3 px-4 py-2 border-b border-[var(--border-subtle)]">
       <span class="text-sm font-medium text-[var(--text-primary)]">Mission Control</span>
       <select
-        class="text-xs bg-[var(--bg-secondary)] text-[var(--text-secondary)] border border-[var(--border-primary)] rounded px-2 py-1"
+        class="text-xs bg-[var(--bg-surface)] text-[var(--text-secondary)] border border-[var(--border-subtle)] rounded px-2 py-1"
         :value="currentFilter"
         @change="onFilterChange"
       >
@@ -15,7 +15,7 @@
       </select>
       <div class="flex-1" />
       <button
-        class="text-xs px-3 py-1 rounded border border-[var(--border-primary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)]"
+        class="text-xs px-3 py-1 rounded border border-[var(--border-subtle)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-raised)]"
         @click="$emit('exit-mission-control')"
       >
         Exit

@@ -25,6 +25,7 @@ orchestrator.on('phaseChanged', (e) => {
 orchestrator.on('delegationStarted', (e) => {
   delegations.value = orchestrator.totalDelegations();
   lastEvent.value = `Delegating to ${e.role}`;
+  engineBus.emit('orchestrator:delegationStarted', { role: e.role, task: e.task, parentSessionId: e.parentSessionId });
 });
 
 orchestrator.on('completed', (e) => {

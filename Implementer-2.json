@@ -1,0 +1,40 @@
+{
+  "session": {
+    "sessionId": "f2c50aab-b303-49b5-816f-d5ffe32181c3",
+    "title": "Implementer-2",
+    "workspace": "/Users/alice/Work/angy",
+    "mode": "agent",
+    "createdAt": 1772805355,
+    "updatedAt": 1772805355
+  },
+  "messages": [
+    {
+      "role": "tool",
+      "content": "/Users/alice/Work/angy/src/stores/sessions.ts",
+      "turnId": 108,
+      "toolName": "Read",
+      "timestamp": 1772805598000
+    },
+    {
+      "role": "tool",
+      "content": "/Users/alice/Work/angy/src/engine/Orchestrator.ts",
+      "turnId": 100,
+      "toolName": "Edit",
+      "timestamp": 1772805581000
+    },
+    {
+      "role": "tool",
+      "content": "Find node creation and event emission",
+      "turnId": 8,
+      "toolName": "Agent",
+      "timestamp": 1772805373000
+    },
+    {
+      "role": "tool",
+      "content": "**/*.tsx",
+      "turnId": 10,
+      "toolName": "Glob",
+      "timestamp": 1772805374000
+    }
+  ]
+}

@@ -16,6 +16,8 @@ export interface GraphNode {
   sessionId?: string;
   status?: AgentStatus;
   model?: string;
+  delegationTask?: string;
+  delegationResult?: string;
   // Tool-specific
   toolName?: string;
   toolInput?: Record<string, any>;

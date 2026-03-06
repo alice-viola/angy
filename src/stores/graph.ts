@@ -26,23 +26,11 @@ export const useGraphStore = defineStore('graph', () => {
   /** All nodes as an array for iteration */
   const nodeArray = computed(() => Array.from(nodes.value.values()));
 
-  /** Nodes filtered by current turn (show all if live and at maxTurn) */
-  const visibleNodes = computed(() => {
-    const atMax = currentTurn.value === maxTurn.value;
-    if (isLive.value && atMax) return nodeArray.value;
-    return nodeArray.value.filter(
-      (n) => n.turnId === undefined || n.turnId <= currentTurn.value,
-    );
-  });
+  /** All nodes — always returned. Renderer handles grey/transparent for out-of-slice. */
+  const visibleNodes = computed(() => nodeArray.value);
 
-  /** Edges filtered by current turn (show all if live and at maxTurn) */
-  const visibleEdges = computed(() => {
-    const atMax = currentTurn.value === maxTurn.value;
-    if (isLive.value && atMax) return edges.value;
-    return edges.value.filter(
-      (e) => e.turnId === undefined || e.turnId <= currentTurn.value,
-    );
-  });
+  /** All edges — always returned. Renderer handles grey/transparent for out-of-slice. */
+  const visibleEdges = computed(() => edges.value);
 
   // ── Actions ────────────────────────────────────────────────────────
 

@@ -22,6 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
 const TOOL_COLOR = '#3b82f6';
 const FILE_COLOR = '#a855f7';
 const CHECKPOINT_COLOR = '#22c55e';
+const GHOST_COLOR = '#6c7086';
 
 // Edge styles
 const EDGE_COLORS: Record<string, string> = {
@@ -52,6 +53,10 @@ export class GraphRenderer {
 
   private hoveredNodeId: string | null = null;
   private selectedNodeId: string | null = null;
+
+  // Time slice — nodes with turnId > currentTurn are rendered as grey/transparent ghosts
+  private currentTurn = Infinity;
+  private maxTurn = 0;
 
   // Node index for quick lookup during hit testing
   private nodeById = new Map<string, GraphNode>();
@@ -122,6 +127,24 @@ export class GraphRenderer {
       this.selectedNodeId = id;
       this.dirty = true;
     }
+  }
+
+  setCurrentTurn(turn: number, max: number): void {
+    this.currentTurn = turn;
+    this.maxTurn = max;
+    this.dirty = true;
+  }
+
+  /** Check if a node is within the current time slice. */
+  private isInTimeSlice(node: GraphNode): boolean {
+    if (this.currentTurn >= this.maxTurn) return true;
+    return node.turnId === undefined || node.turnId <= this.currentTurn;
+  }
+
+  /** Check if an edge is within the current time slice. */
+  private isEdgeInTimeSlice(edge: GraphEdge): boolean {
+    if (this.currentTurn >= this.maxTurn) return true;
+    return edge.turnId === undefined || edge.turnId <= this.currentTurn;
   }
 
   // ── Hit testing ──────────────────────────────────────────────────────
@@ -209,6 +232,11 @@ export class GraphRenderer {
     const { ctx } = this;
     ctx.save();
 
+    // Grey/transparent for out-of-slice edges
+    if (!this.isEdgeInTimeSlice(edge)) {
+      ctx.globalAlpha = 0.2;
+    }
+
     const color = EDGE_COLORS[edge.type] || '#6c7086';
     const isConnectedToHover =
       this.hoveredNodeId !== null &&
@@ -222,9 +250,13 @@ export class GraphRenderer {
 
     switch (edge.type) {
       case 'delegation': {
+        // Slight glow on delegation edges
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 4;
         ctx.strokeStyle = color;
         ctx.lineWidth = 3 + lwBoost;
         this.drawBezierEdge(src, tgt);
+        ctx.shadowBlur = 0;
         this.drawArrowhead(src, tgt, color);
         break;
       }
@@ -263,6 +295,13 @@ export class GraphRenderer {
         ctx.lineWidth = 2 + lwBoost;
         this.drawStraightEdge(src, tgt);
         this.drawArrowhead(src, tgt, vColor);
+        break;
+      }
+      case 'checkpoint': {
+        ctx.strokeStyle = CHECKPOINT_COLOR;
+        ctx.lineWidth = 2 + lwBoost;
+        this.drawStraightEdge(src, tgt);
+        this.drawArrowhead(src, tgt, CHECKPOINT_COLOR);
         break;
       }
     }
@@ -323,61 +362,106 @@ export class GraphRenderer {
   private drawNode(node: GraphNode): void {
     const isHovered = node.id === this.hoveredNodeId;
     const isSelected = node.id === this.selectedNodeId;
+    const inSlice = this.isInTimeSlice(node);
+    const { ctx } = this;
+
+    if (!inSlice) {
+      ctx.save();
+      ctx.globalAlpha = 0.25;
+    }
 
     switch (node.type) {
-      case 'agent': this.drawAgentNode(node, isHovered, isSelected); break;
-      case 'tool': this.drawToolNode(node, isHovered, isSelected); break;
-      case 'file': this.drawFileNode(node, isHovered, isSelected); break;
-      case 'validation': this.drawValidationNode(node, isHovered, isSelected); break;
-      case 'milestone': this.drawMilestoneNode(node, isHovered, isSelected); break;
-      case 'checkpoint': this.drawCheckpointNode(node, isHovered, isSelected); break;
+      case 'agent': this.drawAgentNode(node, isHovered, isSelected, inSlice); break;
+      case 'tool': this.drawToolNode(node, isHovered, isSelected, inSlice); break;
+      case 'file': this.drawFileNode(node, isHovered, isSelected, inSlice); break;
+      case 'validation': this.drawValidationNode(node, isHovered, isSelected, inSlice); break;
+      case 'milestone': this.drawMilestoneNode(node, isHovered, isSelected, inSlice); break;
+      case 'checkpoint': this.drawCheckpointNode(node, isHovered, isSelected, inSlice); break;
+    }
+
+    if (!inSlice) {
+      ctx.restore();
     }
   }
 
-  private drawAgentNode(node: GraphNode, hovered: boolean, selected: boolean): void {
+  private drawAgentNode(node: GraphNode, hovered: boolean, selected: boolean, inSlice = true): void {
     const { ctx } = this;
     const status = node.status || 'idle';
-    const color = STATUS_COLORS[status] || STATUS_COLORS.idle;
+    const color = inSlice ? (STATUS_COLORS[status] || STATUS_COLORS.idle) : GHOST_COLOR;
 
     ctx.save();
+
+    // Always-on subtle drop shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.4)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
 
     // Glow effect for hover
     if (hovered) {
       ctx.shadowColor = color;
       ctx.shadowBlur = 20;
+      ctx.shadowOffsetY = 0;
     }
 
     // Pulsing ring for 'working' status
-    if (status === 'working') {
+    if (status === 'working' && inSlice) {
+      const prevAlpha = ctx.globalAlpha;
       const pulse = Math.sin(this.time * 0.004) * 0.3 + 0.7;
       ctx.beginPath();
       ctx.arc(node.x, node.y, AGENT_RADIUS + 6, 0, Math.PI * 2);
       ctx.strokeStyle = color;
-      ctx.globalAlpha = pulse * 0.4;
+      ctx.globalAlpha = prevAlpha * pulse * 0.4;
       ctx.lineWidth = 2;
       ctx.stroke();
-      ctx.globalAlpha = 1;
-      // Keep dirty to animate
+      ctx.globalAlpha = prevAlpha;
       this.dirty = true;
     }
 
-    // Main circle
+    // Main circle with radial gradient
     ctx.beginPath();
     ctx.arc(node.x, node.y, AGENT_RADIUS, 0, Math.PI * 2);
-    ctx.fillStyle = color;
+    if (inSlice) {
+      const grad = ctx.createRadialGradient(
+        node.x - 4, node.y - 4, 2,
+        node.x, node.y, AGENT_RADIUS,
+      );
+      grad.addColorStop(0, this.lightenColor(color, 40));
+      grad.addColorStop(1, color);
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = GHOST_COLOR;
+    }
     ctx.fill();
+
+    // Inner ring highlight
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, AGENT_RADIUS - 3, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     // Selected outline
     if (selected) {
+      ctx.beginPath();
+      ctx.arc(node.x, node.y, AGENT_RADIUS, 0, Math.PI * 2);
       ctx.strokeStyle = '#cdd6f4';
       ctx.lineWidth = 3;
       ctx.stroke();
     }
 
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+
+    // First letter icon inside the circle
+    const letter = (node.label || 'A').charAt(0).toUpperCase();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = `bold 14px ${FONT_SANS}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(letter, node.x, node.y);
 
     // Label below
-    ctx.fillStyle = '#cdd6f4';
+    ctx.fillStyle = inSlice ? '#cdd6f4' : '#585b70';
     ctx.font = `11px ${FONT_MONO}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -386,33 +470,44 @@ export class GraphRenderer {
     ctx.restore();
   }
 
-  private drawToolNode(node: GraphNode, hovered: boolean, selected: boolean): void {
+  private drawToolNode(node: GraphNode, hovered: boolean, selected: boolean, inSlice = true): void {
     const { ctx } = this;
     const hw = TOOL_WIDTH / 2;
     const hh = TOOL_HEIGHT / 2;
-    const r = 5; // corner radius
+    const r = 6;
+    const baseColor = inSlice ? TOOL_COLOR : GHOST_COLOR;
 
     ctx.save();
 
+    // Always-on subtle shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+
     if (hovered) {
-      ctx.shadowColor = TOOL_COLOR;
+      ctx.shadowColor = baseColor;
       ctx.shadowBlur = 16;
+      ctx.shadowOffsetY = 0;
     }
 
-    // Rounded rect
-    ctx.beginPath();
-    ctx.moveTo(node.x - hw + r, node.y - hh);
-    ctx.lineTo(node.x + hw - r, node.y - hh);
-    ctx.arcTo(node.x + hw, node.y - hh, node.x + hw, node.y - hh + r, r);
-    ctx.lineTo(node.x + hw, node.y + hh - r);
-    ctx.arcTo(node.x + hw, node.y + hh, node.x + hw - r, node.y + hh, r);
-    ctx.lineTo(node.x - hw + r, node.y + hh);
-    ctx.arcTo(node.x - hw, node.y + hh, node.x - hw, node.y + hh - r, r);
-    ctx.lineTo(node.x - hw, node.y - hh + r);
-    ctx.arcTo(node.x - hw, node.y - hh, node.x - hw + r, node.y - hh, r);
-    ctx.closePath();
-    ctx.fillStyle = TOOL_COLOR;
+    // Rounded rect path
+    this.roundedRectPath(node.x - hw, node.y - hh, TOOL_WIDTH, TOOL_HEIGHT, r);
+
+    // Linear gradient fill
+    if (inSlice) {
+      const grad = ctx.createLinearGradient(node.x - hw, node.y - hh, node.x + hw, node.y + hh);
+      grad.addColorStop(0, TOOL_COLOR);
+      grad.addColorStop(1, this.darkenColor(TOOL_COLOR, 30));
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = GHOST_COLOR;
+    }
     ctx.fill();
+
+    // Inner border highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     if (selected) {
       ctx.strokeStyle = '#cdd6f4';
@@ -421,6 +516,7 @@ export class GraphRenderer {
     }
 
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
     // Tool name inside
     ctx.fillStyle = '#ffffff';
@@ -432,15 +528,22 @@ export class GraphRenderer {
     ctx.restore();
   }
 
-  private drawFileNode(node: GraphNode, hovered: boolean, selected: boolean): void {
+  private drawFileNode(node: GraphNode, hovered: boolean, selected: boolean, inSlice = true): void {
     const { ctx } = this;
     const s = FILE_SIZE;
+    const baseColor = inSlice ? FILE_COLOR : GHOST_COLOR;
 
     ctx.save();
 
+    // Always-on subtle shadow
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+
     if (hovered) {
-      ctx.shadowColor = FILE_COLOR;
+      ctx.shadowColor = baseColor;
       ctx.shadowBlur = 16;
+      ctx.shadowOffsetY = 0;
     }
 
     // Diamond (rotated square)
@@ -450,8 +553,22 @@ export class GraphRenderer {
     ctx.lineTo(node.x, node.y + s);
     ctx.lineTo(node.x - s, node.y);
     ctx.closePath();
-    ctx.fillStyle = FILE_COLOR;
+
+    // Gradient fill
+    if (inSlice) {
+      const grad = ctx.createLinearGradient(node.x - s, node.y - s, node.x + s, node.y + s);
+      grad.addColorStop(0, this.lightenColor(FILE_COLOR, 25));
+      grad.addColorStop(1, FILE_COLOR);
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = GHOST_COLOR;
+    }
     ctx.fill();
+
+    // Thin stroke border
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     if (selected) {
       ctx.strokeStyle = '#cdd6f4';
@@ -460,10 +577,11 @@ export class GraphRenderer {
     }
 
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
     // Filename label below
     const filename = node.filePath ? node.filePath.split('/').pop() || node.label : node.label;
-    ctx.fillStyle = '#a6adc8';
+    ctx.fillStyle = inSlice ? '#a6adc8' : '#585b70';
     ctx.font = `10px ${FONT_MONO}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -472,17 +590,23 @@ export class GraphRenderer {
     ctx.restore();
   }
 
-  private drawValidationNode(node: GraphNode, hovered: boolean, selected: boolean): void {
+  private drawValidationNode(node: GraphNode, hovered: boolean, selected: boolean, inSlice = true): void {
     const { ctx } = this;
     const pass = node.status !== 'error';
-    const color = pass ? '#22c55e' : '#ef4444';
+    const rawColor = pass ? '#22c55e' : '#ef4444';
+    const color = inSlice ? rawColor : GHOST_COLOR;
     const r = VALIDATION_RADIUS;
 
     ctx.save();
 
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+
     if (hovered) {
       ctx.shadowColor = color;
       ctx.shadowBlur = 16;
+      ctx.shadowOffsetY = 0;
     }
 
     // Octagon
@@ -495,8 +619,21 @@ export class GraphRenderer {
       else ctx.lineTo(px, py);
     }
     ctx.closePath();
-    ctx.fillStyle = color;
+
+    if (inSlice) {
+      const grad = ctx.createRadialGradient(node.x, node.y, 1, node.x, node.y, r);
+      grad.addColorStop(0, this.lightenColor(rawColor, 30));
+      grad.addColorStop(1, rawColor);
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = GHOST_COLOR;
+    }
     ctx.fill();
+
+    // Inner highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     if (selected) {
       ctx.strokeStyle = '#cdd6f4';
@@ -505,6 +642,7 @@ export class GraphRenderer {
     }
 
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
     // Checkmark or X icon inside
     ctx.strokeStyle = '#ffffff';
@@ -526,7 +664,7 @@ export class GraphRenderer {
     }
 
     // Label below
-    ctx.fillStyle = '#a6adc8';
+    ctx.fillStyle = inSlice ? '#a6adc8' : '#585b70';
     ctx.font = `10px ${FONT_SANS}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -535,28 +673,44 @@ export class GraphRenderer {
     ctx.restore();
   }
 
-  private drawMilestoneNode(node: GraphNode, hovered: boolean, selected: boolean): void {
+  private drawMilestoneNode(node: GraphNode, hovered: boolean, selected: boolean, inSlice = true): void {
     const { ctx } = this;
     const pass = node.status !== 'error';
     const r = MILESTONE_RADIUS;
+    const rawColor = pass ? '#22c55e' : '#ef4444';
 
     ctx.save();
 
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 6;
+    ctx.shadowOffsetY = 2;
+
     if (hovered) {
-      ctx.shadowColor = pass ? '#22c55e' : '#ef4444';
+      ctx.shadowColor = inSlice ? rawColor : GHOST_COLOR;
       ctx.shadowBlur = 20;
+      ctx.shadowOffsetY = 0;
     }
 
     if (pass) {
-      // Star shape (5-pointed)
       this.drawStar(node.x, node.y, 5, r, r * 0.45);
-      ctx.fillStyle = '#22c55e';
     } else {
-      // X shape for fail
       this.drawXShape(node.x, node.y, r);
-      ctx.fillStyle = '#ef4444';
+    }
+
+    if (inSlice) {
+      const grad = ctx.createRadialGradient(node.x, node.y, 1, node.x, node.y, r);
+      grad.addColorStop(0, this.lightenColor(rawColor, 35));
+      grad.addColorStop(1, rawColor);
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = GHOST_COLOR;
     }
     ctx.fill();
+
+    // Inner highlight
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     if (selected) {
       ctx.strokeStyle = '#cdd6f4';
@@ -565,9 +719,10 @@ export class GraphRenderer {
     }
 
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
     // Label below
-    ctx.fillStyle = '#cdd6f4';
+    ctx.fillStyle = inSlice ? '#cdd6f4' : '#585b70';
     ctx.font = `11px ${FONT_SANS}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -576,22 +731,40 @@ export class GraphRenderer {
     ctx.restore();
   }
 
-  private drawCheckpointNode(node: GraphNode, hovered: boolean, selected: boolean): void {
+  private drawCheckpointNode(node: GraphNode, hovered: boolean, selected: boolean, inSlice = true): void {
     const { ctx } = this;
     const r = CHECKPOINT_RADIUS;
+    const baseColor = inSlice ? CHECKPOINT_COLOR : GHOST_COLOR;
 
     ctx.save();
 
+    ctx.shadowColor = 'rgba(0,0,0,0.35)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetY = 2;
+
     if (hovered) {
-      ctx.shadowColor = CHECKPOINT_COLOR;
+      ctx.shadowColor = baseColor;
       ctx.shadowBlur = 20;
+      ctx.shadowOffsetY = 0;
     }
 
-    // Outer circle (green, git-commit style)
+    // Outer circle with gradient
     ctx.beginPath();
     ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
-    ctx.fillStyle = CHECKPOINT_COLOR;
+    if (inSlice) {
+      const grad = ctx.createRadialGradient(node.x - 2, node.y - 2, 1, node.x, node.y, r);
+      grad.addColorStop(0, this.lightenColor(CHECKPOINT_COLOR, 30));
+      grad.addColorStop(1, CHECKPOINT_COLOR);
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = GHOST_COLOR;
+    }
     ctx.fill();
+
+    // Inner highlight ring
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
 
     if (selected) {
       ctx.strokeStyle = '#cdd6f4';
@@ -600,12 +773,12 @@ export class GraphRenderer {
     }
 
     ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
 
     // Git-commit icon: inner circle with vertical lines extending out
     const innerR = 5;
     const lineLen = 7;
 
-    // Vertical lines extending from center circle
     ctx.strokeStyle = '#ffffff';
     ctx.lineWidth = 2;
     ctx.lineCap = 'round';
@@ -623,11 +796,11 @@ export class GraphRenderer {
     ctx.lineWidth = 2;
     ctx.stroke();
 
-    // Label below — use short hash if available
+    // Label below
     const label = node.commitHash
       ? node.commitHash.slice(0, 7)
       : node.label;
-    ctx.fillStyle = '#a6e3a1';
+    ctx.fillStyle = inSlice ? '#a6e3a1' : '#585b70';
     ctx.font = `10px ${FONT_MONO}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
@@ -672,6 +845,21 @@ export class GraphRenderer {
     ctx.closePath();
   }
 
+  private roundedRectPath(x: number, y: number, w: number, h: number, r: number): void {
+    const { ctx } = this;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+  }
+
   private hasAnimatedElements(): boolean {
     for (const edge of this.edges) {
       if (edge.animated) return true;
@@ -685,5 +873,23 @@ export class GraphRenderer {
   private truncateLabel(text: string, maxLen: number): string {
     if (text.length <= maxLen) return text;
     return text.slice(0, maxLen - 1) + '\u2026';
+  }
+
+  /** Lighten a hex color by a given amount (0-255). */
+  private lightenColor(hex: string, amount: number): string {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const r = Math.min(255, ((num >> 16) & 0xff) + amount);
+    const g = Math.min(255, ((num >> 8) & 0xff) + amount);
+    const b = Math.min(255, (num & 0xff) + amount);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  /** Darken a hex color by a given amount (0-255). */
+  private darkenColor(hex: string, amount: number): string {
+    const num = parseInt(hex.replace('#', ''), 16);
+    const r = Math.max(0, ((num >> 16) & 0xff) - amount);
+    const g = Math.max(0, ((num >> 8) & 0xff) - amount);
+    const b = Math.max(0, (num & 0xff) - amount);
+    return `rgb(${r},${g},${b})`;
   }
 }

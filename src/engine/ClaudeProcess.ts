@@ -89,7 +89,7 @@ export class ClaudeProcess {
       }
       args.push(
         '--permission-mode', 'bypassPermissions',
-        '--allowedTools', orchestratorTools,
+        '--tools', orchestratorTools,
         '--max-turns', '1',
       );
     } else if (this.mode === 'ask') {
@@ -107,7 +107,7 @@ export class ClaudeProcess {
       }
       args.push(
         '--permission-mode', 'bypassPermissions',
-        '--allowedTools', allowedTools,
+        '--tools', allowedTools,
       );
     }
 

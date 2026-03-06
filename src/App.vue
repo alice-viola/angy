@@ -102,10 +102,12 @@ let graphCleanup: (() => void) | null = null;
 // ── Mission Control ──────────────────────────────────────────────────────
 const missionControl = useMissionControl();
 
-function ensureLiveGraph(sessionId: string) {
-  // Start a live graph for the given session if one isn't already running
+async function ensureLiveGraph(sessionId: string) {
   if (graphCleanup) graphCleanup();
   graphStore.clear();
+  // Load existing history FIRST, then subscribe to live events
+  await buildFromHistory(sessionId);
+  graphStore.isLive = true;  // Override replay mode → live
   graphCleanup = startLiveGraph(sessionId);
 }
 
@@ -150,12 +152,14 @@ async function onAgentSelected(sessionId: string) {
   effectsPanelRef.value?.setCurrentSession(sessionId);
   diffEngine.setCurrentSessionId(sessionId);
 
-  // Show graph replay for completed orchestrator sessions, or live graph for active sessions
-  const sessionInfo = sessionsStore.sessions.get(sessionId);
-  if (sessionInfo?.mode === 'orchestrator' && sessionInfo.delegationStatus === DelegationStatus.Completed) {
-    showGraphForSession(sessionId);
-  } else if (ui.rightPanelMode === 'graph') {
-    ensureLiveGraph(sessionId);
+  // Do NOT rebuild the graph when in Mission Control mode
+  if (ui.viewMode !== 'mission-control') {
+    const sessionInfo = sessionsStore.sessions.get(sessionId);
+    if (sessionInfo?.mode === 'orchestrator' && sessionInfo.delegationStatus === DelegationStatus.Completed) {
+      showGraphForSession(sessionId);
+    } else if (ui.rightPanelMode === 'graph') {
+      await ensureLiveGraph(sessionId);
+    }
   }
 
   const db = getDatabase();
@@ -369,13 +373,12 @@ async function onMissionControlFilter(sessionId: string | null) {
 
 // ── Graph auto-start: start live graph when switching to Graph tab ────────
 
-watch(() => ui.rightPanelMode, (mode) => {
+watch(() => ui.rightPanelMode, async (mode) => {
   if (mode === 'graph' && !graphCleanup) {
-    // Find the current session and start a live graph
     const currentSessionId = fleetStore.selectedAgentId
       || (sessionsStore.sessionList[0]?.sessionId);
     if (currentSessionId) {
-      ensureLiveGraph(currentSessionId);
+      await ensureLiveGraph(currentSessionId);
     }
   }
 });
