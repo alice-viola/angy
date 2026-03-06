@@ -68,7 +68,7 @@ import InlineEditBar from './InlineEditBar.vue';
 import { getMonacoTheme, detectLanguage } from './monacoSetup';
 import { useEditorStore } from '../../stores/editor';
 
-const md = new MarkdownIt({ html: true, linkify: true, breaks: false });
+const md = new MarkdownIt({ html: false, linkify: true, breaks: false });
 
 // ── Emits ─────────────────────────────────────────────────────────────────
 

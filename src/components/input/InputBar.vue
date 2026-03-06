@@ -43,7 +43,7 @@
       @dragenter.prevent="isDraggingOver = true"
       @dragover.prevent
       @dragleave.self="isDraggingOver = false"
-      @drop.prevent="isDraggingOver = false"
+      @drop.prevent="onDrop($event)"
     >
       <div
         class="relative bg-[var(--bg-raised)] rounded-xl border-2 ring-0 outline-none transition-border-color"

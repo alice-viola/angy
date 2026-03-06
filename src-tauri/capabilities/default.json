@@ -44,8 +44,7 @@
       "identifier": "fs:scope",
       "allow": [
         { "path": "**" },
-        { "path": "$HOME/.claude/**" },
-        { "path": "$HOME/.claude/plans/**" }
+        { "path": "$HOME/.claude/**" }
       ]
     },
     "dialog:default",
