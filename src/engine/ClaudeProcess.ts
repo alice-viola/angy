@@ -32,6 +32,7 @@ export class ClaudeProcess {
   private agentName = '';
   private teamId = '';
   private _completedNormally = false;
+  private autoCommit = false;
 
   get sessionId(): string { return this._sessionId; }
 
@@ -43,6 +44,7 @@ export class ClaudeProcess {
   setProfileIds(ids: string[]): void { this._profileIds = ids; }
   setAgentName(name: string): void { this.agentName = name; }
   setTeamId(id: string): void { this.teamId = id; }
+  setAutoCommit(enabled: boolean): void { this.autoCommit = enabled; }
 
   isRunning(): boolean { return this.child !== null; }
 
@@ -77,13 +79,17 @@ export class ClaudeProcess {
     }
 
     if (this.mode === 'orchestrator') {
-      args.push(
-        '--permission-mode', 'bypassPermissions',
-        '--allowedTools',
+      let orchestratorTools =
         'mcp__c3p2-orchestrator__delegate,' +
         'mcp__c3p2-orchestrator__validate,' +
         'mcp__c3p2-orchestrator__done,' +
-        'mcp__c3p2-orchestrator__fail',
+        'mcp__c3p2-orchestrator__fail';
+      if (this.autoCommit) {
+        orchestratorTools += ',mcp__c3p2-orchestrator__checkpoint';
+      }
+      args.push(
+        '--permission-mode', 'bypassPermissions',
+        '--allowedTools', orchestratorTools,
         '--max-turns', '1',
       );
     } else if (this.mode === 'ask') {

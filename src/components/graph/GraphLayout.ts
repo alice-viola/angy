@@ -126,6 +126,19 @@ export class GraphLayout {
           fx[i] += (dx / dist) * displacement * 0.02;
           fy[i] += (dy / dist) * displacement * 0.02;
         }
+      } else if (node.type === 'checkpoint' && node.parentNodeId) {
+        // Checkpoint nodes sit near their parent agent, slightly below
+        const pi = nodeIndex.get(node.parentNodeId);
+        if (pi !== undefined) {
+          const parent = nodes[pi];
+          const dx = parent.x - node.x;
+          const dy = (parent.y + 100) - node.y; // offset below parent
+          const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+          const orbitRadius = 60;
+          const displacement = dist - orbitRadius;
+          fx[i] += (dx / dist) * displacement * 0.03;
+          fy[i] += (dy / dist) * displacement * 0.03;
+        }
       }
 
       // 4. Boundary forces — soft repulsion from edges

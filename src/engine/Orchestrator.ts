@@ -4,13 +4,14 @@ import { Command } from '@tauri-apps/plugin-shell';
 // ── Orchestrator Command (parsed from MCP tool calls) ────────────────────────
 
 export interface OrchestratorCommand {
-  action: 'delegate' | 'validate' | 'done' | 'fail' | 'unknown';
+  action: 'delegate' | 'validate' | 'done' | 'fail' | 'checkpoint' | 'unknown';
   role?: string;
   task?: string;
   command?: string;
   description?: string;
   summary?: string;
   reason?: string;
+  message?: string;
 }
 
 // ── Pending Child (parallel delegation tracking) ─────────────────────────────
@@ -35,6 +36,7 @@ export type OrchestratorEvents = {
   retrying: { reason: string; attempt: number };
   progressUpdate: { message: string };
   peerMessageSent: { from: string; to: string; content: string };
+  checkpointCreated: { hash: string; message: string };
 };
 
 // ── ChatPanel interface (decouples from Vue component) ───────────────────────
@@ -118,10 +120,12 @@ export class Orchestrator {
   private pendingChildren = new Map<string, PendingChild>();
   private orchestratorTurnDone = false;
   private pendingFeedResult = '';
+  private autoCommit = false;
+  private gitAvailable = false;
 
   static readonly MCP_SERVER_NAME = 'c3p2-orchestrator';
   static readonly MAX_STEP_ATTEMPTS = 5;
-  static readonly MAX_TOTAL_DELEGATIONS = 20;
+  static readonly MAX_TOTAL_DELEGATIONS = 100;
 
   setChatPanel(panel: OrchestratorChatPanelAPI) { this.chatPanel = panel; }
   setWorkspace(ws: string) { this.workspace = ws; }
@@ -201,11 +205,14 @@ export class Orchestrator {
 
   // ── Start / Cancel ──────────────────────────────────────────────────────
 
-  async start(goal: string, contextProfileIds: string[] = []): Promise<string> {
+  async start(goal: string, contextProfileIds: string[] = [], autoCommit = false): Promise<string> {
     if (!this.chatPanel || this._running) return '';
 
     // Ensure MCP server is installed
     await Orchestrator.ensureMcpServerInstalled();
+
+    this.autoCommit = autoCommit;
+    if (autoCommit) await this.detectGit();
 
     this._running = true;
     this.contextProfileIds = contextProfileIds;
@@ -240,6 +247,10 @@ export class Orchestrator {
     console.log(`[Orchestrator] Started with goal, session: ${this._sessionId}, team: ${this.teamId}`);
 
     // Build and send the initial prompt
+    const checkpointLine = (this.autoCommit && this.gitAvailable)
+      ? `- \`checkpoint(message)\` — create a git checkpoint commit to save progress\n`
+      : '';
+
     const initialMessage =
       `# Goal\n\n${goal}\n\n` +
       `# Instructions\n\n` +
@@ -249,6 +260,7 @@ export class Orchestrator {
       `Your ONLY tools are:\n` +
       `- \`delegate(role, task)\` — assign work to architect/implementer/reviewer/tester\n` +
       `- \`validate(command, description)\` — run a shell command to verify the work\n` +
+      checkpointLine +
       `- \`done(summary)\` — report the goal is fully achieved\n` +
       `- \`fail(reason)\` — report unrecoverable failure\n\n` +
       `You may call MULTIPLE delegate tools in a single turn to run agents in parallel.\n` +
@@ -264,10 +276,13 @@ export class Orchestrator {
    * Attach to an existing session (used when orchestrate mode is triggered from the input bar).
    * Unlike start(), this does NOT create a new session or send an initial message.
    */
-  async attachToSession(sessionId: string): Promise<void> {
+  async attachToSession(sessionId: string, autoCommit = false): Promise<void> {
     if (!this.chatPanel || this._running) return;
 
     await Orchestrator.ensureMcpServerInstalled();
+
+    this.autoCommit = autoCommit;
+    if (autoCommit) await this.detectGit();
 
     this._running = true;
     this._sessionId = sessionId;
@@ -338,6 +353,10 @@ export class Orchestrator {
       case 'fail':
         cmd.action = 'fail';
         cmd.reason = args.reason || '';
+        break;
+      case 'checkpoint':
+        cmd.action = 'checkpoint';
+        cmd.message = args.message || '';
         break;
       default:
         console.warn('[Orchestrator] Unknown MCP tool action:', action);
@@ -451,10 +470,14 @@ export class Orchestrator {
         }
       }
 
+      const toolList = this.autoCommit
+        ? 'delegate, validate, checkpoint, done, or fail'
+        : 'delegate, validate, done, or fail';
+      const toolCount = this.autoCommit ? '5' : '4';
       this.feedResult(
-        'ERROR: Your response did not include a tool call. You MUST call one of: ' +
-        'delegate, validate, done, or fail. ' +
-        'You cannot read files or use other tools — only these 4 MCP tools.' +
+        `ERROR: Your response did not include a tool call. You MUST call one of: ` +
+        `${toolList}. ` +
+        `You cannot read files or use other tools — only these ${toolCount} MCP tools.` +
         hint,
       );
       return;
@@ -501,6 +524,9 @@ export class Orchestrator {
       } else if (action === 'fail') {
         cmd.action = 'fail';
         cmd.reason = j.reason || '';
+      } else if (action === 'checkpoint') {
+        cmd.action = 'checkpoint';
+        cmd.message = j.message || '';
       }
     } catch (e) {
       console.warn('[Orchestrator] JSON parse error:', e);
@@ -537,6 +563,10 @@ export class Orchestrator {
         console.log('[Orchestrator] Failed:', cmd.reason);
         this.cleanupInboxes();
         this.events.emit('failed', { reason: cmd.reason || '' });
+        break;
+
+      case 'checkpoint':
+        this.executeCheckpoint(cmd.message);
         break;
 
       default:
@@ -692,5 +722,89 @@ export class Orchestrator {
     } catch { /* ok */ }
     this.teamId = '';
     this.pendingChildren.clear();
+  }
+
+  // ── Git Detection ───────────────────────────────────────────────────
+
+  private async detectGit(): Promise<void> {
+    try {
+      const cmd = Command.create('exec-sh', ['-c', 'git rev-parse --is-inside-work-tree'], {
+        cwd: this.workspace || undefined,
+      });
+      const output = await cmd.execute();
+      this.gitAvailable = output.code === 0;
+    } catch {
+      this.gitAvailable = false;
+    }
+    console.log(`[Orchestrator] Git available: ${this.gitAvailable}`);
+  }
+
+  // ── Checkpoint Execution ──────────────────────────────────────────
+
+  private async executeCheckpoint(message?: string) {
+    if (!this.autoCommit || !this.gitAvailable) {
+      this.feedResult('Checkpoint skipped (git not available or auto-commit disabled).');
+      return;
+    }
+
+    const commitMsg = message || 'checkpoint';
+
+    try {
+      // Stage all changes
+      const addCmd = Command.create('exec-sh', ['-c', 'git add -A'], {
+        cwd: this.workspace || undefined,
+      });
+      await addCmd.execute();
+
+      // Commit (use single quotes with proper escaping to prevent shell expansion)
+      const safeMsg = commitMsg.replace(/'/g, "'\\''");
+      const commitCmd = Command.create('exec-sh',
+        ['-c', `git commit -m '${safeMsg}'`], {
+          cwd: this.workspace || undefined,
+        });
+      const commitOutput = await commitCmd.execute();
+
+      if (commitOutput.code !== 0) {
+        // Nothing to commit is fine — not an error
+        const stderr = commitOutput.stderr || '';
+        if (stderr.includes('nothing to commit')) {
+          this.feedResult('Checkpoint: nothing to commit, working tree clean.');
+          return;
+        }
+        this.feedResult(`Checkpoint commit failed: ${commitOutput.stderr.substring(0, 200)}`);
+        return;
+      }
+
+      // Get short hash
+      const hashCmd = Command.create('exec-sh', ['-c', 'git rev-parse --short HEAD'], {
+        cwd: this.workspace || undefined,
+      });
+      const hashOutput = await hashCmd.execute();
+      const hash = hashOutput.stdout.trim();
+
+      console.log(`[Orchestrator] Checkpoint created: ${hash} — ${commitMsg}`);
+      this.events.emit('checkpointCreated', { hash, message: commitMsg });
+
+      this.feedResult(`Checkpoint created: commit ${hash} — "${commitMsg}"`);
+    } catch (e: any) {
+      this.feedResult(`Checkpoint error: ${e.message}`);
+    }
+  }
+
+  // ── System Prompt (dynamic, includes checkpoint instructions if enabled) ──
+
+  getSystemPrompt(): string {
+    if (!this.autoCommit) return ORCHESTRATOR_SYSTEM_PROMPT;
+
+    return ORCHESTRATOR_SYSTEM_PROMPT +
+      `\n\n# Checkpointing\n\n` +
+      `Auto-commit is enabled. After completing each phase (architect, implement, validate, review), ` +
+      `call the checkpoint tool with a descriptive commit message summarizing what was accomplished ` +
+      `in that phase. For example: checkpoint(message="Implemented user authentication module"). ` +
+      `This creates incremental git commits so progress is not lost.`;
+  }
+
+  isAutoCommitEnabled(): boolean {
+    return this.autoCommit;
   }
 }

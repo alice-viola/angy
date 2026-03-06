@@ -448,12 +448,46 @@ export function useGraphBuilder() {
       }
     }
 
+    function onCheckpointCreated(e: { hash: string; message: string }) {
+      const turnId = graphStore.maxTurn + 1;
+      graphStore.maxTurn = turnId;
+      graphStore.currentTurn = turnId;
+
+      const checkpointNodeId = `checkpoint:${e.hash}`;
+      graphStore.addNode({
+        id: checkpointNodeId,
+        type: 'checkpoint',
+        label: e.message || e.hash.slice(0, 7),
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        pinned: false,
+        commitHash: e.hash,
+        commitMessage: e.message,
+        turnId,
+        parentNodeId: `agent:${rootSessionId}`,
+      });
+
+      // Edge from root agent to checkpoint
+      graphStore.addEdge({
+        id: `checkpoint:${rootSessionId}->${checkpointNodeId}`,
+        source: `agent:${rootSessionId}`,
+        target: checkpointNodeId,
+        type: 'checkpoint',
+        label: 'checkpoint',
+        turnId,
+        animated: true,
+      });
+    }
+
     // Subscribe to events
     engineBus.on('agent:statusChanged', onStatusChanged);
     engineBus.on('diff:fileChanged', onFileChanged);
     engineBus.on('orchestrator:delegationStarted', onDelegationStarted);
     engineBus.on('session:created', onSessionCreated);
     engineBus.on('session:finished', onSessionFinished);
+    engineBus.on('orchestrator:checkpointCreated', onCheckpointCreated);
 
     // Return cleanup function
     return () => {
@@ -462,6 +496,7 @@ export function useGraphBuilder() {
       engineBus.off('orchestrator:delegationStarted', onDelegationStarted);
       engineBus.off('session:created', onSessionCreated);
       engineBus.off('session:finished', onSessionFinished);
+      engineBus.off('orchestrator:checkpointCreated', onCheckpointCreated);
     };
   }
 
@@ -937,11 +972,65 @@ export function useGraphBuilder() {
       }
     }
 
+    function onCheckpointCreated(e: { hash: string; message: string; sessionId?: string }) {
+      const turnId = graphStore.maxTurn + 1;
+      graphStore.maxTurn = turnId;
+      graphStore.currentTurn = turnId;
+
+      // Find the relevant agent node — use sessionId if provided, otherwise find any working root
+      let parentNodeId: string | undefined;
+      let groupIndex: number | undefined;
+      if (e.sessionId && graphStore.nodes.has(`agent:${e.sessionId}`)) {
+        parentNodeId = `agent:${e.sessionId}`;
+      } else {
+        // Fallback: find the first root agent node (no parentNodeId)
+        for (const node of graphStore.nodes.values()) {
+          if (node.type === 'agent' && !node.parentNodeId) {
+            parentNodeId = node.id;
+            break;
+          }
+        }
+      }
+      const parentNode = parentNodeId ? graphStore.nodes.get(parentNodeId) : undefined;
+      groupIndex = parentNode?.groupIndex;
+
+      const checkpointNodeId = `checkpoint:${e.hash}`;
+      graphStore.addNode({
+        id: checkpointNodeId,
+        type: 'checkpoint',
+        label: e.message || e.hash.slice(0, 7),
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        pinned: false,
+        commitHash: e.hash,
+        commitMessage: e.message,
+        turnId,
+        parentNodeId,
+        groupIndex,
+      });
+
+      // Edge from parent agent to checkpoint
+      if (parentNodeId) {
+        graphStore.addEdge({
+          id: `checkpoint:${parentNodeId}->${checkpointNodeId}`,
+          source: parentNodeId,
+          target: checkpointNodeId,
+          type: 'checkpoint',
+          label: 'checkpoint',
+          turnId,
+          animated: true,
+        });
+      }
+    }
+
     engineBus.on('agent:statusChanged', onStatusChanged);
     engineBus.on('diff:fileChanged', onFileChanged);
     engineBus.on('orchestrator:delegationStarted', onDelegationStarted);
     engineBus.on('session:created', onSessionCreated);
     engineBus.on('session:finished', onSessionFinished);
+    engineBus.on('orchestrator:checkpointCreated', onCheckpointCreated);
 
     return () => {
       engineBus.off('agent:statusChanged', onStatusChanged);
@@ -949,6 +1038,7 @@ export function useGraphBuilder() {
       engineBus.off('orchestrator:delegationStarted', onDelegationStarted);
       engineBus.off('session:created', onSessionCreated);
       engineBus.off('session:finished', onSessionFinished);
+      engineBus.off('orchestrator:checkpointCreated', onCheckpointCreated);
     };
   }
 

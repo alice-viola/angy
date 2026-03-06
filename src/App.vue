@@ -575,7 +575,8 @@ async function onOrchestrateStarted(sessionId: string) {
       sendMessageToEngine(sid, msg, handle, {
         workingDir: ui.workspacePath || '.',
         mode: 'orchestrator',
-        systemPrompt: ORCHESTRATOR_SYSTEM_PROMPT,
+        systemPrompt: orchestrator.getSystemPrompt(),
+        autoCommit: ui.autoCommitEnabled,
         resumeSessionId: state?.realClaudeSessionId || undefined,
       });
     },
@@ -652,7 +653,7 @@ async function onOrchestrateStarted(sessionId: string) {
     },
   });
   orchestrator.setWorkspace(ui.workspacePath || '.');
-  await orchestrator.attachToSession(sessionId);
+  await orchestrator.attachToSession(sessionId, ui.autoCommitEnabled);
 
   // Register interceptors so MCP tool calls are routed to the orchestrator
   setMcpToolInterceptor((sid, toolName, args) => {

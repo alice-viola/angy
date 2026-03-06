@@ -145,6 +145,7 @@ export type EngineEvents = {
   'orchestrator:phaseChanged': { phase: string };
   'orchestrator:delegationStarted': { role: string; task: string };
   'git:statusChanged': { entries: GitFileEntry[] };
+  'orchestrator:checkpointCreated': { hash: string; message: string };
 };
 
 // ── Attached Context / Images ─────────────────────────────────────────────

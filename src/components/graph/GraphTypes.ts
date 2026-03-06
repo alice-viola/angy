@@ -1,7 +1,7 @@
 import type { AgentStatus } from '../../engine/types';
 
-export type GraphNodeType = 'agent' | 'tool' | 'file' | 'validation' | 'milestone';
-export type GraphEdgeType = 'delegation' | 'tool-call' | 'file-touch' | 'peer-message' | 'validation';
+export type GraphNodeType = 'agent' | 'tool' | 'file' | 'validation' | 'milestone' | 'checkpoint';
+export type GraphEdgeType = 'delegation' | 'tool-call' | 'file-touch' | 'peer-message' | 'validation' | 'checkpoint';
 
 export interface GraphNode {
   id: string;
@@ -23,6 +23,9 @@ export interface GraphNode {
   filePath?: string;
   linesAdded?: number;
   linesRemoved?: number;
+  // Checkpoint-specific
+  commitHash?: string;
+  commitMessage?: string;
   // Common
   turnId?: number;
   timestamp?: number;

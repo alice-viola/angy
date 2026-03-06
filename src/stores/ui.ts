@@ -17,6 +17,7 @@ export const useUiStore = defineStore('ui', () => {
   const editorChatVisible = ref(true);
   const rightPanelMode = ref<'effects' | 'graph'>('effects');
   const missionControlFilter = ref<string | null>(null);
+  const autoCommitEnabled = ref(false);
 
   // Diff view state (git diff shown in Monaco DiffSplitView)
   const diffView = ref<{
@@ -76,6 +77,10 @@ export const useUiStore = defineStore('ui', () => {
     missionControlFilter.value = sessionId;
   }
 
+  function toggleAutoCommit() {
+    autoCommitEnabled.value = !autoCommitEnabled.value;
+  }
+
   function showDiffView(filePath: string, oldContent: string, newContent: string, leftLabel: string, rightLabel: string) {
     diffView.value = { filePath, oldContent, newContent, leftLabel, rightLabel };
   }
@@ -88,11 +93,11 @@ export const useUiStore = defineStore('ui', () => {
     viewMode, terminalVisible, activeLeftTab,
     workspacePath, currentFile, currentBranch, currentModel, isProcessing,
     inlinePreviewFile, effectsPanelVisible, editorChatVisible, rightPanelMode, diffView,
-    missionControlFilter,
+    missionControlFilter, autoCommitEnabled,
     managerSizes, editorSizes,
     switchToMode, toggleViewMode, toggleTerminal, dismissInlinePreview,
     toggleEffectsPanel, toggleEditorChat, toggleRightPanelMode, setRightPanelMode,
     showDiffView, closeDiffView,
-    enterMissionControl, exitMissionControl, setMissionControlFilter,
+    enterMissionControl, exitMissionControl, setMissionControlFilter, toggleAutoCommit,
   };
 });

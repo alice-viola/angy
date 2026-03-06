@@ -3,13 +3,14 @@
 MCP server for C3P2 orchestrator — zero dependencies (stdlib only).
 version: 2.0.0
 
-Exposes 6 tools over JSON-RPC 2.0 / stdio:
+Exposes 7 tools over JSON-RPC 2.0 / stdio:
   delegate      — Delegate work to a specialist agent
   validate      — Run a shell command to check results
   done          — Report goal achieved
   fail          — Report unrecoverable failure
   send_message  — Send a message to a teammate agent
   check_inbox   — Check your inbox for messages from teammates
+  checkpoint    — Create a checkpoint commit of current progress
 
 The C++ app intercepts delegate/validate/done/fail from the stream-json output.
 send_message and check_inbox do actual file I/O (inbox JSONL files).
@@ -135,6 +136,24 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "checkpoint",
+        "description": (
+            "Create a checkpoint commit of current progress. "
+            "Use this to save work incrementally so progress is not lost."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "description": "A descriptive commit message for this checkpoint",
+                },
+            },
+            "required": ["message"],
             "additionalProperties": False,
         },
     },
@@ -289,6 +308,8 @@ def main():
                 result_text = handle_send_message(args)
             elif name == "check_inbox":
                 result_text = handle_check_inbox()
+            elif name == "checkpoint":
+                result_text = "Checkpoint created: " + args.get("message", "")
             else:
                 result_text = TOOL_ACKS.get(name, "Acknowledged: " + name)
 

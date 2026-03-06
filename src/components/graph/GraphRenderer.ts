@@ -9,6 +9,7 @@ const TOOL_HEIGHT = 24;
 const FILE_SIZE = 20;
 const MILESTONE_RADIUS = 20;
 const VALIDATION_RADIUS = 14;
+const CHECKPOINT_RADIUS = 16;
 
 // Colors
 const STATUS_COLORS: Record<string, string> = {
@@ -20,6 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 const TOOL_COLOR = '#3b82f6';
 const FILE_COLOR = '#a855f7';
+const CHECKPOINT_COLOR = '#22c55e';
 
 // Edge styles
 const EDGE_COLORS: Record<string, string> = {
@@ -28,6 +30,7 @@ const EDGE_COLORS: Record<string, string> = {
   'file-touch': '#45475a',
   'peer-message': '#f9e2af',
   validation: '#22c55e',
+  checkpoint: '#22c55e',
 };
 
 const FONT_SANS = '"Inter", -apple-system, sans-serif';
@@ -156,6 +159,10 @@ export class GraphRenderer {
         }
         case 'milestone': {
           if (dx * dx + dy * dy <= MILESTONE_RADIUS * MILESTONE_RADIUS) return node;
+          break;
+        }
+        case 'checkpoint': {
+          if (dx * dx + dy * dy <= CHECKPOINT_RADIUS * CHECKPOINT_RADIUS) return node;
           break;
         }
       }
@@ -323,6 +330,7 @@ export class GraphRenderer {
       case 'file': this.drawFileNode(node, isHovered, isSelected); break;
       case 'validation': this.drawValidationNode(node, isHovered, isSelected); break;
       case 'milestone': this.drawMilestoneNode(node, isHovered, isSelected); break;
+      case 'checkpoint': this.drawCheckpointNode(node, isHovered, isSelected); break;
     }
   }
 
@@ -564,6 +572,66 @@ export class GraphRenderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(this.truncateLabel(node.label, 14), node.x, node.y + r + 6);
+
+    ctx.restore();
+  }
+
+  private drawCheckpointNode(node: GraphNode, hovered: boolean, selected: boolean): void {
+    const { ctx } = this;
+    const r = CHECKPOINT_RADIUS;
+
+    ctx.save();
+
+    if (hovered) {
+      ctx.shadowColor = CHECKPOINT_COLOR;
+      ctx.shadowBlur = 20;
+    }
+
+    // Outer circle (green, git-commit style)
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = CHECKPOINT_COLOR;
+    ctx.fill();
+
+    if (selected) {
+      ctx.strokeStyle = '#cdd6f4';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    ctx.shadowBlur = 0;
+
+    // Git-commit icon: inner circle with vertical lines extending out
+    const innerR = 5;
+    const lineLen = 7;
+
+    // Vertical lines extending from center circle
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(node.x, node.y - innerR - lineLen);
+    ctx.lineTo(node.x, node.y - innerR);
+    ctx.moveTo(node.x, node.y + innerR);
+    ctx.lineTo(node.x, node.y + innerR + lineLen);
+    ctx.stroke();
+
+    // Inner circle (hollow)
+    ctx.beginPath();
+    ctx.arc(node.x, node.y, innerR, 0, Math.PI * 2);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Label below — use short hash if available
+    const label = node.commitHash
+      ? node.commitHash.slice(0, 7)
+      : node.label;
+    ctx.fillStyle = '#a6e3a1';
+    ctx.font = `10px ${FONT_MONO}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(this.truncateLabel(label, 14), node.x, node.y + r + 4);
 
     ctx.restore();
   }

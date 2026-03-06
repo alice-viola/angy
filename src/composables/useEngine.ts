@@ -83,6 +83,7 @@ export function sendMessageToEngine(
     images?: Array<{ data: string; mediaType: string }>;
     agentName?: string;
     teamId?: string;
+    autoCommit?: boolean;
   } = { workingDir: '.' },
 ): ClaudeProcess {
   // Cancel any existing process for this session
@@ -99,6 +100,7 @@ export function sendMessageToEngine(
   if (options.resumeSessionId) proc.setSessionId(options.resumeSessionId);
   if (options.agentName) proc.setAgentName(options.agentName);
   if (options.teamId) proc.setTeamId(options.teamId);
+  if (options.autoCommit) proc.setAutoCommit(options.autoCommit);
 
   processes.set(sessionId, proc);
 

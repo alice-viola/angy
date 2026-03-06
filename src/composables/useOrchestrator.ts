@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue';
 import { Orchestrator } from '../engine/Orchestrator';
 import { PipelineEngine } from '../engine/PipelineEngine';
+import { engineBus } from '../engine/EventBus';
 
 // ── Singleton instances ──────────────────────────────────────────────────────
 
@@ -42,6 +43,11 @@ orchestrator.on('validationStarted', (e) => {
 
 orchestrator.on('validationResult', (e) => {
   lastEvent.value = e.passed ? 'Validation passed' : 'Validation failed';
+});
+
+orchestrator.on('checkpointCreated', (e) => {
+  lastEvent.value = `Checkpoint: ${e.hash}`;
+  engineBus.emit('orchestrator:checkpointCreated', { hash: e.hash, message: e.message });
 });
 
 // ── Composable ───────────────────────────────────────────────────────────────
