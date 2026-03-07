@@ -33,7 +33,7 @@ export class ClaudeProcess {
   private teamId = '';
   private _completedNormally = false;
   private autoCommit = false;
-  private kosEnabled = false;
+  private epicEnabled = false;
 
   get sessionId(): string { return this._sessionId; }
 
@@ -46,7 +46,7 @@ export class ClaudeProcess {
   setAgentName(name: string): void { this.agentName = name; }
   setTeamId(id: string): void { this.teamId = id; }
   setAutoCommit(enabled: boolean): void { this.autoCommit = enabled; }
-  setKosEnabled(enabled: boolean): void { this.kosEnabled = enabled; }
+  setEpicEnabled(enabled: boolean): void { this.epicEnabled = enabled; }
 
   isRunning(): boolean { return this.child !== null; }
 
@@ -89,7 +89,7 @@ export class ClaudeProcess {
       if (this.autoCommit) {
         orchestratorTools += ',mcp__c3p2-orchestrator__checkpoint';
       }
-      if (this.kosEnabled) {
+      if (this.epicEnabled) {
         orchestratorTools += ',mcp__c3p2-orchestrator__spawn_orchestrator';
       }
       args.push(

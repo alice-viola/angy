@@ -122,7 +122,7 @@ export function useOrchestrator() {
 
   /**
    * Create a new Orchestrator instance for an epic.
-   * Sets KOS options and wires events. The caller must set chatPanel
+   * Sets epic options and wires events. The caller must set chatPanel
    * and start the orchestrator (or use pool.spawnRoot for full lifecycle).
    */
   function createEpicOrchestrator(
@@ -131,7 +131,7 @@ export function useOrchestrator() {
   ): Orchestrator {
     console.log(`[useOrchestrator] Creating epic orchestrator: epicId=${epicId}, depth=${options.depth}`);
     const orch = new Orchestrator();
-    orch.setKosOptions(options);
+    orch.setEpicOptions(options);
     wireEpicOrchestratorEvents(orch, epicId);
 
     epicOrchestrators.set(epicId, orch);

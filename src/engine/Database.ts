@@ -118,7 +118,7 @@ export class Database {
       }
     }
 
-    // ── KOS Tables ──────────────────────────────────────────────────────
+    // ── Epic Tables ─────────────────────────────────────────────────────
 
     await this.db.execute(`
       CREATE TABLE IF NOT EXISTS projects (

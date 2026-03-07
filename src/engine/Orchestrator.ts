@@ -128,7 +128,7 @@ export class Orchestrator {
   private pendingFeedResult = '';
   private autoCommit = false;
   private gitAvailable = false;
-  private kosOptions: OrchestratorOptions | null = null;
+  private epicOptions: OrchestratorOptions | null = null;
 
   static readonly MCP_SERVER_NAME = 'c3p2-orchestrator';
   static readonly MAX_STEP_ATTEMPTS = 5;
@@ -136,10 +136,10 @@ export class Orchestrator {
 
   setChatPanel(panel: OrchestratorChatPanelAPI) { this.chatPanel = panel; }
   setWorkspace(ws: string) { this.workspace = ws; }
-  setKosOptions(opts: OrchestratorOptions | null) { this.kosOptions = opts; }
-  getKosOptions() { return this.kosOptions; }
+  setEpicOptions(opts: OrchestratorOptions | null) { this.epicOptions = opts; }
+  getEpicOptions() { return this.epicOptions; }
   isRunning() { return this._running; }
-  isEpicScoped() { return this.kosOptions !== null; }
+  isEpicScoped() { return this.epicOptions !== null; }
   sessionId() { return this._sessionId; }
   currentPhase() { return this._currentPhase; }
   totalDelegations() { return this._totalDelegations; }
@@ -261,11 +261,11 @@ export class Orchestrator {
       ? `- \`checkpoint(message)\` — create a git checkpoint commit to save progress\n`
       : '';
 
-    const spawnLine = this.kosOptions
+    const spawnLine = this.epicOptions
       ? `- \`spawn_orchestrator(task, working_dir?)\` — spawn a child orchestrator for complex sub-tasks\n`
       : '';
 
-    const kosContext = this.getKosSystemPromptAddition();
+    const epicContext = this.getEpicSystemPromptAddition();
 
     const initialMessage =
       `# Goal\n\n${goal}\n\n` +
@@ -283,7 +283,7 @@ export class Orchestrator {
       `You may call MULTIPLE delegate tools in a single turn to run agents in parallel.\n` +
       `For validate, done, and fail — call exactly ONE per turn.\n\n` +
       `Do NOT output plain text without a tool call. Every response needs a tool call.\n\n` +
-      kosContext +
+      epicContext +
       `Start now by calling delegate(role="architect", task="...") to analyze the codebase and design the solution.`;
 
     this.chatPanel.sendMessageToSession(this._sessionId, initialMessage);
@@ -641,7 +641,7 @@ export class Orchestrator {
       .filter(c => !c.completed)
       .map(c => c.agentName);
 
-    // Determine working directory: explicit working_dir from command, or KOS repo path
+    // Determine working directory: explicit working_dir from command, or epic repo path
     const workingDir = cmd.working_dir || undefined;
 
     const childId = this.chatPanel.delegateToChild(
@@ -762,20 +762,20 @@ export class Orchestrator {
     this.chatPanel.sendMessageToSession(this._sessionId, resultText);
   }
 
-  // ── Spawn Sub-Orchestrator (KOS) ────────────────────────────────────────
+  // ── Spawn Sub-Orchestrator (Epic) ───────────────────────────────────────
 
   private executeSpawnOrchestrator(cmd: OrchestratorCommand) {
     if (!cmd.task || !this.chatPanel) return;
 
-    if (!this.kosOptions) {
+    if (!this.epicOptions) {
       this.feedResult(
-        'ERROR: spawn_orchestrator is only available in KOS (epic-scoped) mode.',
+        'ERROR: spawn_orchestrator is only available in epic-scoped mode.',
       );
       return;
     }
 
-    const currentDepth = this.kosOptions.depth;
-    const maxDepth = this.kosOptions.maxDepth;
+    const currentDepth = this.epicOptions.depth;
+    const maxDepth = this.epicOptions.maxDepth;
 
     if (currentDepth >= maxDepth) {
       this.feedResult(
@@ -786,14 +786,14 @@ export class Orchestrator {
     }
 
     // Create child orchestrator options inheriting the epic context
-    const childKosOptions: OrchestratorOptions = {
-      epicId: this.kosOptions.epicId,
-      projectId: this.kosOptions.projectId,
-      repoPaths: { ...this.kosOptions.repoPaths },
+    const childEpicOptions: OrchestratorOptions = {
+      epicId: this.epicOptions.epicId,
+      projectId: this.epicOptions.projectId,
+      repoPaths: { ...this.epicOptions.repoPaths },
       depth: currentDepth + 1,
       maxDepth,
       parentSessionId: this._sessionId,
-      budgetRemaining: this.kosOptions.budgetRemaining,
+      budgetRemaining: this.epicOptions.budgetRemaining,
     };
 
     this._totalDelegations++;
@@ -801,12 +801,12 @@ export class Orchestrator {
     const agentName = `sub-orchestrator-${this.agentCounter + 1}`;
     this.agentCounter++;
 
-    this._currentPhase = `spawning sub-orchestrator (depth ${childKosOptions.depth})`;
+    this._currentPhase = `spawning sub-orchestrator (depth ${childEpicOptions.depth})`;
     this.events.emit('phaseChanged', { phase: this._currentPhase });
     this.events.emit('subOrchestratorSpawned', {
       task: cmd.task,
-      depth: childKosOptions.depth,
-      epicId: this.kosOptions.epicId,
+      depth: childEpicOptions.depth,
+      epicId: this.epicOptions.epicId,
     });
 
     // Determine working directory for the sub-orchestrator
@@ -838,24 +838,24 @@ export class Orchestrator {
       });
 
       console.log(
-        `[Orchestrator] Spawned sub-orchestrator: ${agentName} depth=${childKosOptions.depth} child=${childId}`,
+        `[Orchestrator] Spawned sub-orchestrator: ${agentName} depth=${childEpicOptions.depth} child=${childId}`,
       );
     }
   }
 
-  // ── KOS System Prompt Addition ──────────────────────────────────────────
+  // ── Epic System Prompt Addition ─────────────────────────────────────────
 
   /**
-   * Generates additional system prompt context when kosOptions is set.
+   * Generates additional system prompt context when epicOptions is set.
    * Includes epic details, target repos, and depth information.
    */
-  getKosSystemPromptAddition(): string {
-    if (!this.kosOptions) return '';
+  getEpicSystemPromptAddition(): string {
+    if (!this.epicOptions) return '';
 
-    const opts = this.kosOptions;
+    const opts = this.epicOptions;
     const lines: string[] = [
-      '\n\n# KOS (Kanban Orchestration System) Context\n',
-      `You are an epic-scoped orchestrator operating within the KOS system.\n`,
+      '\n\n# Epic Orchestration Context\n',
+      `You are an epic-scoped orchestrator.\n`,
       `- Epic ID: ${opts.epicId}`,
       `- Project ID: ${opts.projectId}`,
       `- Current depth: ${opts.depth} / max ${opts.maxDepth}`,
@@ -1003,8 +1003,8 @@ export class Orchestrator {
         `This creates incremental git commits so progress is not lost.`;
     }
 
-    // Append KOS context if this orchestrator is epic-scoped
-    prompt += this.getKosSystemPromptAddition();
+    // Append epic context if this orchestrator is epic-scoped
+    prompt += this.getEpicSystemPromptAddition();
 
     return prompt;
   }

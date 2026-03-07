@@ -113,6 +113,7 @@ const epicStore = useEpicStore();
 const { buildFromHistory, startLiveGraph } = useGraphBuilder();
 const graphStore = useGraphStore();
 let graphCleanup: (() => void) | null = null;
+let sessionSyncInterval: number | null = null;
 
 // ── Mission Control ──────────────────────────────────────────────────────
 const missionControl = useMissionControl();
@@ -885,6 +886,14 @@ onMounted(async () => {
     fleetStore.rebuildFromSessions();
     console.log(`[App] Loaded ${sessionsStore.sessions.size} sessions from database`);
 
+    // Periodically sync sessions from DB so other instances' chats appear
+    sessionSyncInterval = window.setInterval(async () => {
+      const added = await sessionsStore.syncNewSessions(ui.workspacePath || undefined);
+      if (added) {
+        fleetStore.rebuildFromSessions();
+      }
+    }, 5000);
+
     // Auto-select the most recent session
     if (sessionsStore.sessions.size > 0) {
       const mostRecent = sessionsStore.sessionList[0];
@@ -905,6 +914,10 @@ onUnmounted(() => {
   if (graphCleanup) {
     graphCleanup();
     graphCleanup = null;
+  }
+  if (sessionSyncInterval !== null) {
+    clearInterval(sessionSyncInterval);
+    sessionSyncInterval = null;
   }
   missionControl.dispose();
 });

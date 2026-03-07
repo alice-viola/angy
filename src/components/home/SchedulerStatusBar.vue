@@ -16,10 +16,6 @@
     <!-- Active epics -->
     <span class="text-[var(--text-secondary)]">{{ activeEpicCount }} active {{ activeEpicCount === 1 ? 'epic' : 'epics' }}</span>
 
-    <span class="text-[var(--border-subtle)]">|</span>
-
-    <!-- Cost placeholder -->
-    <span class="text-[var(--text-muted)]">$0.00 / $50.00</span>
   </div>
 </template>
 

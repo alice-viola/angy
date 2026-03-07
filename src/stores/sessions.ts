@@ -221,6 +221,37 @@ export const useSessionsStore = defineStore('sessions', () => {
     }
   }
 
+  /**
+   * Sync new/updated sessions from the database (for cross-instance sync).
+   * Returns true if any new sessions were added.
+   */
+  async function syncNewSessions(workspacePath?: string): Promise<boolean> {
+    const db = getDatabase();
+    const mgr = getSessionManager();
+    const saved = await db.loadSessions(workspacePath);
+    let added = false;
+    for (const info of saved) {
+      if (workspacePath && (!info.workspace || info.workspace !== workspacePath)) {
+        continue;
+      }
+      const existing = sessions.value.get(info.sessionId);
+      if (!existing) {
+        // New session from another instance
+        sessions.value.set(info.sessionId, info);
+        if (!mgr.hasSession(info.sessionId)) {
+          mgr.registerSession(info.sessionId, info);
+        }
+        added = true;
+      } else if (info.updatedAt > existing.updatedAt) {
+        // Session was updated externally — sync title and timestamp
+        existing.title = info.title;
+        existing.updatedAt = info.updatedAt;
+        existing.delegationStatus = info.delegationStatus;
+      }
+    }
+    return added;
+  }
+
   // Persist a session to database
   async function persistSession(sessionId: string) {
     const info = sessions.value.get(sessionId);
@@ -252,6 +283,7 @@ export const useSessionsStore = defineStore('sessions', () => {
     syncFromEngine,
     registerSession,
     loadFromDatabase,
+    syncNewSessions,
     persistSession,
   };
 });

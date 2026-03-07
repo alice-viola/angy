@@ -171,7 +171,7 @@ export class AngyEngine {
     console.log(`[AngyEngine] Spawning orchestrator for epic: ${epicId} ("${epic.title}")`);
 
     const orch = new Orchestrator();
-    orch.setKosOptions(options);
+    orch.setEpicOptions(options);
     this.wireOrchestratorEvents(orch, epicId);
     this.epicOrchestrators.set(epicId, orch);
 

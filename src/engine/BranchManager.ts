@@ -34,7 +34,7 @@ export class BranchManager {
     repos: ProjectRepo[],
   ): Promise<EpicBranch[]> {
     const branches: EpicBranch[] = []
-    const branchName = `kos/${epicId}`
+    const branchName = `epic/${epicId}`
 
     for (const repo of repos) {
       if (!(await this.isGitRepo(repo.path))) {

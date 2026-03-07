@@ -8,9 +8,9 @@
       <div class="max-w-[900px] mx-auto px-8 py-12">
         <!-- Header -->
         <div class="mb-10 flex items-center justify-between">
-          <div>
+          <div class="flex items-center gap-2">
+            <img src="/angylogo.png" alt="Angy" class="w-6 h-6 object-contain" />
             <h1 class="text-2xl font-bold text-[var(--text-primary)]">Angy</h1>
-            <p class="text-sm text-[var(--text-muted)] mt-1">KOS — Kanban Orchestration System</p>
           </div>
           <button
             @click="onQuickChat"
@@ -94,7 +94,9 @@ const showNewProject = ref(false);
 const settingsProject = ref<Project | null>(null);
 
 function onQuickChat() {
-  // Navigate to manager mode without a project context for standalone chat
+  // Clear any project assignment so WorkspaceSelector is shown
+  ui.activeProjectId = null;
+  ui.workspacePath = '';
   ui.switchToMode('manager');
 }
 </script>

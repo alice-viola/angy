@@ -1,4 +1,4 @@
-// ── KOS (Kanban Orchestration System) Type Definitions ──────────────────────
+// ── Epic Orchestration Type Definitions ──────────────────────────────────────
 
 // ── Column & Enum Types ─────────────────────────────────────────────────────
 

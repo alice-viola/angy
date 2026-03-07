@@ -138,9 +138,7 @@ export const useUiStore = defineStore('ui', () => {
 
   function navigateToProject(projectId: string) {
     activeProjectId.value = projectId;
-    if (!kanbanProjectIds.value.includes(projectId)) {
-      kanbanProjectIds.value = [projectId];
-    }
+    kanbanProjectIds.value = [projectId];
     viewMode.value = 'kanban';
   }
 
