@@ -93,6 +93,7 @@ interface VisibleAgent {
   favorite: boolean;
   updatedAt: number;
   parentSessionId?: string;
+  epicId?: string;
   depth: number;
   isOrchestratorRoot: boolean;
   childCount: number;

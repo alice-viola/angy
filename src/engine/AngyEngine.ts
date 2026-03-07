@@ -215,6 +215,12 @@ export class AngyEngine {
     }
 
     const sessionId = await orch.start(goal);
+
+    const sessionInfo = this.sessions.getSession(sessionId);
+    if (sessionInfo) {
+      sessionInfo.epicId = epicId;
+    }
+
     console.log(`[AngyEngine] Epic orchestrator started: epic=${epicId}, session=${sessionId}`);
     return sessionId;
   }
@@ -272,6 +278,14 @@ export class AngyEngine {
           const childInfo = this.sessions.getSession(childSid);
           if (childInfo) {
             childInfo.title = agentName.charAt(0).toUpperCase() + agentName.slice(1);
+          }
+        }
+
+        const epicId = this.pool.getEpicForSession(parentSessionId);
+        if (epicId) {
+          const childInfo = this.sessions.getSession(childSid);
+          if (childInfo) {
+            childInfo.epicId = epicId;
           }
         }
 
@@ -470,6 +484,13 @@ export class AngyEngine {
     });
   }
 
+  private emitEpicUpdated(epicId: string): void {
+    const epic = this.epics.getEpic(epicId);
+    if (epic) {
+      engineBus.emit('epic:updated', { epicId, epic: structuredClone(epic) });
+    }
+  }
+
   private wireEpicLifecycleEvents(): void {
     // When an epic completes, move it to review
     engineBus.on('epic:completed', async ({ epicId }) => {
@@ -511,6 +532,7 @@ export class AngyEngine {
             await this.epics.updateEpic(epicId, {
               costTotal: (epic.costTotal ?? 0) + data.costUsd,
             });
+            this.emitEpicUpdated(epicId);
           }
         }
       } catch (err) {

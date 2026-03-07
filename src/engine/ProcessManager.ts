@@ -202,6 +202,14 @@ export class ProcessManager {
       const summary = summarizeTool(payload.toolName, payload.input);
       handle.addToolUse(sessionId, payload.toolName, summary, payload.input, payload.toolId);
 
+      // Broadcast status change so fleet UI can track activity for all handle types
+      const activity = `${payload.toolName}: ${summary.substring(0, 50)}`;
+      engineBus.emit('agent:statusChanged', {
+        agentId: sessionId,
+        status: 'working',
+        activity,
+      });
+
       // Notify about file edits
       if (['Edit', 'Write', 'StrReplace', 'MultiEdit'].includes(payload.toolName)) {
         const filePath = payload.input?.file_path || payload.input?.path || '';
@@ -256,9 +264,17 @@ export class ProcessManager {
 
     // ── ClaudeProcess lifecycle events ──
 
-    proc.events.on('finished', (_exitCode) => {
+    proc.events.on('finished', (exitCode) => {
       handle.markDone(sessionId);
       this.processes.delete(sessionId);
+
+      // Broadcast idle status + session:finished so fleet UI updates for all handle types
+      engineBus.emit('agent:statusChanged', {
+        agentId: sessionId,
+        status: 'idle',
+        activity: '',
+      });
+      engineBus.emit('session:finished', { sessionId, exitCode });
 
       // Notify orchestrator of session turn completion
       if (this.orchestratorLookup) {

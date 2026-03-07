@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { Epic, EpicBranch, EpicColumn, PriorityHint } from '@/engine/KosTypes';
 import { getDatabase } from './sessions';
+import { engineBus } from '@/engine/EventBus';
 
 // ── Priority weight map for sorting ──────────────────────────────────────
 
@@ -30,6 +31,7 @@ export const useEpicStore = defineStore('epics', () => {
   const epics = ref<Epic[]>([]);
   const epicBranches = ref<Map<string, EpicBranch[]>>(new Map());
   const loading = ref<boolean>(false);
+  let engineListenersSetup = false;
 
   // ── Getters ────────────────────────────────────────────────────────
 
@@ -245,6 +247,15 @@ export const useEpicStore = defineStore('epics', () => {
 
   async function initialize(): Promise<void> {
     await loadAll();
+
+    if (!engineListenersSetup) {
+      engineListenersSetup = true;
+      engineBus.on('epic:updated', ({ epicId, epic }) => {
+        const idx = epics.value.findIndex((e) => e.id === epicId);
+        if (idx === -1) return;
+        epics.value[idx] = epic;
+      });
+    }
   }
 
   return {

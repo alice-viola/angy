@@ -60,21 +60,6 @@
       Schedule Now
     </button>
 
-    <!-- Scheduler toggle -->
-    <label class="flex items-center gap-1.5 text-[10px] text-[var(--text-muted)] cursor-pointer">
-      Scheduler
-      <button
-        class="relative w-7 h-4 rounded-full transition-colors"
-        :class="schedulerEnabled ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-raised)]'"
-        @click="$emit('update:schedulerEnabled', !schedulerEnabled)"
-      >
-        <span
-          class="absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform"
-          :class="schedulerEnabled ? 'left-3.5' : 'left-0.5'"
-        />
-      </button>
-    </label>
-
     <!-- Settings -->
     <button
       class="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
@@ -94,7 +79,6 @@ import { useUiStore } from '@/stores/ui';
 defineProps<{
   projectName: string;
   filterText?: string;
-  schedulerEnabled?: boolean;
 }>();
 
 defineEmits<{
@@ -102,7 +86,6 @@ defineEmits<{
   scheduleNow: [];
   openSchedulerConfig: [];
   'update:filterText': [value: string];
-  'update:schedulerEnabled': [value: boolean];
 }>();
 
 const ui = useUiStore();

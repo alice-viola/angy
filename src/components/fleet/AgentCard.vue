@@ -96,6 +96,15 @@
           {{ agent.title || 'New Agent' }}
         </span>
 
+        <!-- Epic badge -->
+        <span
+          v-if="agent.epicId"
+          class="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full leading-none"
+          style="background: color-mix(in srgb, var(--accent-mauve) 20%, transparent); color: var(--accent-mauve)"
+        >
+          Epic {{ shortEpicId }}
+        </span>
+
         <!-- Unviewed dot -->
         <div
           v-if="unviewed"
@@ -205,6 +214,13 @@ const editText = ref('');
 const editInput = ref<HTMLInputElement | null>(null);
 
 // ── Computed ─────────────────────────────────────────────────────────────
+
+const shortEpicId = computed(() => {
+  if (!props.agent.epicId) return '';
+  return props.agent.epicId.length > 8
+    ? props.agent.epicId.slice(0, 8)
+    : props.agent.epicId;
+});
 
 const depth = computed(() => (props.agent as HierarchicalAgent).depth ?? 0);
 const isOrchestratorRoot = computed(() => (props.agent as HierarchicalAgent).isOrchestratorRoot ?? false);

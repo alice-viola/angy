@@ -824,6 +824,13 @@ onMounted(async () => {
     }
   });
 
+  // Bridge agent status changes into the fleet store.
+  // ProcessManager emits this for every tool use and session finish, so the fleet
+  // cards show real-time activity for ALL agents (including headless epic agents).
+  engineBus.on('agent:statusChanged', ({ agentId, status, activity }) => {
+    fleetStore.updateAgent({ sessionId: agentId, status, activity });
+  });
+
   // Share the engine's ProcessManager with the useEngine composable
   setProcessManager(engine.processes);
 

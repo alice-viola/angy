@@ -52,6 +52,7 @@ export interface SessionInfo {
   updatedAt: number;
   favorite: boolean;
   parentSessionId?: string;
+  epicId?: string;
   pipelineId?: string;
   pipelineNodeId?: string;
   delegationTask?: string;
@@ -74,6 +75,7 @@ export interface AgentSummary {
   favorite: boolean;
   updatedAt: number;
   parentSessionId?: string;
+  epicId?: string;
 }
 
 // ── Database Records ──────────────────────────────────────────────────────
@@ -132,6 +134,8 @@ export interface GitFileEntry {
   staged: boolean;
 }
 
+import type { Epic } from './KosTypes';
+
 // ── Engine Event Bus Types ────────────────────────────────────────────────
 
 export type EngineEvents = {
@@ -154,6 +158,7 @@ export type EngineEvents = {
   'scheduler:info': { epicId?: string; title: string; message: string };
   'epic:requestStart': { epicId: string };
   'epic:requestStop': { epicId: string };
+  'epic:updated': { epicId: string; epic: Epic };
 };
 
 // ── Agent Handle (UI-agnostic event sink for Claude process output) ──────

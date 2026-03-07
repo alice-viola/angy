@@ -4,7 +4,6 @@
     <KanbanToolbar
       :projectName="toolbarTitle"
       v-model:filterText="filterText"
-      v-model:schedulerEnabled="schedulerEnabled"
       @addEpic="addEpic"
       @scheduleNow="onScheduleNow"
       @openSchedulerConfig="showSchedulerConfig = true"
@@ -130,7 +129,6 @@ const epicStore = useEpicStore();
 
 const selectedEpicId = ref<string | null>(null);
 const filterText = ref('');
-const schedulerEnabled = ref(false);
 const showSchedulerConfig = ref(false);
 const showProjectDropdown = ref(false);
 const dropdownRef = ref<HTMLElement | null>(null);

@@ -82,6 +82,9 @@ export class Scheduler {
     this.repoLocks.clear();
     console.log(`[Scheduler] Config loaded: enabled=${this.config.enabled}, tickInterval=${this.config.tickIntervalMs}ms, maxConcurrent=${this.config.maxConcurrentEpics}`);
 
+    // Reload from DB to ensure we have the latest state
+    await this.refreshCache();
+
     // Recover epics stuck in 'in-progress' (crash recovery)
     const allEpics = this.getAllEpics();
     const staleEpics = allEpics.filter(
@@ -111,6 +114,12 @@ export class Scheduler {
 
   // ── Data access (via repositories) ──────────────────────────────────────
 
+  /** Reload in-memory caches from DB so we pick up changes made by the UI layer. */
+  private async refreshCache(): Promise<void> {
+    if (this.epicRepo) await this.epicRepo.reload();
+    if (this.projectRepo) await this.projectRepo.reload();
+  }
+
   private getAllEpics(): Epic[] {
     if (this.epicRepo) return this.epicRepo.listEpics();
     return [];
@@ -119,18 +128,29 @@ export class Scheduler {
   private async doMoveEpic(id: string, column: string): Promise<void> {
     if (this.epicRepo) {
       await this.epicRepo.moveEpic(id, column as any);
+      this.emitEpicUpdated(id);
     }
   }
 
   private async doUpdateEpic(id: string, updates: Partial<Epic>): Promise<void> {
     if (this.epicRepo) {
       await this.epicRepo.updateEpic(id, updates);
+      this.emitEpicUpdated(id);
     }
   }
 
   private async doIncrementRejection(id: string): Promise<void> {
     if (this.epicRepo) {
       await this.epicRepo.incrementRejection(id);
+      this.emitEpicUpdated(id);
+    }
+  }
+
+  private emitEpicUpdated(id: string): void {
+    if (!this.epicRepo) return;
+    const epic = this.epicRepo.getEpic(id);
+    if (epic) {
+      engineBus.emit('epic:updated', { epicId: id, epic: structuredClone(epic) });
     }
   }
 
@@ -285,6 +305,8 @@ export class Scheduler {
     const actions: SchedulerAction[] = [];
 
     try {
+      await this.refreshCache();
+
       let allEpics = this.getAllEpics();
 
       // ── Health check: recover orphaned in-progress epics ────────────
@@ -392,6 +414,7 @@ export class Scheduler {
   async executeStart(epic: Epic, budgetRemaining: number | null = null): Promise<void> {
     console.log(`[Scheduler] executeStart: epic=${epic.id} ("${epic.title}") pool=${!!this.pool}`);
 
+    await this.refreshCache();
     await this.doMoveEpic(epic.id, 'in-progress');
     this.acquireRepos(epic);
 
@@ -491,6 +514,7 @@ export class Scheduler {
 
   async rejectEpic(epicId: string, feedback: string): Promise<void> {
     try {
+      await this.refreshCache();
       this.releaseRepos(epicId);
       await this.doIncrementRejection(epicId);
       await this.doUpdateEpic(epicId, { rejectionFeedback: feedback });
