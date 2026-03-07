@@ -74,6 +74,9 @@ export class DatabaseEpicRepository implements EpicRepository {
     const epic = this.getEpic(id);
     if (!epic) return;
 
+    if (column === 'todo' && epic.column === 'backlog') {
+      epic.rejectionCount = 0;
+    }
     epic.column = column;
     epic.updatedAt = new Date().toISOString();
     if (column === 'in-progress' && !epic.startedAt) {

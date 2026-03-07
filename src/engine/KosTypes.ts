@@ -60,6 +60,7 @@ export interface Epic {
   rejectionFeedback: string;
   computedScore: number;
   rootSessionId: string | null;
+  costTotal: number;
   createdAt: string;
   updatedAt: string;
   startedAt: string | null;
@@ -89,6 +90,7 @@ export interface SchedulerConfig {
   enabled: boolean;
   tickIntervalMs: number;
   maxConcurrentEpics: number;
+  maxConcurrentPerProject?: number;
   dailyCostBudget: number;
   weights: {
     manualHint: number;

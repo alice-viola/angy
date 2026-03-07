@@ -187,6 +187,7 @@ export class Database {
       CREATE TABLE IF NOT EXISTS scheduler_config (
         id TEXT PRIMARY KEY DEFAULT 'default',
         max_concurrent_epics INTEGER DEFAULT 3,
+        max_concurrent_per_project INTEGER DEFAULT 0,
         tick_interval_ms INTEGER DEFAULT 30000,
         auto_schedule INTEGER DEFAULT 1,
         daily_cost_budget REAL DEFAULT 50.0,
@@ -198,6 +199,11 @@ export class Database {
       )
     `);
 
+    // Migration: add max_concurrent_per_project column
+    try {
+      await this.db.execute(`ALTER TABLE scheduler_config ADD COLUMN max_concurrent_per_project INTEGER DEFAULT 0`);
+    } catch { /* column already exists */ }
+
     await this.db.execute(`
       CREATE TABLE IF NOT EXISTS scheduler_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -205,6 +211,18 @@ export class Database {
         action TEXT NOT NULL,
         epic_id TEXT,
         details TEXT DEFAULT ''
+      )
+    `);
+
+    await this.db.execute(`
+      CREATE TABLE IF NOT EXISTS cost_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        epic_id TEXT DEFAULT '',
+        cost_usd REAL NOT NULL,
+        input_tokens INTEGER DEFAULT 0,
+        output_tokens INTEGER DEFAULT 0,
+        timestamp TEXT NOT NULL
       )
     `);
   }
@@ -626,7 +644,7 @@ export class Database {
         epic.rejectionFeedback,
         epic.computedScore,
         epic.rootSessionId,
-        0,
+        epic.costTotal ?? 0,
         epic.createdAt,
         epic.updatedAt,
         epic.startedAt,
@@ -742,6 +760,7 @@ export class Database {
       enabled: r.auto_schedule !== 0,
       tickIntervalMs: r.tick_interval_ms,
       maxConcurrentEpics: r.max_concurrent_epics,
+      maxConcurrentPerProject: r.max_concurrent_per_project || undefined,
       dailyCostBudget: r.daily_cost_budget,
       weights: {
         manualHint: r.weight_manual,
@@ -758,12 +777,13 @@ export class Database {
 
     await this.db.execute(
       `INSERT OR REPLACE INTO scheduler_config
-       (id, max_concurrent_epics, tick_interval_ms, auto_schedule, daily_cost_budget,
+       (id, max_concurrent_epics, max_concurrent_per_project, tick_interval_ms, auto_schedule, daily_cost_budget,
         weight_manual, weight_dependency_depth, weight_age, weight_complexity, weight_rejection)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         'default',
         config.maxConcurrentEpics,
+        config.maxConcurrentPerProject ?? 0,
         config.tickIntervalMs,
         config.enabled ? 1 : 0,
         config.dailyCostBudget,
@@ -802,6 +822,29 @@ export class Database {
     }));
   }
 
+  // ── Cost Log ────────────────────────────────────────────────────────
+
+  async saveCostEntry(entry: { sessionId: string; epicId: string; costUsd: number; inputTokens: number; outputTokens: number; timestamp: string }): Promise<void> {
+    if (!this.db) return;
+
+    await this.db.execute(
+      `INSERT INTO cost_log (session_id, epic_id, cost_usd, input_tokens, output_tokens, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [entry.sessionId, entry.epicId, entry.costUsd, entry.inputTokens, entry.outputTokens, entry.timestamp],
+    );
+  }
+
+  async totalCostSince(since: string): Promise<number> {
+    if (!this.db) return 0;
+
+    const rows = await this.db.select<[{ total: number | null }]>(
+      'SELECT SUM(cost_usd) as total FROM cost_log WHERE timestamp >= $1',
+      [since],
+    );
+
+    return rows[0]?.total ?? 0;
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────
 
   private rowToEpic(r: any): Epic {
@@ -821,6 +864,7 @@ export class Database {
       rejectionFeedback: r.rejection_feedback ?? '',
       computedScore: r.computed_score ?? 0,
       rootSessionId: r.root_session_id || null,
+      costTotal: r.cost_total ?? 0,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
       startedAt: r.started_at || null,

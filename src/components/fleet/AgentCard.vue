@@ -154,6 +154,9 @@
         <button class="w-full text-left px-3 py-1.5 text-xs text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]" @click="copySessionId()">
           Copy Session ID
         </button>
+        <button class="w-full text-left px-3 py-1.5 text-xs text-[var(--accent-mauve)] hover:bg-[var(--bg-surface)]" @click="$emit('transform-to-epic', agent.sessionId)">
+          Transform into Epic
+        </button>
         <div class="h-px bg-[var(--border-subtle)] my-1" />
         <button class="w-full text-left px-3 py-1.5 text-xs text-[var(--accent-red)] hover:bg-[var(--bg-surface)]" @click="$emit('delete', agent.sessionId)">
           Delete
@@ -189,6 +192,7 @@ const emit = defineEmits<{
   rename: [sessionId: string, newTitle: string];
   'favorite-toggle': [sessionId: string];
   'collapse-toggle': [sessionId: string];
+  'transform-to-epic': [sessionId: string];
 }>();
 
 // ── Local state ──────────────────────────────────────────────────────────

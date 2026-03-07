@@ -137,7 +137,7 @@ export interface GitFileEntry {
 export type EngineEvents = {
   'agent:statusChanged': { agentId: string; status: AgentStatus; activity: string };
   'agent:output': { sessionId: string; text: string };
-  'agent:costUpdate': { sessionId: string; costUsd: number };
+  'agent:costUpdate': { sessionId: string; costUsd: number; inputTokens: number; outputTokens: number; epicId?: string };
   'session:created': { sessionId: string; parentSessionId?: string };
   'session:finished': { sessionId: string; exitCode: number };
   'session:idChanged': { oldId: string; newId: string };

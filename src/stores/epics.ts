@@ -102,6 +102,7 @@ export const useEpicStore = defineStore('epics', () => {
       rejectionFeedback: '',
       computedScore: 0,
       rootSessionId: null,
+      costTotal: 0,
       createdAt: now,
       updatedAt: now,
       startedAt: null,
@@ -135,6 +136,9 @@ export const useEpicStore = defineStore('epics', () => {
     const epic = epics.value[idx];
 
     const patch: Partial<Epic> = { column, updatedAt: now };
+    if (column === 'todo' && epic.column === 'backlog') {
+      patch.rejectionCount = 0;
+    }
     if (column === 'in-progress' && !epic.startedAt) {
       patch.startedAt = now;
     }
@@ -153,12 +157,35 @@ export const useEpicStore = defineStore('epics', () => {
     epics.value = epics.value.filter((e) => e.id !== id);
   }
 
+  function wouldCreateCycle(epicId: string, depId: string): boolean {
+    const visited = new Set<string>();
+    const stack = [depId];
+    while (stack.length > 0) {
+      const current = stack.pop()!;
+      if (current === epicId) return true;
+      if (visited.has(current)) continue;
+      visited.add(current);
+      const ep = epics.value.find(e => e.id === current);
+      if (ep) {
+        for (const dep of ep.dependsOn) {
+          if (!visited.has(dep)) stack.push(dep);
+        }
+      }
+    }
+    return false;
+  }
+
   async function addDependency(epicId: string, dependsOnId: string): Promise<void> {
     const idx = epics.value.findIndex((e) => e.id === epicId);
     if (idx === -1) return;
 
     const epic = epics.value[idx];
     if (epic.dependsOn.includes(dependsOnId)) return;
+
+    if (wouldCreateCycle(epicId, dependsOnId)) {
+      console.warn(`[EpicStore] Refusing to add dependency ${epicId} -> ${dependsOnId}: would create a cycle`);
+      return;
+    }
 
     epics.value[idx] = {
       ...epic,

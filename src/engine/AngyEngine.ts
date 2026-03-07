@@ -126,7 +126,7 @@ export class AngyEngine {
   }
 
   async shutdown(): Promise<void> {
-    this.scheduler.stop();
+    await this.scheduler.stop();
     // Cancel all running processes
     for (const orch of this.epicOrchestrators.values()) {
       orch.cancel();
@@ -408,6 +408,7 @@ export class AngyEngine {
       rejectionFeedback: '',
       computedScore: 0,
       rootSessionId: null,
+      costTotal: 0,
       createdAt: now,
       updatedAt: now,
       startedAt: null,
@@ -432,8 +433,8 @@ export class AngyEngine {
     this.scheduler.start();
   }
 
-  stopScheduler(): void {
-    this.scheduler.stop();
+  async stopScheduler(): Promise<void> {
+    await this.scheduler.stop();
   }
 
   // ── Private: event wiring ──────────────────────────────────────────
@@ -484,6 +485,35 @@ export class AngyEngine {
         await this.scheduler.rejectEpic(epicId, `Agent failed: ${reason}`);
       } catch (err) {
         console.error(`[AngyEngine] Failed to reject epic ${epicId}:`, err);
+      }
+    });
+
+    // Persist cost entries and accumulate epic cost totals
+    engineBus.on('agent:costUpdate', async (data) => {
+      try {
+        // Resolve epicId: prefer event payload, fall back to pool lookup
+        const epicId = data.epicId || this.pool.getEpicForSession(data.sessionId) || '';
+
+        await this.db.saveCostEntry({
+          sessionId: data.sessionId,
+          epicId,
+          costUsd: data.costUsd,
+          inputTokens: data.inputTokens,
+          outputTokens: data.outputTokens,
+          timestamp: new Date().toISOString(),
+        });
+
+        // Update epic cost total if associated with an epic
+        if (epicId) {
+          const epic = this.epics.getEpic(epicId);
+          if (epic) {
+            await this.epics.updateEpic(epicId, {
+              costTotal: (epic.costTotal ?? 0) + data.costUsd,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('[AngyEngine] Failed to persist cost entry:', err);
       }
     });
   }

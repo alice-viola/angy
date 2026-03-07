@@ -17,6 +17,7 @@ export type StreamParserEvents = {
   editStreamStarted: { toolName: string; filePath: string };
   editContentDelta: { blockIndex: number; partialNewString: string };
   editStreamFinished: number; // blockIndex
+  costReported: { sessionId: string; costUsd: number; inputTokens: number; outputTokens: number };
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -159,6 +160,20 @@ export class StreamParser {
     if (type === 'result') {
       event.type = 'result';
       event.sessionId = jstr(j, 'session_id');
+
+      // Extract cost data
+      const costUsd = (typeof j.total_cost_usd === 'number' ? j.total_cost_usd : 0)
+        || (typeof j.cost_usd === 'number' ? j.cost_usd : 0);
+      const usage = j.usage ?? {};
+      if (costUsd > 0 || usage.input_tokens) {
+        this.events.emit('costReported', {
+          sessionId: j.session_id ?? '',
+          costUsd,
+          inputTokens: usage.input_tokens ?? 0,
+          outputTokens: usage.output_tokens ?? 0,
+        });
+      }
+
       return event;
     }
 

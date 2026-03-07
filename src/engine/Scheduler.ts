@@ -39,15 +39,12 @@ export class Scheduler {
   private config!: SchedulerConfig;
   private repoLocks: Map<string, RepoLock> = new Map();
   private tickTimer: ReturnType<typeof setInterval> | null = null;
+  private tickPromise: Promise<void> | null = null;
   private running: boolean = false;
   private epicRepo: EpicRepository | null = null;
   private projectRepo: ProjectRepository | null = null;
   private db: Database | null = null;
   private pool: OrchestratorPool | null = null;
-
-  // Legacy Pinia store refs (kept for backward compatibility during migration)
-  private epicStore: any = null;
-  private projectStore: any = null;
 
   private static instance: Scheduler | null = null;
 
@@ -77,22 +74,8 @@ export class Scheduler {
 
   // ── Initialization ────────────────────────────────────────────────────
 
-  /**
-   * Initialize the scheduler.
-   *
-   * Supports two modes:
-   *   1. Repository mode (no args): uses epicRepo/projectRepo set via setRepositories()
-   *   2. Legacy mode (with stores): uses Pinia stores directly
-   */
-  async initialize(epicStore?: any, projectStore?: any): Promise<void> {
-    // Legacy mode: accept Pinia stores
-    if (epicStore) {
-      this.epicStore = epicStore;
-    }
-    if (projectStore) {
-      this.projectStore = projectStore;
-    }
-
+  /** Initialize the scheduler. Uses epicRepo/projectRepo set via setRepositories(). */
+  async initialize(): Promise<void> {
     console.log(`[Scheduler] initialize called, pool=${!!this.pool}, repoMode=${!!this.epicRepo}`);
 
     await this.loadConfig();
@@ -126,46 +109,32 @@ export class Scheduler {
     }
   }
 
-  // ── Abstraction over data access ──────────────────────────────────────
-
-  // When Pinia stores are available (UI mode), prefer them as the live source of truth.
-  // Fall back to engine repositories for headless mode.
+  // ── Data access (via repositories) ──────────────────────────────────────
 
   private getAllEpics(): Epic[] {
-    if (this.epicStore) return this.epicStore.epics as Epic[];
     if (this.epicRepo) return this.epicRepo.listEpics();
     return [];
   }
 
   private async doMoveEpic(id: string, column: string): Promise<void> {
-    if (this.epicStore) {
-      await this.epicStore.moveEpic(id, column);
-    } else if (this.epicRepo) {
+    if (this.epicRepo) {
       await this.epicRepo.moveEpic(id, column as any);
     }
   }
 
   private async doUpdateEpic(id: string, updates: Partial<Epic>): Promise<void> {
-    if (this.epicStore) {
-      await this.epicStore.updateEpic(id, updates);
-    } else if (this.epicRepo) {
+    if (this.epicRepo) {
       await this.epicRepo.updateEpic(id, updates);
     }
   }
 
   private async doIncrementRejection(id: string): Promise<void> {
-    if (this.epicStore) {
-      await this.epicStore.incrementRejection(id);
-    } else if (this.epicRepo) {
+    if (this.epicRepo) {
       await this.epicRepo.incrementRejection(id);
     }
   }
 
   private getReposForEpic(epic: Epic): any[] {
-    if (this.projectStore) {
-      return this.projectStore.reposByProjectId(epic.projectId)
-        .filter((r: { id: string }) => epic.targetRepoIds.includes(r.id));
-    }
     if (this.projectRepo) {
       return this.projectRepo.reposByProjectId(epic.projectId)
         .filter(r => epic.targetRepoIds.includes(r.id));
@@ -200,11 +169,24 @@ export class Scheduler {
   async saveConfig(config: SchedulerConfig): Promise<void> {
     // Clone to strip any Vue reactive proxy before passing to Tauri IPC
     const plain = structuredClone(config);
+    const prevTickInterval = this.config?.tickIntervalMs;
+
     const db = this.getDb();
     if (db) {
       await db.saveSchedulerConfig(plain);
     }
     this.config = plain;
+
+    // Reconcile running state with new config
+    if (plain.enabled && !this.isRunning()) {
+      this.start();
+    } else if (!plain.enabled && this.isRunning()) {
+      await this.stop();
+    } else if (this.isRunning() && plain.tickIntervalMs !== prevTickInterval) {
+      // Restart with new tick interval
+      await this.stop();
+      this.start();
+    }
   }
 
   // ── Priority Scoring ──────────────────────────────────────────────────
@@ -236,7 +218,19 @@ export class Scheduler {
 
   canAcquireRepos(epic: Epic): boolean {
     if (epic.targetRepoIds.length === 0) return true;
-    return epic.targetRepoIds.every((repoId) => !this.repoLocks.has(repoId));
+    const LOCK_TTL_MS = 10 * 60 * 1000; // 10 minutes
+    const now = Date.now();
+    for (const repoId of epic.targetRepoIds) {
+      const lock = this.repoLocks.get(repoId);
+      if (lock) {
+        if (now - new Date(lock.acquiredAt).getTime() < LOCK_TTL_MS) {
+          return false;
+        }
+        this.repoLocks.delete(repoId);
+        console.log(`[Scheduler] Auto-expired stale repo lock: repo=${repoId}, epic=${lock.epicId}`);
+      }
+    }
+    return true;
   }
 
   acquireRepos(epic: Epic): void {
@@ -258,10 +252,31 @@ export class Scheduler {
 
   isBlocked(epic: Epic, allEpics: Epic[]): boolean {
     if (epic.dependsOn.length === 0) return false;
-    return epic.dependsOn.some((depId) => {
-      const dep = allEpics.find((e) => e.id === depId);
-      return !dep || dep.column !== 'done';
-    });
+
+    const visited = new Set<string>();
+    const stack = [...epic.dependsOn];
+
+    while (stack.length > 0) {
+      const depId = stack.pop()!;
+      if (depId === epic.id) {
+        // Cycle detected
+        console.error(`[Scheduler] Circular dependency detected involving epic: ${epic.id}`);
+        return true; // treat as blocked
+      }
+      if (visited.has(depId)) continue;
+      visited.add(depId);
+
+      const dep = allEpics.find(e => e.id === depId);
+      if (!dep || dep.column !== 'done') return true; // dependency not done = blocked
+
+      // Traverse transitive dependencies
+      for (const transitiveDep of dep.dependsOn) {
+        if (!visited.has(transitiveDep)) {
+          stack.push(transitiveDep);
+        }
+      }
+    }
+    return false;
   }
 
   // ── Main Tick ─────────────────────────────────────────────────────────
@@ -270,7 +285,48 @@ export class Scheduler {
     const actions: SchedulerAction[] = [];
 
     try {
-      const allEpics = this.getAllEpics();
+      let allEpics = this.getAllEpics();
+
+      // ── Health check: recover orphaned in-progress epics ────────────
+      if (this.pool) {
+        const GRACE_MS = 5 * 60 * 1000;
+        const now = Date.now();
+        const inProgress = allEpics.filter((e: Epic) => e.column === 'in-progress');
+        for (const epic of inProgress) {
+          if (this.pool.isEpicActive(epic.id)) continue;
+          if (!epic.startedAt || now - new Date(epic.startedAt).getTime() <= GRACE_MS) continue;
+
+          console.log(`[Scheduler] Health check: recovering orphaned epic ${epic.id} ("${epic.title}")`);
+          this.releaseRepos(epic.id);
+          await this.doMoveEpic(epic.id, 'todo');
+
+          const action: SchedulerAction = {
+            type: 'recovered',
+            epicId: epic.id,
+            timestamp: new Date().toISOString(),
+            details: `Recovered orphaned in-progress epic during tick: ${epic.title}`,
+          };
+          await this.logAction(action);
+          actions.push(action);
+        }
+        // Re-fetch since we may have moved epics
+        allEpics = this.getAllEpics();
+      }
+
+      // ── Budget guard: skip scheduling if daily budget exhausted ──────
+      const db = this.getDb();
+      let todaySpend = 0;
+      if (db && this.config.dailyCostBudget > 0) {
+        const todayMidnight = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+        todaySpend = await db.totalCostSince(todayMidnight);
+        if (todaySpend >= this.config.dailyCostBudget) {
+          console.log(`[Scheduler] Daily budget exhausted ($${todaySpend.toFixed(2)} / $${this.config.dailyCostBudget.toFixed(2)}) — skipping scheduling`);
+          return actions;
+        }
+      }
+      const budgetRemaining = (db && this.config.dailyCostBudget > 0)
+        ? this.config.dailyCostBudget - todaySpend
+        : null;
 
       const inProgressCount = allEpics.filter((e: Epic) => e.column === 'in-progress').length;
       let slotsAvailable = this.config.maxConcurrentEpics - inProgressCount;
@@ -292,9 +348,18 @@ export class Scheduler {
           console.log(`[Scheduler] Skipping epic (repo locked): ${epic.id} ("${epic.title}")`);
           continue;
         }
+        if (this.config.maxConcurrentPerProject && this.config.maxConcurrentPerProject > 0) {
+          const inProgressForProject = allEpics.filter(
+            (e: Epic) => e.column === 'in-progress' && e.projectId === epic.projectId
+          ).length;
+          if (inProgressForProject >= this.config.maxConcurrentPerProject) {
+            console.log(`[Scheduler] Skipping epic (project concurrency limit): ${epic.id} ("${epic.title}")`);
+            continue;
+          }
+        }
 
         console.log(`[Scheduler] Starting epic: ${epic.id} ("${epic.title}") score=${score.toFixed(3)}`);
-        await this.executeStart(epic);
+        await this.executeStart(epic, budgetRemaining);
         await this.doUpdateEpic(epic.id, { computedScore: score });
         slotsAvailable--;
 
@@ -324,7 +389,7 @@ export class Scheduler {
 
   // ── Epic Lifecycle ────────────────────────────────────────────────────
 
-  async executeStart(epic: Epic): Promise<void> {
+  async executeStart(epic: Epic, budgetRemaining: number | null = null): Promise<void> {
     console.log(`[Scheduler] executeStart: epic=${epic.id} ("${epic.title}") pool=${!!this.pool}`);
 
     await this.doMoveEpic(epic.id, 'in-progress');
@@ -352,7 +417,7 @@ export class Scheduler {
         depth: 0,
         maxDepth: 3,
         parentSessionId: null,
-        budgetRemaining: null,
+        budgetRemaining,
       };
 
       try {
@@ -426,9 +491,21 @@ export class Scheduler {
 
   async rejectEpic(epicId: string, feedback: string): Promise<void> {
     try {
-      await this.doMoveEpic(epicId, 'todo');
+      this.releaseRepos(epicId);
       await this.doIncrementRejection(epicId);
       await this.doUpdateEpic(epicId, { rejectionFeedback: feedback });
+
+      const epic = this.getAllEpics().find(e => e.id === epicId);
+      const targetColumn = epic && epic.rejectionCount >= 5 ? 'backlog' : 'todo';
+      await this.doMoveEpic(epicId, targetColumn);
+
+      if (targetColumn === 'backlog') {
+        engineBus.emit('scheduler:info', {
+          epicId,
+          title: 'Epic moved to backlog',
+          message: `Epic exceeded 5 rejections and was moved to backlog`,
+        });
+      }
 
       await this.logAction({
         type: 'reject',
@@ -452,17 +529,22 @@ export class Scheduler {
     if (this.running) return;
     this.running = true;
     this.tickTimer = setInterval(() => {
-      this.tick().catch((err) => {
-        console.error('[Scheduler] tick failed:', err);
-      });
+      if (this.tickPromise) return; // skip if previous tick still running
+      this.tickPromise = this.tick()
+        .then(() => {})
+        .catch((err) => console.error('[Scheduler] tick failed:', err))
+        .finally(() => { this.tickPromise = null; });
     }, this.config.tickIntervalMs);
   }
 
-  stop(): void {
+  async stop(): Promise<void> {
     this.running = false;
     if (this.tickTimer) {
       clearInterval(this.tickTimer);
       this.tickTimer = null;
+    }
+    if (this.tickPromise) {
+      await this.tickPromise;
     }
   }
 

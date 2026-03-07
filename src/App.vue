@@ -877,10 +877,8 @@ onMounted(async () => {
     const branchManager = engine.branchManager;
     initPool(branchManager);
 
-    // Feed Pinia stores into the Scheduler for backward compatibility
-    // (Scheduler also has engine repositories for headless mode)
     const scheduler = engine.scheduler;
-    await scheduler.initialize(epicStore, projectStore);
+    await scheduler.initialize();
 
     await sessionsStore.loadFromDatabase(ui.workspacePath || undefined);
     fleetStore.rebuildFromSessions();

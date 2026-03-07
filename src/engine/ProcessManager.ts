@@ -13,6 +13,7 @@ import { Command } from '@tauri-apps/plugin-shell';
 import { ClaudeProcess } from './ClaudeProcess';
 import type { AgentHandle, ProcessOptions } from './types';
 import type { Orchestrator } from './Orchestrator';
+import { engineBus } from './EventBus';
 
 // ── MCP Prefix ───────────────────────────────────────────────────────────
 
@@ -226,6 +227,15 @@ export class ProcessManager {
           }
         }
       }
+    });
+
+    proc.streamParser.events.on('costReported', (data) => {
+      engineBus.emit('agent:costUpdate', {
+        sessionId: data.sessionId,
+        costUsd: data.costUsd,
+        inputTokens: data.inputTokens,
+        outputTokens: data.outputTokens,
+      });
     });
 
     proc.streamParser.events.on('errorOccurred', (error) => {

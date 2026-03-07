@@ -34,6 +34,7 @@
           @rename="(sid, title) => $emit('rename-requested', sid, title)"
           @favorite-toggle="sid => $emit('favorite-toggled', sid)"
           @collapse-toggle="onCollapseToggle"
+          @transform-to-epic="onTransformToEpic"
         />
       </template>
 
@@ -51,6 +52,7 @@ import AgentCard from './AgentCard.vue';
 import FleetHeader from './FleetHeader.vue';
 import { useFleetStore } from '../../stores/fleet';
 import { useUiStore } from '../../stores/ui';
+import { transformChatToEpic } from '../../composables/useEpicFromChat';
 import type { AgentStatus } from '../../engine/types';
 
 // ── Props / Emits ────────────────────────────────────────────────────────
@@ -165,5 +167,23 @@ function onAgentSelect(sessionId: string) {
 
 function onCollapseToggle(rootId: string) {
   fleetStore.toggleCollapsed(rootId);
+}
+
+async function onTransformToEpic(sessionId: string) {
+  const projectId = ui.activeProjectId;
+  if (!projectId) {
+    ui.addNotification('warning', 'No project selected', 'Open a project in Kanban view first, then transform a chat into an epic.');
+    return;
+  }
+
+  ui.addNotification('info', 'Analyzing conversation...', 'Claude is extracting an epic from this chat.');
+
+  try {
+    await transformChatToEpic(sessionId, projectId);
+    ui.addNotification('success', 'Epic created', 'Your new epic is in the Ideas column in Kanban.');
+    ui.navigateToKanban(projectId);
+  } catch (e) {
+    ui.addNotification('error', 'Epic creation failed', String(e));
+  }
 }
 </script>
