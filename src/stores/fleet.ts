@@ -10,6 +10,7 @@ export const useFleetStore = defineStore('fleet', () => {
   const agents = ref<AgentSummary[]>([]);
   const selectedAgentId = ref<string | null>(null);
   const collapsedRoots = ref<Set<string>>(new Set());
+  const manuallyExpandedRoots = ref<Set<string>>(new Set());
   const unviewedSessions = ref<Set<string>>(new Set());
 
   // ── Getters ────────────────────────────────────────────────────────
@@ -57,6 +58,15 @@ export const useFleetStore = defineStore('fleet', () => {
     // Sort by updatedAt descending
     newAgents.sort((a, b) => b.updatedAt - a.updatedAt);
     agents.value = newAgents;
+
+    // Auto-collapse new orchestrator roots (multi-agent groups) by default
+    for (const agent of newAgents) {
+      if (!agent.parentSessionId && newAgents.some((b) => b.parentSessionId === agent.sessionId)) {
+        if (!manuallyExpandedRoots.value.has(agent.sessionId)) {
+          collapsedRoots.value.add(agent.sessionId);
+        }
+      }
+    }
   }
 
   /** Update a single agent's fields (partial update) */
@@ -78,8 +88,10 @@ export const useFleetStore = defineStore('fleet', () => {
   function toggleCollapsed(rootId: string) {
     if (collapsedRoots.value.has(rootId)) {
       collapsedRoots.value.delete(rootId);
+      manuallyExpandedRoots.value.add(rootId);
     } else {
       collapsedRoots.value.add(rootId);
+      manuallyExpandedRoots.value.delete(rootId);
       // If selected agent is a descendant of this root, select the root instead
       if (selectedAgentId.value && isDescendantOf(selectedAgentId.value, rootId)) {
         selectAgent(rootId);
