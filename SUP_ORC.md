@@ -1,148 +1,227 @@
-# SUP_ORC — Recursive (Fractal) Orchestration Plan
+# Angy Orchestration Engine — Master Design
 
-## Overview
+## The Problem This Solves
 
-Instead of hardcoding a two-tier hierarchy (root orchestrator → workers), a single
-`Orchestrator` class recursively spawns either specialist agents **or** sub-orchestrators,
-depending on task complexity and current depth. A hard `maxDepth` cap prevents runaway
-token consumption.
+Today's engine has a critical flaw: parallel agents share the same working directory.
+Two implementers running simultaneously will overwrite each other's files. This is not
+edge-case behavior — it happens on every parallel delegation.
 
----
-
-## Core Concept
-
-```
-Depth 0: Root Orchestrator  (goal: "build a SaaS backend")
-  ├─ Depth 1: Sub-Orchestrator  (goal: "Auth subsystem")
-  │    ├─ Depth 2: architect-1
-  │    └─ Depth 2: implementer-2
-  ├─ Depth 1: Sub-Orchestrator  (goal: "DB layer")
-  │    ├─ Depth 2: architect-3
-  │    └─ Depth 2: implementer-4
-  └─ Depth 1: implementer-5    (simple task — no sub-orchestrator needed)
-```
-
-At `maxDepth`, a node can **only** spawn specialist agents (architect, implementer,
-reviewer, tester). The `spawn_orchestrator` tool is removed from its prompt.
+**Git worktrees are the fix and the foundation.** Everything else builds on top of them.
 
 ---
 
-## Changes Required
+## Architecture Overview
 
-### 1. Orchestrator Constructor — Depth State
+```
+Root Orchestrator (depth 0)
+  │  workspace: /project           (main worktree)
+  │
+  ├─ Sub-Orchestrator (depth 1)    ← spawned for complex sub-tasks
+  │    workspace: /project/.worktrees/team-abc/d1-auth
+  │    branch: angy/team-abc/d1-auth
+  │
+  ├─ implementer-1                 ← simple tasks go straight to specialists
+  │    workspace: /project/.worktrees/team-abc/implementer-1
+  │    branch: angy/team-abc/implementer-1
+  │
+  └─ implementer-2
+       workspace: /project/.worktrees/team-abc/implementer-2
+       branch: angy/team-abc/implementer-2
+```
 
-Add `depth` and `maxDepth` to the `Orchestrator` class:
+Each agent gets its own worktree → its own branch → zero file conflicts.
+When agents complete, their branches merge back to main.
+
+---
+
+## Tier 1 — Foundation (Correctness, implement first)
+
+### 1.1 WorktreeManager
+
+New class: `src/engine/WorktreeManager.ts`
+
+Wraps all `git worktree` operations. Used by the Orchestrator whenever it spawns
+any child — specialist or sub-orchestrator.
+
+```typescript
+export interface WorktreeHandle {
+  path: string;           // absolute path of the worktree directory
+  branch: string;         // e.g. "angy/team-abc/implementer-2"
+  teamId: string;
+  agentName: string;
+}
+
+export class WorktreeManager {
+  constructor(private repoRoot: string) {}
+
+  /** Create a new worktree for an agent. Branch is auto-named. */
+  async create(teamId: string, agentName: string): Promise<WorktreeHandle>
+
+  /**
+   * Merge a completed agent's branch back to the current branch of the
+   * calling worktree (usually main). Strategy: squash-merge by default,
+   * regular merge optional.
+   *
+   * Returns: { ok: true } or { ok: false, conflicts: string[] }
+   */
+  async merge(handle: WorktreeHandle, strategy: 'squash' | 'merge' = 'squash'): Promise<MergeResult>
+
+  /** Remove a worktree and delete its branch. Always call after merge or on cancel. */
+  async remove(handle: WorktreeHandle): Promise<void>
+
+  /** Remove all worktrees for a given teamId. Called on orchestrator done/fail/cancel. */
+  async cleanup(teamId: string): Promise<void>
+
+  /** List all angy-managed worktrees (for UI display and crash recovery). */
+  async list(): Promise<WorktreeHandle[]>
+}
+```
+
+Branch naming convention: `angy/<teamId>/<agentName>`
+Worktree path: `<repoRoot>/.worktrees/<teamId>/<agentName>`
+`.worktrees/` should be in `.gitignore`.
+
+**Merge conflict policy:**
+1. Attempt squash-merge (clean, single commit, no history noise).
+2. If conflicts: report back to orchestrator with the conflict list.
+3. Orchestrator can re-delegate the conflict resolution to an implementer
+   scoped to the conflicting files.
+4. Never silently discard work.
+
+### 1.2 Per-Agent Worktree in executeDelegation
+
+`Orchestrator.ts` → `executeDelegation()`:
+
+```typescript
+// Before spawning the child agent:
+const handle = await this.worktreeManager.create(this.teamId, agentName);
+
+// Pass the worktree path as the child's workspace.
+// The child agent writes ONLY to its own worktree directory.
+const childId = this.chatPanel.delegateToChild(
+  this._sessionId,
+  cmd.task,
+  context,
+  profileId,
+  this.contextProfileIds,
+  agentName,
+  this.teamId,
+  teammates,
+  handle.path,  // ← child workspace is the worktree, not the repo root
+);
+
+// Track the handle alongside the pending child:
+this.pendingChildren.set(childId, {
+  sessionId: childId,
+  role: cmd.role,
+  agentName,
+  completed: false,
+  output: '',
+  worktreeHandle: handle,   // ← new field
+});
+```
+
+### 1.3 Merge on Completion
+
+`checkAllChildrenDone()` — after all children in a batch are done:
+
+```typescript
+// For each completed child, merge its worktree back:
+const mergeResults: MergeResult[] = [];
+for (const child of completedChildren) {
+  if (child.worktreeHandle) {
+    const result = await this.worktreeManager.merge(child.worktreeHandle);
+    mergeResults.push(result);
+    await this.worktreeManager.remove(child.worktreeHandle);
+  }
+}
+
+// If any merges had conflicts, tell the orchestrator:
+const conflicts = mergeResults.filter(r => !r.ok).flatMap(r => r.conflicts);
+if (conflicts.length > 0) {
+  this.feedResult(
+    `${completedChildren.length} agent(s) completed but merge conflicts detected:\n` +
+    conflicts.map(f => `- ${f}`).join('\n') +
+    `\n\nDelegate to implementer to resolve these conflicts.`
+  );
+  return;
+}
+
+// All clean — report normal completion:
+this.feedResult(`${completedChildren.length} agent(s) completed and merged successfully. ...`);
+```
+
+### 1.4 Graceful Fallback (No Git)
+
+If `git worktree` is unavailable (not a repo, old git version):
+- `WorktreeManager.create()` returns a temp directory (no branch isolation).
+- Warn the orchestrator once in the system prompt.
+- Parallel agents still work but file-conflict risk is noted.
+- UI shows a "no isolation" badge on agent cards.
+
+---
+
+## Tier 2 — Core Features
+
+### 2.1 Recursive Orchestration (Fractal Depth)
+
+An orchestrator can spawn sub-orchestrators for truly complex, multi-phase sub-goals.
 
 ```typescript
 export interface OrchestratorOptions {
   depth?: number;       // current depth (0 = root)
   maxDepth?: number;    // hard cap (default: 3)
   parentSessionId?: string;
-}
-
-export class Orchestrator {
-  private depth: number;
-  private maxDepth: number;
-  private parentSessionId: string;
-
-  constructor(opts: OrchestratorOptions = {}) {
-    this.depth = opts.depth ?? 0;
-    this.maxDepth = opts.maxDepth ?? 3;
-    this.parentSessionId = opts.parentSessionId ?? '';
-  }
+  teamId?: string;      // inherited from parent
+  workspace?: string;   // worktree path assigned by parent
 }
 ```
 
-### 2. New MCP Tool — `spawn_orchestrator`
+**When to spawn a sub-orchestrator vs. a specialist:**
+> If the sub-task requires multiple sequential phases (architect → implement → validate)
+> or multiple parallel independent subsystems, spawn a sub-orchestrator.
+> If a single specialist can do it in one shot, delegate directly.
 
-Add a `spawn_orchestrator(goal, context)` tool to the MCP server. Only exposed when
-`depth < maxDepth`. When called:
+**New MCP tool: `spawn_orchestrator(goal, context)`**
+- Only available when `depth < maxDepth`.
+- Creates a new `Orchestrator` at `depth + 1`, assigns it a worktree.
+- Its `done()` result bubbles back to the parent exactly like a specialist's result.
+- Depth label in agent names: `d0-orchestrator`, `d1-orchestrator-1`, `d2-implementer-3`.
 
-1. A new `Orchestrator` is instantiated with `depth + 1`.
-2. It gets its own `teamId`, session, and `pendingChildren` map.
-3. On `done()`, its summary is returned to the parent as a delegation result —
-   same path as a specialist agent finishing.
+**System prompt is depth-aware:**
+- At `depth < maxDepth`: `spawn_orchestrator` is listed alongside `delegate`.
+- At `depth === maxDepth`: `spawn_orchestrator` is removed entirely from the prompt.
 
-The `OrchestratorCommand` type gains a new action:
+**Guard against "middle management":**
+Inject this rule whenever `spawn_orchestrator` is available:
+> "Only spawn a sub-orchestrator when the sub-task has multiple sequential phases
+> or parallel independent subsystems. If one or two specialist calls suffice, use
+> `delegate` directly."
 
-```typescript
-action: 'delegate' | 'spawn_orchestrator' | 'validate' | 'done' | 'fail' | 'checkpoint' | 'unknown';
-```
+### 2.2 Strict JSON Handoffs (AgentHandoff)
 
-### 3. Dynamic System Prompt — Tool Gating
-
-`getSystemPrompt()` becomes depth-aware:
-
-```typescript
-getSystemPrompt(): string {
-  const canSpawnSubOrchestrators = this.depth < this.maxDepth;
-  // If canSpawnSubOrchestrators: include spawn_orchestrator tool in prompt
-  // Else: omit it entirely, only list specialist roles
-}
-```
-
-Strict constraint injected into the prompt when `spawn_orchestrator` is available:
-
-> "Only call `spawn_orchestrator` when the sub-task has **multiple sequential phases**
-> or **parallel independent subsystems**. If it can be solved in one or two delegation
-> steps, send it directly to a specialist."
-
-### 4. Aggregation — Bubbling `done()` Summaries
-
-When a sub-orchestrator calls `done(summary)`:
-- Its summary is wrapped and fed back to the parent as a standard delegation result.
-- The parent treats it identically to receiving output from a specialist agent.
-- No special logic needed — the existing `onDelegateFinished` + `checkAllChildrenDone`
-  pipeline handles it.
-
-### 5. Depth Label in Agent Names
-
-Agent names include depth for observability:
-
-```
-d0-orchestrator      (root)
-d1-orchestrator-1    (sub-orchestrator at depth 1)
-d2-implementer-3     (specialist at depth 2)
-```
-
----
-
-## Feature: Strict JSON Handoffs
-
-All `done()` calls — from specialists and sub-orchestrators alike — must return a
-structured artifact instead of a plain string. This prevents context dilution as
-summaries bubble up the tree and makes outputs machine-readable.
-
-### Schema
+Replace the plain-string `done(summary)` with a structured result. This is essential
+for reliable information flow up the orchestration tree.
 
 ```typescript
 export interface AgentHandoff {
   status: 'success' | 'partial' | 'failed';
-  summary: string;                  // human-readable, ≤ 300 chars
-  artifacts: string[];              // file paths written/modified
-  unresolved_dependencies: string[]; // blockers the parent must handle
-  metadata?: Record<string, string>; // e.g. { testsPassed: "12", coverage: "87%" }
+  summary: string;                    // ≤ 300 chars, human-readable
+  artifacts: string[];                // file paths written/modified
+  unresolved_dependencies: string[];  // blockers for the parent to handle
+  metadata?: Record<string, string>;  // e.g. { testsPassed: "12" }
 }
 ```
 
-### Enforcement
+**Enforcement:**
+- MCP `done(result: AgentHandoff)` replaces `done(summary: string)`.
+- `checkAllChildrenDone()` parses each child output with `JSON.parse()`.
+- If parsing fails → feed error back: "Your done() output was not valid JSON.
+  Re-call done() with the correct schema."
+- Root orchestrator `completed` event payload: `{ handoff: AgentHandoff }`.
 
-- The MCP `done(summary)` tool is replaced by `done(result: AgentHandoff)`.
-- The orchestrator's system prompt instructs: *"Your final `done()` call must be a
-  valid JSON object matching the AgentHandoff schema. Do not return plain prose."*
-- `checkAllChildrenDone()` parses each child's output with `JSON.parse()`. If parsing
-  fails, it feeds back an error: *"Your done() output was not valid JSON. Re-call done()
-  with the correct schema."*
-- The root orchestrator's `completed` event payload changes from `{ summary: string }`
-  to `{ handoff: AgentHandoff }`.
-
-### Aggregation Up the Tree
-
-A sub-orchestrator that receives three `AgentHandoff` objects from its children merges
-them before calling its own `done()`:
-
+**Sub-orchestrator aggregation before calling its own `done()`:**
 ```typescript
-// Pseudo-logic inside sub-orchestrator's checkAllChildrenDone()
 const merged: AgentHandoff = {
   status: children.every(c => c.status === 'success') ? 'success' : 'partial',
   summary: children.map(c => c.summary).join('; '),
@@ -151,23 +230,17 @@ const merged: AgentHandoff = {
 };
 ```
 
----
+### 2.3 Session Resumability
 
-## Feature: Session Resumability
+Long-running orchestrations must survive process restarts.
 
-Long-running orchestrations (CI pipelines, multi-hour codegen) must survive process
-restarts, app quits, and webhook-triggered wake-ups.
-
-### Persistent Checkpoint File
-
-On every phase transition and after every delegation batch, the orchestrator serializes
-its full state to disk:
+**Snapshot on every phase transition and after every delegation batch:**
 
 ```typescript
 export interface OrchestratorSnapshot {
-  version: 1;
-  snapshotId: string;         // UUID
-  savedAt: string;            // ISO timestamp
+  version: 2;
+  snapshotId: string;
+  savedAt: string;                    // ISO timestamp
   goal: string;
   depth: number;
   maxDepth: number;
@@ -176,6 +249,7 @@ export interface OrchestratorSnapshot {
   currentPhase: string;
   totalDelegations: number;
   autoCommit: boolean;
+  workspace: string;
   pendingChildren: PendingChildSnapshot[];
   completedHandoffs: AgentHandoff[];
 }
@@ -184,173 +258,168 @@ export interface PendingChildSnapshot {
   sessionId: string;
   role: string;
   agentName: string;
+  worktreeBranch: string;    // branch name for recovery
+  worktreePath: string;
   completed: boolean;
   handoff?: AgentHandoff;
 }
 ```
 
-File path: `~/.angy/snapshots/<teamId>.json`
+Snapshot path: `~/.angy/snapshots/<teamId>.json`
 
-### Resume Flow
-
+**Resume flow:**
 ```typescript
-// New static method
 static async resume(snapshotId: string, chatPanel: OrchestratorChatPanelAPI): Promise<Orchestrator>
 ```
+1. Load snapshot.
+2. Re-instantiate `Orchestrator` with saved state.
+3. Re-verify worktrees via `WorktreeManager.list()` — re-attach or re-issue missing ones.
+4. For each `completed: false` child, check if Claude session has output (`sessionFinalOutput`).
+   If yes → call `onDelegateFinished()` to replay.
+   If not → re-issue the delegation with the original task.
 
-1. Load snapshot from `~/.angy/snapshots/<snapshotId>.json`.
-2. Re-instantiate `Orchestrator` with saved `depth`, `maxDepth`, `teamId`.
-3. Restore `pendingChildren` map.
-4. For each child that was `completed: false`, check if the Claude session produced
-   output while the app was closed (`sessionFinalOutput()`). If yes, call
-   `onDelegateFinished()` to replay the result.
-5. If the session is gone (app was force-quit mid-run), re-issue the delegation with
-   the original task — `resumeSessionId` is passed to the new Claude CLI invocation.
-
-### UI
-
-- The "New Orchestration" dialog shows a list of resumable snapshots with timestamp,
-  goal preview, and current phase.
-- A "Resume" button re-attaches the orchestrator to the existing fleet without
-  creating a new root session.
+**UI:** "New Orchestration" dialog shows resumable snapshots with timestamp, goal preview,
+current phase, and a Resume button.
 
 ---
 
-## Feature: Multiverse Execution
+## Tier 3 — Power Features
 
-For high-stakes decisions (architecture choices, algorithm selection), the orchestrator
-spawns N isolated branches in parallel, evaluates them against a rubric, and merges
-the winner.
+### 3.1 Multiverse Execution (branch tool)
 
-### New MCP Tool — `branch(n, goal, evaluator)`
+For high-stakes decisions (algorithm choice, architecture), spawn N isolated solutions
+in parallel, evaluate them, and merge the winner.
 
-Only available at Depth 0 (no branching inside branches to avoid exponential blowup).
+**New MCP tool: `branch(n, goal, evaluator)`**
+- Only available at depth 0.
+- `n`: number of branches (2–4, hardcoded max).
+- `evaluator`: shell command returning an exit code (0 = pass, score from stdout).
 
-```typescript
-// Tool signature exposed to root orchestrator
-branch(
-  n: number,          // number of parallel branches (2–4)
-  goal: string,       // what each branch should produce
-  evaluator: string,  // shell command that scores a branch, e.g. "npm test -- --json"
-): void
-```
-
-### Execution
-
-1. For each branch `i` in `[0..n)`:
-   - Create a git worktree at `~/.angy/branches/<teamId>/branch-<i>`.
-   - Spawn a child `Orchestrator` (or specialist) scoped to that worktree.
-2. Wait for all branches to return `AgentHandoff` objects.
-3. Run `evaluator` command in each worktree. Capture exit code + stdout score.
+**Execution:**
+1. For each `i` in `[0..n)`:
+   - `WorktreeManager.create(teamId, `branch-${i}`)` → worktree + branch.
+   - Spawn child orchestrator (or specialist) scoped to that worktree.
+2. Wait for all to return `AgentHandoff`.
+3. Run `evaluator` in each worktree. Capture exit code + stdout score.
 4. Pick the branch with the best score.
-5. `git merge --squash` the winning worktree into the main workspace.
-6. Clean up losing worktrees.
-7. Feed result back to root orchestrator as a standard delegation result.
+5. `git merge --squash` the winning branch into main.
+6. `WorktreeManager.cleanup()` all losing branches.
+7. Feed handoff back to root orchestrator as a delegation result.
 
-### Guardrails
+**Guardrails:**
+- Max `n = 4`.
+- Branching forbidden at `depth > 0`.
+- Each branch inherits `MAX_TOTAL_DELEGATIONS / n` budget.
 
-- Max `n = 4` (hardcoded).
-- Branching is forbidden when `depth > 0`.
-- Each branch inherits the root's `MAX_TOTAL_DELEGATIONS` budget divided by `n`.
+### 3.2 Agent Graph Visualization
+
+A live, force-directed graph replacing the Effects panel in orchestrator mode.
+
+**What it shows:**
+- Agent nodes (circle, colored by role, pulsing when active).
+- Tool call nodes (small rect with icon).
+- File nodes (diamond, badge with +N/-N lines, colored dots for which agents touched it).
+- Delegation edges (thick, parent→child).
+- Worktree edges (dashed, agent→worktree branch label).
+- Merge event nodes (git-merge icon, appears when a worktree merges back).
+- Conflict nodes (red, when a merge fails).
+
+**Two modes:**
+- **Live**: reactive stream from orchestrator events + ChatPanel tool calls.
+- **Replay**: reconstructed from DB (`sessions`, `messages`, `file_changes` tables) with
+  a timeline scrubber.
+
+**Worktree layer in the graph:**
+Each agent node shows its assigned branch name. When merge completes, an animated edge
+flows from the agent node back to the root/parent node with a "merged" label. Conflict
+nodes are highlighted red and link to the conflicting file nodes.
+
+**Implementation:** Canvas 2D, no external graph library. See AGENTGRAPH.md for the
+detailed rendering/layout plan (still valid, add worktree node/edge types).
 
 ---
 
-## Feature: MCP Standardization
+## Tier 4 — Future (Do Not Block On)
 
-The `spawn_orchestrator` and `delegate` tools are designed so a child agent can be
-hosted locally **or** be a remote MCP endpoint — the orchestrator does not need to
-know which.
-
-### Abstract Agent Endpoint
+### 4.1 Remote MCP Endpoints
 
 ```typescript
 export interface AgentEndpoint {
   type: 'local' | 'remote';
-  // local: spawns a new Orchestrator/specialist in-process
-  profileId?: string;
-  // remote: calls an external MCP-compliant agent service
-  url?: string;
+  profileId?: string;   // local
+  url?: string;         // remote
   apiKey?: string;
-  schema?: object; // JSON Schema for validating the remote agent's handoff
+  schema?: object;
 }
 ```
 
-### Remote Delegation Flow
+Remote delegation: POST `{ task, context, schema: AgentHandoff }` → poll/SSE for result.
+Registry: `~/.angy/agent-registry.json` maps role names to endpoints.
 
-When `endpoint.type === 'remote'`:
-1. POST `{ task, context, schema: AgentHandoff }` to `endpoint.url`.
-2. Poll or subscribe (SSE/webhook) for the result.
-3. Validate the response against `AgentHandoff` schema.
-4. Feed the handoff back into `onDelegateFinished()` exactly like a local child.
+### 4.2 Token Budget Tracking
 
-### Registry
-
-A future `~/.angy/agent-registry.json` maps role names to endpoints:
-
-```json
-{
-  "auth-specialist": {
-    "type": "remote",
-    "url": "https://agents.example.com/auth",
-    "apiKey": "..."
-  },
-  "implementer": {
-    "type": "local",
-    "profileId": "specialist-implementer"
-  }
-}
-```
-
-The orchestrator's `executeDelegation` resolves the role against the registry before
-deciding whether to call `delegateToChild()` locally or issue an HTTP request.
+Global counter passed down through options. Each depth level's budget =
+parent budget / expected number of children. Enforced via `MAX_TOTAL_DELEGATIONS`
+inherited from root (not reset per sub-orchestrator).
 
 ---
 
-## Traps to Avoid
+## Implementation Rollout
+
+| Phase | Feature | Key Files |
+|-------|---------|-----------|
+| 1 | `WorktreeManager` — create/merge/remove/cleanup | `src/engine/WorktreeManager.ts` |
+| 2 | `PendingChild.worktreeHandle` + per-agent worktree in `executeDelegation` | `Orchestrator.ts` |
+| 3 | Merge-on-completion in `checkAllChildrenDone()` with conflict reporting | `Orchestrator.ts` |
+| 4 | Graceful fallback if no git or old git version | `WorktreeManager.ts` |
+| 5 | `OrchestratorOptions` depth/maxDepth + `spawn_orchestrator` MCP tool | `Orchestrator.ts`, `orchestrator_server.py` |
+| 6 | Depth-aware system prompt (tool gating) + agent name depth labels | `Orchestrator.ts` |
+| 7 | `AgentHandoff` schema replaces plain string `done()` | MCP server + `Orchestrator.ts` |
+| 8 | `checkAllChildrenDone()` parses + validates + merges `AgentHandoff` | `Orchestrator.ts` |
+| 9 | `OrchestratorSnapshot` serialization on phase transitions | `Orchestrator.ts` |
+| 10 | `Orchestrator.resume()` static method + worktree recovery | `Orchestrator.ts` |
+| 11 | Resume dialog in UI | Vue components |
+| 12 | `branch(n, goal, evaluator)` MCP tool + worktree-based evaluation | `Orchestrator.ts`, MCP server |
+| 13 | Branch winner merge + loser cleanup | `WorktreeManager.ts`, `Orchestrator.ts` |
+| 14 | Agent graph — data layer, graph store, Canvas renderer | `src/components/graph/` |
+| 15 | Agent graph — worktree nodes/edges + merge events | Graph components |
+| 16 | Agent graph — live mode event wiring + replay mode | Graph composables |
+
+---
+
+## Critical Traps
+
+### File Conflict (resolved by Tier 1)
+Without worktrees, parallel agents corrupt each other. This is the highest-priority fix.
 
 ### "Middle Management" Problem
-LLMs will over-delegate if given the chance. Mitigate with a hard rule in the prompt:
-"If the task can be accomplished by a single specialist in one shot, do not spawn a
-sub-orchestrator."
+LLMs will over-use `spawn_orchestrator`. Hard prompt rule + token budget enforcement
+are the mitigations. Do not soften the rule.
 
 ### Context Dilution
-Summaries lose detail as they bubble up the tree. Mitigate with an **Artifact Store**:
-- Agents write outputs to named artifacts (files or an in-memory map keyed by artifact ID).
-- Orchestrators pass artifact IDs up the chain, not full content.
-- Root orchestrator can retrieve any artifact by ID at the end.
+Summaries lose detail as they bubble up the tree. `AgentHandoff.artifacts` (file paths,
+not content) + a shared artifact store (files on disk in known locations) prevent this.
+Orchestrators pass paths, not content.
 
-### Token Budget
-Each depth level multiplies token usage. Enforce a per-node delegation cap
-(`MAX_TOTAL_DELEGATIONS`) inherited from the root, or tracked globally via a shared
-counter passed down through options.
+### Worktree Leaks
+If the app crashes mid-run, worktrees are orphaned on disk. `WorktreeManager.list()`
+at startup + the snapshot recovery flow handles this. Add a "Clean up orphaned worktrees"
+button to settings.
 
----
-
-## Rollout Phases
-
-| Phase | Feature | Scope |
-|-------|---------|-------|
-| 1 | Recursive core | Add `depth`/`maxDepth` to `Orchestrator` constructor. No behavior change yet. |
-| 2 | Recursive core | Add `spawn_orchestrator` to MCP server. Gate it behind `depth < maxDepth`. |
-| 3 | Recursive core | Wire `executeDelegation` to detect `role === 'orchestrator'` and spin up child `Orchestrator`. |
-| 4 | Recursive core | Implement depth-aware system prompt (tool gating + "when to spawn" constraint). |
-| 5 | Recursive core | Add depth labels to agent names and fleet view. |
-| 6 | Strict JSON | Replace `done(summary: string)` with `done(result: AgentHandoff)` in MCP + parsing. |
-| 7 | Strict JSON | Update `checkAllChildrenDone()` to parse, validate, and merge `AgentHandoff` objects. |
-| 8 | Resumability | Implement `OrchestratorSnapshot` serialization on every phase transition. |
-| 9 | Resumability | Implement `Orchestrator.resume()` static method + UI resume dialog. |
-| 10 | Multiverse | Add `branch(n, goal, evaluator)` MCP tool + git worktree management. |
-| 11 | Multiverse | Implement branch evaluator runner + winner merge logic. |
-| 12 | MCP Standard | Define `AgentEndpoint` interface + remote delegation HTTP path. |
-| 13 | MCP Standard | Implement `agent-registry.json` resolution in `executeDelegation`. |
+### Merge Storm
+When N branches all complete simultaneously, N merges fire at once. Serialize them via
+the existing `GitManager` op queue to prevent race conditions.
 
 ---
 
-## Open Questions
+## Open Questions (Decide Before Implementing)
 
-- Should `maxDepth` be user-configurable in the UI (e.g. a slider 1–4)?
-- Should sub-orchestrators share the parent's `autoCommit`/`gitAvailable` state?
-- Should the fleet view visually indent by depth to show the tree structure?
-- Should `AgentHandoff` be versioned so remote agents from different versions stay compatible?
-- Should the branch evaluator support a scoring LLM (judge model) in addition to shell commands?
-- Should resumable snapshots have a TTL (e.g. auto-delete after 7 days)?
+1. **Worktree path**: inside repo (`.worktrees/`) vs. alongside repo (`../angy-worktrees/<repo>/`)?
+   Inside is simpler but pollutes the project directory.
+2. **Default merge strategy**: squash (clean history) vs. regular merge (preserves agent commits)?
+   Squash is recommended — history should reflect logical phases, not agent bookkeeping.
+3. **Conflict resolution UI**: Should a merge conflict pause the orchestration and show a diff
+   in the UI, or always re-delegate resolution to an implementer agent?
+4. **maxDepth user control**: Slider 1–4 in the "New Orchestration" dialog?
+5. **Snapshot TTL**: Auto-delete resumable snapshots after N days?
+6. **Branch evaluator**: Support a judge LLM (in addition to shell command) for multiverse scoring?
