@@ -208,10 +208,10 @@ export const useSessionsStore = defineStore('sessions', () => {
   async function loadFromDatabase(workspacePath?: string) {
     const db = getDatabase();
     const mgr = getSessionManager();
-    const saved = await db.loadSessions();
+    const saved = await db.loadSessions(workspacePath);
     for (const info of saved) {
       // Filter by workspace if specified
-      if (workspacePath && info.workspace && info.workspace !== workspacePath) {
+      if (workspacePath && (!info.workspace || info.workspace !== workspacePath)) {
         continue;
       }
       sessions.value.set(info.sessionId, info);

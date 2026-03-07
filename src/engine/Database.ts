@@ -238,15 +238,20 @@ export class Database {
     );
   }
 
-  async loadSessions(): Promise<SessionInfo[]> {
+  async loadSessions(workspace?: string): Promise<SessionInfo[]> {
     if (!this.db) return [];
 
-    const rows = await this.db.select<any[]>(
-      `SELECT session_id, title, workspace, mode, created_at, updated_at, favorite,
-              parent_session_id, pipeline_id, pipeline_node_id,
-              delegation_task, delegation_status, delegation_result
-       FROM sessions ORDER BY updated_at DESC`,
-    );
+    const query = workspace
+      ? `SELECT session_id, title, workspace, mode, created_at, updated_at, favorite,
+                parent_session_id, pipeline_id, pipeline_node_id,
+                delegation_task, delegation_status, delegation_result
+         FROM sessions WHERE workspace = $1 ORDER BY updated_at DESC`
+      : `SELECT session_id, title, workspace, mode, created_at, updated_at, favorite,
+                parent_session_id, pipeline_id, pipeline_node_id,
+                delegation_task, delegation_status, delegation_result
+         FROM sessions ORDER BY updated_at DESC`;
+
+    const rows = await this.db.select<any[]>(query, workspace ? [workspace] : []);
 
     return rows.map(this.rowToSessionInfo);
   }

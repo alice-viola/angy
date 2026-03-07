@@ -809,6 +809,11 @@ onMounted(async () => {
     if (sessionsStore.sessions.has(sessionId)) return;
     const info = engine.sessions.getSession(sessionId);
     if (info) {
+      // Only add sessions belonging to the current workspace
+      const currentWs = ui.workspacePath;
+      if (currentWs && (!info.workspace || info.workspace !== currentWs)) {
+        return;
+      }
       sessionsStore.sessions.set(sessionId, info);
       if (!sessionsStore.messages.has(sessionId)) {
         sessionsStore.messages.set(sessionId, []);

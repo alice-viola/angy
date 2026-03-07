@@ -1,6 +1,6 @@
 <template>
   <div
-    class="group rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-3 py-2.5
+    class="group rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-surface)] px-2 py-2
            cursor-pointer transition-all hover:border-[var(--border-standard)]
            hover:shadow-md hover:shadow-black/20"
     @click="onSingleClick"

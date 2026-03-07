@@ -11,7 +11,23 @@
     >
       <!-- Multi-project selector slot -->
       <template #projectSelector>
-        <div v-if="allProjects.length > 1" class="relative" ref="dropdownRef">
+        <!-- Single project: chat button only -->
+        <button
+          v-if="allProjects.length === 1"
+          class="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-[var(--border-subtle)]
+                 text-[var(--text-secondary)] hover:text-[var(--text-primary)]
+                 hover:border-[var(--border-standard)] transition-colors"
+          title="Open agent chat"
+          @click="openProjectChat(allProjects[0].id)"
+        >
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          Chat
+        </button>
+
+        <!-- Multiple projects: dropdown with per-project chat buttons -->
+        <div v-else-if="allProjects.length > 1" class="relative" ref="dropdownRef">
           <button
             class="flex items-center gap-1 text-[10px] px-2 py-1 rounded border border-[var(--border-subtle)]
                    text-[var(--text-secondary)] hover:text-[var(--text-primary)]
@@ -31,20 +47,30 @@
             class="absolute top-full left-0 mt-1 z-50 min-w-[200px] rounded-lg border border-[var(--border-subtle)]
                    bg-[var(--bg-window)] shadow-xl shadow-black/30 py-1"
           >
-            <label
+            <div
               v-for="p in allProjects"
               :key="p.id"
-              class="flex items-center gap-2 px-3 py-1.5 text-xs text-[var(--text-secondary)]
-                     hover:bg-[var(--bg-raised)] cursor-pointer transition-colors"
+              class="flex items-center gap-2 px-3 py-1.5 hover:bg-[var(--bg-raised)] transition-colors"
             >
-              <input
-                type="checkbox"
-                :checked="ui.kanbanProjectIds.includes(p.id)"
-                class="accent-[var(--accent-mauve)]"
-                @change="ui.toggleKanbanProject(p.id)"
-              />
-              {{ p.name }}
-            </label>
+              <label class="flex items-center gap-2 flex-1 text-xs text-[var(--text-secondary)] cursor-pointer">
+                <input
+                  type="checkbox"
+                  :checked="ui.kanbanProjectIds.includes(p.id)"
+                  class="accent-[var(--accent-mauve)]"
+                  @change="ui.toggleKanbanProject(p.id)"
+                />
+                {{ p.name }}
+              </label>
+              <button
+                class="text-[var(--text-muted)] hover:text-[var(--accent-teal)] transition-colors"
+                title="Open agent chat"
+                @click="openProjectChat(p.id)"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
       </template>
@@ -53,7 +79,7 @@
     <!-- Board + Detail panel -->
     <div class="flex flex-1 overflow-hidden">
       <!-- Columns -->
-      <div class="flex-1 flex gap-3 p-4 overflow-x-auto">
+      <div class="flex-1 flex gap-2 p-2 overflow-x-auto">
         <KanbanColumn
           v-for="col in columns"
           :key="col"
@@ -118,6 +144,12 @@ const toolbarTitle = computed(() => {
   }
   return `${ui.kanbanProjectIds.length} Projects`;
 });
+
+function openProjectChat(projectId: string) {
+  ui.activeProjectId = projectId;
+  ui.activeEpicId = null;
+  ui.switchToMode('manager');
+}
 
 async function addEpic() {
   if (!projectId.value) return;

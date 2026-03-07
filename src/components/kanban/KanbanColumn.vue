@@ -1,5 +1,5 @@
 <template>
-  <div class="flex flex-col min-w-[240px] max-w-[300px] h-full">
+  <div class="flex flex-col flex-1 min-w-[160px] h-full">
     <!-- Column header -->
     <div
       class="flex items-center gap-2 px-3 py-2 rounded-t-lg border-b-2"

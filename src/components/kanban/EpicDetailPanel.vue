@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full w-[380px] flex flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-window)]">
+  <div class="h-full w-[320px] flex flex-col border-l border-[var(--border-subtle)] bg-[var(--bg-window)]">
     <!-- Header -->
     <div class="flex items-center justify-between px-4 py-3 border-b border-[var(--border-subtle)]">
       <span class="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider">Epic Details</span>
