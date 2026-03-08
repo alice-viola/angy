@@ -38,6 +38,44 @@
       Schedule Now
     </button>
 
+    <!-- Separator -->
+    <div class="w-px h-4 bg-[var(--border-subtle)]" />
+
+    <!-- Agents -->
+    <button
+      class="flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-[var(--border-subtle)]
+             text-[var(--text-secondary)] hover:text-[var(--text-primary)]
+             hover:border-[var(--border-standard)] transition-colors"
+      title="Go to Agent Fleet"
+      @click="goToMode('manager')"
+    >
+      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+      Agents
+    </button>
+
+    <!-- Code -->
+    <button
+      class="flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-[var(--border-subtle)]
+             text-[var(--text-secondary)] hover:text-[var(--text-primary)]
+             hover:border-[var(--border-standard)] transition-colors"
+      title="Go to Code Editor"
+      @click="goToMode('editor')"
+    >
+      <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 18 22 12 16 6" />
+        <polyline points="8 6 2 12 8 18" />
+      </svg>
+      Code
+    </button>
+
+    <!-- Separator -->
+    <div class="w-px h-4 bg-[var(--border-subtle)]" />
+
     <!-- Git Tree -->
     <button
       class="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
@@ -68,8 +106,20 @@
 
 <script setup lang="ts">
 import { useUiStore } from '@/stores/ui';
+import { useProjectsStore } from '@/stores/projects';
 
 const ui = useUiStore();
+const projectsStore = useProjectsStore();
+
+function goToMode(mode: 'manager' | 'editor') {
+  if (ui.activeProjectId) {
+    const repos = projectsStore.reposByProjectId(ui.activeProjectId);
+    if (repos.length > 0) {
+      ui.workspacePath = repos[0].path;
+    }
+  }
+  ui.switchToMode(mode);
+}
 
 defineEmits<{
   'add-epic': [];

@@ -3,6 +3,23 @@
     <!-- Main content -->
     <div class="flex-1 overflow-y-auto">
       <div class="max-w-[900px] mx-auto px-8 py-12">
+        <!-- Header with Open Workspace CTA -->
+        <div class="flex items-center justify-between mb-8">
+          <div />
+          <button
+            @click="onOpenWorkspace"
+            class="flex items-center gap-3 px-4 py-2.5 text-xs text-[var(--text-secondary)] bg-[var(--bg-surface)] border border-[var(--border-standard)] rounded-lg hover:border-[var(--accent-teal)] hover:brightness-110 transition-all"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+            </svg>
+            <div class="text-left">
+              <div class="font-medium">Open Workspace</div>
+              <div class="text-[10px] text-[var(--text-muted)]">Agent fleet without a project</div>
+            </div>
+          </button>
+        </div>
+
         <!-- Empty state -->
         <div
           v-if="projectsStore.projects.length === 0 && !projectsStore.loading"
@@ -58,11 +75,19 @@
 import { ref } from 'vue';
 import type { Project } from '@/engine/KosTypes';
 import { useProjectsStore } from '@/stores/projects';
+import { useUiStore } from '@/stores/ui';
 import ProjectCard from './ProjectCard.vue';
 import NewProjectDialog from './NewProjectDialog.vue';
 import ProjectSettingsDialog from './ProjectSettingsDialog.vue';
 
 const projectsStore = useProjectsStore();
+const ui = useUiStore();
+
+function onOpenWorkspace() {
+  ui.activeProjectId = null;
+  ui.workspacePath = '';
+  ui.switchToMode('manager');
+}
 
 const showNewProject = ref(false);
 const settingsProject = ref<Project | null>(null);

@@ -1,7 +1,7 @@
 <template>
   <AppShell>
     <template #actions>
-      <HomeActions v-if="ui.viewMode === 'home'" @open-workspace="onOpenWorkspace" />
+      <HomeActions v-if="ui.viewMode === 'home'" />
       <KanbanActions v-else-if="ui.viewMode === 'kanban'"
         @add-epic="kanbanViewRef?.addEpic()"
         @schedule-now="kanbanViewRef?.scheduleNow()"
@@ -69,13 +69,13 @@
         </template>
       </MainSplitter>
 
-      <!-- Dialogs -->
-      <SettingsDialog :visible="showSettings" @close="showSettings = false" @saved="onSettingsSaved" />
-      <ProfileEditor :visible="showProfileEditor" @close="showProfileEditor = false" />
       <OrchestratorDialog :visible="showOrchestratorDialog" @close="showOrchestratorDialog = false" @start="onOrchestratorStart" />
     </template>
   </AppShell>
 
+  <!-- Global dialogs (available on all views) -->
+  <SettingsDialog :visible="showSettings" @close="showSettings = false" @saved="onSettingsSaved" />
+  <ProfileEditor :visible="showProfileEditor" @close="showProfileEditor = false" />
   <NotificationToast />
 </template>
 
@@ -177,14 +177,6 @@ const chatPanelRef = ref<InstanceType<typeof ChatPanel> | null>(null);
 const codeViewerRef = ref<InstanceType<typeof CodeViewer> | null>(null);
 const effectsPanelRef = ref<InstanceType<typeof EffectsPanel> | null>(null);
 const kanbanViewRef = ref<InstanceType<typeof KanbanView> | null>(null);
-
-// ── Top-bar action handlers ──────────────────────────────────────────────
-
-function onOpenWorkspace() {
-  ui.activeProjectId = null;
-  ui.workspacePath = '';
-  ui.switchToMode('manager');
-}
 
 // ── Event handlers ──────────────────────────────────────────────────────
 

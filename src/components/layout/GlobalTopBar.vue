@@ -1,7 +1,7 @@
 <template>
-  <div class="flex items-center h-10 px-3 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] text-xs select-none">
+  <div class="relative flex items-center h-10 px-3 bg-[var(--bg-surface)] border-b border-[var(--border-subtle)] text-xs select-none">
     <!-- Left: Logo + Breadcrumbs -->
-    <div class="flex items-center gap-1.5 min-w-0">
+    <div class="flex items-center gap-1.5 min-w-0 z-10">
       <!-- Logo — always visible, clickable when not on home -->
       <component
         :is="ui.viewMode === 'home' ? 'span' : 'button'"
@@ -33,10 +33,15 @@
       </template>
     </div>
 
-    <!-- Center: contextual actions slot -->
-    <div class="flex-1 flex items-center justify-center min-w-0">
-      <slot name="actions" />
+    <!-- Center: contextual actions slot (absolute center of the bar) -->
+    <div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+      <div class="pointer-events-auto">
+        <slot name="actions" />
+      </div>
     </div>
+
+    <!-- Spacer to push right controls -->
+    <div class="flex-1" />
 
     <!-- Right: persistent controls -->
     <div class="flex items-center gap-2.5 shrink-0">
@@ -75,10 +80,13 @@
       <!-- Settings -->
       <button
         @click="openSettings"
-        class="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+        class="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] transition-colors"
         title="Settings (⌘,)"
       >
-        ⚙
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+          <circle cx="12" cy="12" r="3" />
+        </svg>
       </button>
     </div>
   </div>
