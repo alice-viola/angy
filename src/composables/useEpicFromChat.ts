@@ -21,28 +21,45 @@ export async function transformChatToEpic(sessionId: string, projectId: string):
   ]);
   const chatTitle = session?.title ?? 'Untitled Chat';
 
-  const convo = messages
-    .filter(m => m.role === 'user' || m.role === 'assistant')
+  const filtered = messages.filter(m => m.role === 'user' || m.role === 'assistant');
+  const last5StartIdx = Math.max(0, filtered.length - 5);
+  // Indices (into filtered) of the last 5 messages
+  const last5Indices = new Set(Array.from({ length: 5 }, (_, i) => last5StartIdx + i));
+
+  const formatMessage = (m: typeof filtered[0], full: boolean) => {
+    const role = m.role === 'user' ? 'User' : 'Assistant';
+    const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
+    return `${role}: ${full ? content : content.slice(0, 2000)}`;
+  };
+
+  const convo = filtered
     .slice(0, 60)
-    .map(m => {
-      const role = m.role === 'user' ? 'User' : 'Assistant';
-      const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content);
-      return `${role}: ${content.slice(0, 2000)}`;
-    })
+    .map((m, i) => formatMessage(m, last5Indices.has(i)))
     .join('\n\n');
 
-  const prompt = `You are analyzing a software engineering chat conversation to define an epic (a work item).
+  // Append last 5 in full only if they extend beyond the first 60
+  const tail = filtered.length > 60
+    ? '\n\n--- MOST RECENT MESSAGES (full) ---\n\n' +
+      filtered.slice(Math.max(60, last5StartIdx)).map(m => formatMessage(m, true)).join('\n\n')
+    : '';
+
+  const prompt = `You are analyzing a software engineering chat conversation to define a detailed, actionable epic (a work item).
 
 CHAT TITLE: ${chatTitle}
 
 CONVERSATION:
-${convo}
+${convo}${tail}
 
-Based on the conversation, create a well-defined epic. Return ONLY a valid JSON object with these exact fields (no markdown, no code fences, no explanation):
+Based on the full conversation above, create a comprehensive and very detailed epic. Be thorough:
+- The description should fully explain the problem, context, and proposed solution (as many sentences as needed).
+- The acceptance criteria should be exhaustive — list every specific, testable condition that must be true for this epic to be considered done.
+- Infer complexity and priority carefully from the technical depth of the discussion.
+
+Return ONLY a valid JSON object with these exact fields (no markdown, no code fences, no explanation):
 {
   "title": "<concise epic title, max 60 chars>",
-  "description": "<2-4 sentences describing what needs to be built>",
-  "acceptanceCriteria": "<bullet list, each criterion on its own line starting with - >",
+  "description": "<thorough description covering context, problem, and solution>",
+  "acceptanceCriteria": "<exhaustive bullet list, each criterion on its own line starting with - >",
   "priorityHint": "<one of: critical, high, medium, low, none>",
   "complexity": "<one of: trivial, small, medium, large, epic>"
 }`;
