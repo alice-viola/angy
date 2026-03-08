@@ -1,18 +1,31 @@
 <template>
   <div class="flex items-center justify-between h-7 px-4 bg-[var(--bg-surface)] border-t border-[var(--border-subtle)] text-[10px]">
-    <!-- Left: workspace + file info -->
+    <!-- Left side -->
     <div class="flex items-center gap-3">
-      <button
-        @click="openFolder"
-        class="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors truncate max-w-[200px]"
-        :title="ui.workspacePath || 'Open workspace'"
-      >
-        📁 {{ workspaceLabel }}
-      </button>
-      <span v-if="ui.currentFile" class="text-[var(--text-muted)] truncate max-w-[200px]">{{ ui.currentFile }}</span>
-      <span v-if="ui.currentBranch" class="text-[var(--text-muted)]">
-        <span class="text-[var(--accent-green)]">⎇</span> {{ ui.currentBranch }}
-      </span>
+      <!-- Home: project count -->
+      <template v-if="ui.viewMode === 'home'">
+        <span class="text-[var(--text-muted)]">{{ projectsStore.projects.length }} project{{ projectsStore.projects.length !== 1 ? 's' : '' }}</span>
+      </template>
+
+      <!-- Kanban: project name -->
+      <template v-else-if="ui.viewMode === 'kanban'">
+        <span class="text-[var(--text-muted)]">{{ projectLabel }}</span>
+      </template>
+
+      <!-- Manager / Editor / Mission Control: workspace + file + branch -->
+      <template v-else>
+        <button
+          @click="openFolder"
+          class="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors truncate max-w-[200px]"
+          :title="ui.workspacePath || 'Open workspace'"
+        >
+          {{ workspaceLabel }}
+        </button>
+        <span v-if="ui.currentFile" class="text-[var(--text-muted)] truncate max-w-[200px]">{{ currentFileName }}</span>
+        <span v-if="ui.currentBranch" class="text-[var(--text-muted)]">
+          <span class="text-[var(--accent-green)]">&#x2387;</span> {{ ui.currentBranch }}
+        </span>
+      </template>
     </div>
 
     <!-- Center: processing indicator -->
@@ -21,17 +34,12 @@
       <span class="text-[var(--text-muted)]">Processing</span>
     </div>
 
-    <!-- Right: settings + view mode toggle + model -->
+    <!-- Right side -->
     <div class="flex items-center gap-3">
-      <span class="text-[var(--text-faint)]">{{ ui.currentModel }}</span>
-      <button
-        @click="openSettings"
-        class="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
-        title="Settings (⌘,)"
-      >
-        ⚙
-      </button>
-      <!-- Context-dependent panel toggle -->
+      <!-- Model: only in manager/editor where agents run -->
+      <span v-if="ui.viewMode === 'manager' || ui.viewMode === 'editor'" class="text-[var(--text-faint)]">{{ ui.currentModel }}</span>
+
+      <!-- Panel toggles: only in manager/editor -->
       <button
         v-if="ui.viewMode === 'manager'"
         @click="ui.toggleEffectsPanel()"
@@ -48,7 +56,7 @@
         Effects
       </button>
       <button
-        v-else
+        v-else-if="ui.viewMode === 'editor'"
         @click="ui.toggleEditorChat()"
         class="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-medium transition-colors"
         :class="ui.editorChatVisible
@@ -61,28 +69,6 @@
           <path d="M3 5H9M3 7.5H6.5" />
         </svg>
         Chat
-      </button>
-
-      <button
-        @click="ui.toggleViewMode()"
-        class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-medium transition-colors"
-        :class="ui.viewMode === 'manager'
-          ? 'bg-[color-mix(in_srgb,var(--accent-mauve)_15%,transparent)] text-[var(--accent-mauve)] hover:bg-[color-mix(in_srgb,var(--accent-mauve)_25%,transparent)]'
-          : 'bg-[color-mix(in_srgb,var(--accent-teal)_15%,transparent)] text-[var(--accent-teal)] hover:bg-[color-mix(in_srgb,var(--accent-teal)_25%,transparent)]'"
-        :title="ui.viewMode === 'manager' ? 'Switch to Editor (⌘E)' : 'Switch to Manager (⌘E)'"
-      >
-        <svg v-if="ui.viewMode === 'manager'" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
-          <rect x="1" y="1" width="10" height="10" rx="1.5" />
-          <path d="M4 1V11" />
-          <path d="M4 4H11" />
-        </svg>
-        <svg v-else width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
-          <rect x="1" y="1" width="10" height="10" rx="1.5" />
-          <path d="M4 1V11" />
-          <path d="M8 1V11" />
-        </svg>
-        {{ ui.viewMode === 'manager' ? 'Editor' : 'Manager' }}
-        <span class="text-[9px] opacity-60">⌘E</span>
       </button>
     </div>
   </div>
@@ -98,14 +84,26 @@ const ui = useUiStore();
 const projectsStore = useProjectsStore();
 
 const workspaceLabel = computed(() => {
-  if (!ui.workspacePath) return 'Open folder…';
-  // Show project name when a project is active
+  if (!ui.workspacePath) return 'Open folder\u2026';
   if (ui.activeProjectId) {
     const project = projectsStore.projectById(ui.activeProjectId);
     if (project) return project.name;
   }
   const parts = ui.workspacePath.replace(/\/$/, '').split('/');
   return parts[parts.length - 1] || ui.workspacePath;
+});
+
+const projectLabel = computed(() => {
+  if (ui.activeProjectId) {
+    const project = projectsStore.projectById(ui.activeProjectId);
+    if (project) return project.name;
+  }
+  return '';
+});
+
+const currentFileName = computed(() => {
+  if (!ui.currentFile) return '';
+  return ui.currentFile.split('/').pop() || ui.currentFile;
 });
 
 async function openFolder() {
@@ -117,9 +115,5 @@ async function openFolder() {
   if (selected && typeof selected === 'string') {
     ui.workspacePath = selected;
   }
-}
-
-function openSettings() {
-  window.dispatchEvent(new CustomEvent('angy:open-settings'));
 }
 </script>

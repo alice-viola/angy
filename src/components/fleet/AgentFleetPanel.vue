@@ -1,14 +1,9 @@
 <template>
   <div class="flex flex-col h-full bg-[var(--bg-surface)]">
     <FleetHeader
-      :view-mode="ui.viewMode"
-      @new-agent="$emit('new-agent-requested')"
       @delete-all="$emit('delete-all-requested')"
       @delete-older="$emit('delete-older-requested')"
       @keep-today="$emit('keep-today-requested')"
-      @toggle-view="$emit('toggle-view')"
-      @orchestrate="$emit('orchestrate')"
-      @enter-mission-control="$emit('enter-mission-control')"
     />
 
     <!-- Agent list -->
@@ -70,9 +65,6 @@ const emit = defineEmits<{
   'keep-today-requested': [];
   'rename-requested': [sessionId: string, newTitle: string];
   'favorite-toggled': [sessionId: string];
-  'toggle-view': [];
-  'orchestrate': [];
-  'enter-mission-control': [];
 }>();
 
 // ── Store ────────────────────────────────────────────────────────────────

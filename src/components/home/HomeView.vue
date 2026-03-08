@@ -1,19 +1,13 @@
 <template>
   <div class="flex flex-col h-full bg-[var(--bg-base)]">
-    <!-- Status bar -->
-    <SchedulerStatusBar />
-
     <!-- Main content -->
     <div class="flex-1 overflow-y-auto">
       <div class="max-w-[900px] mx-auto px-8 py-12">
-        <!-- Header -->
-        <div class="mb-10 flex items-center justify-between">
-          <div class="flex items-center gap-2">
-            <img src="/angylogo.png" alt="Angy" class="w-6 h-6 object-contain" />
-            <h1 class="text-2xl font-bold text-[var(--text-primary)]">Angy</h1>
-          </div>
+        <!-- Header with Open Workspace CTA -->
+        <div class="flex items-center justify-between mb-8">
+          <div />
           <button
-            @click="onQuickChat"
+            @click="onOpenWorkspace"
             class="flex items-center gap-3 px-4 py-2.5 text-xs text-[var(--text-secondary)] bg-[var(--bg-surface)] border border-[var(--border-standard)] rounded-lg hover:border-[var(--accent-teal)] hover:brightness-110 transition-all"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,18 +79,16 @@ import { useUiStore } from '@/stores/ui';
 import ProjectCard from './ProjectCard.vue';
 import NewProjectDialog from './NewProjectDialog.vue';
 import ProjectSettingsDialog from './ProjectSettingsDialog.vue';
-import SchedulerStatusBar from './SchedulerStatusBar.vue';
 
 const projectsStore = useProjectsStore();
 const ui = useUiStore();
 
-const showNewProject = ref(false);
-const settingsProject = ref<Project | null>(null);
-
-function onQuickChat() {
-  // Clear any project assignment so WorkspaceSelector is shown
+function onOpenWorkspace() {
   ui.activeProjectId = null;
   ui.workspacePath = '';
   ui.switchToMode('manager');
 }
+
+const showNewProject = ref(false);
+const settingsProject = ref<Project | null>(null);
 </script>
