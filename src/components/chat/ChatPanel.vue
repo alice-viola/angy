@@ -73,17 +73,20 @@
         <ModeSelector v-model="currentMode" />
         <ModelSelector v-model="ui.currentModel" />
         <ProfileSelector v-model="selectedProfiles" />
-        <button
-          @click="orchestrateMode = !orchestrateMode"
-          class="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border cursor-pointer transition-colors"
-          :class="orchestrateMode
-            ? 'text-[var(--accent-mauve)] bg-[color-mix(in_srgb,var(--accent-mauve)_15%,transparent)] border-[color-mix(in_srgb,var(--accent-mauve)_30%,transparent)]'
-            : 'text-[var(--text-muted)] bg-[var(--bg-surface)] border-[var(--border-subtle)] hover:text-[var(--text-secondary)]'"
-          title="Orchestrate: delegate work to specialist agents"
-        >
-          <span>Orchestrate</span>
-          <span v-if="orchestrateMode" class="text-[8px]">&#x25bc;</span>
-        </button>
+        <div class="flex items-center rounded border border-[var(--border-subtle)] overflow-hidden">
+          <button
+            v-for="pm in pipelineModes"
+            :key="pm.value"
+            class="text-[10px] px-2 py-0.5 transition-colors cursor-pointer border-r border-[var(--border-subtle)] last:border-r-0"
+            :class="pipelineMode === pm.value
+              ? pm.activeClass
+              : 'text-[var(--text-muted)] bg-[var(--bg-surface)] hover:text-[var(--text-secondary)]'"
+            :title="pm.title"
+            @click="pipelineMode = pipelineMode === pm.value ? 'normal' : pm.value"
+          >
+            {{ pm.label }}
+          </button>
+        </div>
       </template>
     </InputBar>
     <div v-else class="py-3 text-center text-[11px] text-[var(--text-muted)] border-t border-[var(--border-subtle)]">
@@ -109,7 +112,7 @@ import { useFleetStore } from '../../stores/fleet';
 import { useUiStore } from '../../stores/ui';
 import { ClaudeProcess } from '../../engine/ClaudeProcess';
 import { sendMessageToEngine, sendToolResultToEngine, cancelProcess, type ChatPanelHandle } from '../../composables/useEngine';
-import { ORCHESTRATOR_SYSTEM_PROMPT } from '../../engine/Orchestrator';
+import { Orchestrator, ORCHESTRATOR_SYSTEM_PROMPT, ORCHESTRATOR_FIX_WORKFLOW } from '../../engine/Orchestrator';
 import type { AgentStatus, AttachedContext, AttachedImage, MessageRecord } from '../../engine/types';
 import { engineBus } from '../../engine/EventBus';
 
@@ -159,7 +162,7 @@ const emit = defineEmits<{
   'file-edited': [sessionId: string, filePath: string, toolName: string, toolInput?: Record<string, any>];
   'file-clicked': [filePath: string];
   'orchestrate-requested': [goal: string];
-  'orchestrate-started': [sessionId: string];
+  'orchestrate-started': [sessionId: string, fixMode: boolean];
 }>();
 
 // ── Stores ───────────────────────────────────────────────────────────────
@@ -171,7 +174,28 @@ const ui = useUiStore();
 // ── Selector state ──────────────────────────────────────────────────────
 const currentMode = ref('agent');
 const selectedProfiles = ref<string[]>([]);
-const orchestrateMode = ref(false);
+type PipelineMode = 'normal' | 'orchestrate' | 'fixer';
+const pipelineMode = ref<PipelineMode>('normal');
+const pipelineModes = [
+  {
+    value: 'normal' as PipelineMode,
+    label: 'Normal',
+    title: 'Single agent mode',
+    activeClass: 'text-[var(--text-primary)] bg-[var(--bg-raised)]',
+  },
+  {
+    value: 'orchestrate' as PipelineMode,
+    label: 'Orchestrate',
+    title: 'Creation pipeline: architect → implement → validate',
+    activeClass: 'text-[var(--accent-mauve)] bg-[color-mix(in_srgb,var(--accent-mauve)_15%,transparent)]',
+  },
+  {
+    value: 'fixer' as PipelineMode,
+    label: 'Fixer',
+    title: 'Fix pipeline: diagnose → debug → fix → validate',
+    activeClass: 'text-[var(--accent-peach)] bg-[color-mix(in_srgb,var(--accent-peach)_15%,transparent)]',
+  },
+];
 
 // ── State ────────────────────────────────────────────────────────────────
 
@@ -403,35 +427,12 @@ function setRealSessionId(sessionId: string, realId: string) {
   }
 }
 
-/**
- * Build the structured orchestrator prompt that wraps the user's goal.
- * This matches the C++ version's Orchestrator::start() initial message format.
- * Claude sees this as the user message and is forced to use MCP tools.
- */
-function buildOrchestratorPrompt(goal: string): string {
-  return (
-    `# Goal\n\n${goal}\n\n` +
-    `# Instructions\n\n` +
-    `You are an autonomous orchestrator. Analyze this goal and begin working toward it.\n\n` +
-    `You MUST use the provided tools to act. Available tools:\n` +
-    `- \`delegate(role, task)\` — assign work to architect/implementer/reviewer/tester\n` +
-    `- \`validate(command, description)\` — run a shell command to verify the work\n` +
-    `- \`done(summary)\` — report the goal is fully achieved\n` +
-    `- \`fail(reason)\` — report unrecoverable failure\n\n` +
-    `You may call MULTIPLE delegate tools in a single turn to run agents in parallel.\n` +
-    `For example, after the architect finishes, delegate to both a backend implementer ` +
-    `and a frontend implementer simultaneously.\n\n` +
-    `For validate, done, and fail — call exactly ONE tool per turn.\n\n` +
-    `Start by delegating to an architect to design the solution.`
-  );
-}
-
 async function onSend(text: string, _contexts?: AttachedContext[], _images?: AttachedImage[]) {
-  // Orchestrate mode: send normally but with 'orchestrator' mode (one-shot toggle)
-  const isOrchestrate = orchestrateMode.value;
+  const currentPipeline = pipelineMode.value;
+  const isOrchestrate = currentPipeline === 'orchestrate' || currentPipeline === 'fixer';
   const effectiveMode = isOrchestrate ? 'orchestrator' : currentMode.value;
   if (isOrchestrate) {
-    orchestrateMode.value = false;
+    pipelineMode.value = 'normal';
   }
 
   let sid = activeSessionId.value;
@@ -439,9 +440,8 @@ async function onSend(text: string, _contexts?: AttachedContext[], _images?: Att
     sid = await newChat();
   }
 
-  // Emit orchestrate-started BEFORE sending so App.vue can register interceptors
   if (isOrchestrate) {
-    emit('orchestrate-started', sid);
+    emit('orchestrate-started', sid, currentPipeline === 'fixer');
   }
 
   const state = getOrCreateState(sid);
@@ -496,16 +496,20 @@ async function onSend(text: string, _contexts?: AttachedContext[], _images?: Att
   // Update fleet status
   updateFleetStatus(sid, 'working', isOrchestrate ? 'Orchestrating...' : 'Sending message...');
 
-  // For orchestrate mode, wrap the user's goal in the structured orchestrator prompt.
-  // The UI shows the original text, but Claude receives the full prompt with instructions.
-  const engineMessage = isOrchestrate ? buildOrchestratorPrompt(text) : text;
+  let engineMessage = text;
+  let systemPrompt: string | undefined;
 
-  // Actually spawn ClaudeProcess and wire events
+  if (isOrchestrate) {
+    const isFixer = currentPipeline === 'fixer';
+    engineMessage = Orchestrator.buildInitialMessage(text, { fixMode: isFixer });
+    systemPrompt = ORCHESTRATOR_SYSTEM_PROMPT + (isFixer ? ORCHESTRATOR_FIX_WORKFLOW : '');
+  }
+
   sendMessageToEngine(sid, engineMessage, chatPanelHandle, {
     workingDir: ui.workspacePath || '.',
     mode: effectiveMode,
     model: ui.currentModel,
-    systemPrompt: isOrchestrate ? ORCHESTRATOR_SYSTEM_PROMPT : undefined,
+    systemPrompt,
     resumeSessionId: state.realClaudeSessionId || undefined,
     images: imagePayload,
   });

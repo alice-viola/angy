@@ -177,6 +177,20 @@ export class Database {
       await this.db.execute(`ALTER TABLE epics ADD COLUMN use_git_branch INTEGER DEFAULT 1`);
     } catch { /* column already exists */ }
 
+    // Migration: add attempt artifact columns
+    try {
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN last_attempt_files TEXT DEFAULT '[]'`);
+    } catch { /* column already exists */ }
+    try {
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN last_validation_results TEXT DEFAULT '[]'`);
+    } catch { /* column already exists */ }
+    try {
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN last_architect_plan TEXT DEFAULT ''`);
+    } catch { /* column already exists */ }
+    try {
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN pipeline_type TEXT DEFAULT 'create'`);
+    } catch { /* column already exists */ }
+
     await this.db.execute(`
       CREATE TABLE IF NOT EXISTS epic_branches (
         id TEXT PRIMARY KEY,
@@ -632,9 +646,10 @@ export class Database {
     await this.db.execute(
       `INSERT OR REPLACE INTO epics
        (id, project_id, title, description, acceptance_criteria, "column", priority_hint,
-        complexity, model, depends_on, target_repos, use_git_branch, rejection_count, rejection_feedback,
+        complexity, model, depends_on, target_repos, pipeline_type, use_git_branch, rejection_count, rejection_feedback,
+        last_attempt_files, last_validation_results, last_architect_plan,
         computed_score, root_session_id, cost_total, created_at, updated_at, started_at, completed_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
       [
         epic.id,
         epic.projectId,
@@ -647,9 +662,13 @@ export class Database {
         epic.model || '',
         JSON.stringify(epic.dependsOn),
         JSON.stringify(epic.targetRepoIds),
+        epic.pipelineType || 'create',
         epic.useGitBranch ? 1 : 0,
         epic.rejectionCount,
         epic.rejectionFeedback,
+        JSON.stringify(epic.lastAttemptFiles ?? []),
+        JSON.stringify(epic.lastValidationResults ?? []),
+        epic.lastArchitectPlan ?? '',
         epic.computedScore,
         epic.rootSessionId,
         epic.costTotal ?? 0,
@@ -885,9 +904,13 @@ export class Database {
       model: r.model || '',
       dependsOn: JSON.parse(r.depends_on || '[]'),
       targetRepoIds: JSON.parse(r.target_repos || '[]'),
+      pipelineType: r.pipeline_type || 'create',
       useGitBranch: Boolean(r.use_git_branch ?? 1),
       rejectionCount: r.rejection_count,
       rejectionFeedback: r.rejection_feedback ?? '',
+      lastAttemptFiles: JSON.parse(r.last_attempt_files || '[]'),
+      lastValidationResults: JSON.parse(r.last_validation_results || '[]'),
+      lastArchitectPlan: r.last_architect_plan || '',
       computedScore: r.computed_score ?? 0,
       rootSessionId: r.root_session_id || null,
       costTotal: r.cost_total ?? 0,

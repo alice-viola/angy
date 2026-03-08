@@ -102,6 +102,14 @@ export class ProfileManager {
         icon: '🧪',
       },
       {
+        id: 'specialist-debugger',
+        name: 'Debugger',
+        systemPrompt: 'You are a debugging specialist. Given an error, test failure, or rejection feedback, systematically investigate the codebase to identify the root cause. Read the relevant files, trace the logic, and produce a precise diagnosis with exact file paths and line numbers. Do NOT fix the code — only diagnose and report your findings.',
+        isBuiltIn: true,
+        isSpecialistRole: true,
+        icon: '🔬',
+      },
+      {
         id: 'specialist-orchestrator',
         name: 'Orchestrator',
         systemPrompt: 'You are an autonomous orchestrator managing a team of specialist agents. Break down complex goals into delegated tasks. Coordinate parallel work. Validate results.',

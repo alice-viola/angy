@@ -66,6 +66,29 @@
         />
       </div>
 
+      <!-- Pipeline Type -->
+      <div>
+        <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Pipeline</label>
+        <div class="mt-1 flex items-center gap-1">
+          <button
+            v-for="pt in pipelineTypes"
+            :key="pt.value"
+            class="flex-1 text-[10px] py-1.5 rounded border font-medium transition-colors"
+            :class="draft.pipelineType === pt.value
+              ? pt.value === 'create'
+                ? 'text-[var(--accent-green)] bg-[color-mix(in_srgb,var(--accent-green)_12%,transparent)] border-[color-mix(in_srgb,var(--accent-green)_30%,transparent)]'
+                : 'text-[var(--accent-peach)] bg-[color-mix(in_srgb,var(--accent-peach)_12%,transparent)] border-[color-mix(in_srgb,var(--accent-peach)_30%,transparent)]'
+              : 'text-[var(--text-muted)] bg-[var(--bg-base)] border-[var(--border-subtle)] hover:text-[var(--text-secondary)]'"
+            @click="draft.pipelineType = pt.value"
+          >
+            {{ pt.label }}
+          </button>
+        </div>
+        <p class="mt-1 text-[9px] text-[var(--text-muted)]">
+          {{ draft.pipelineType === 'create' ? 'Architect → Implement → Validate → Review' : 'Diagnose → Debug → Fix → Validate → Review' }}
+        </p>
+      </div>
+
       <!-- Priority & Complexity row -->
       <div class="grid grid-cols-2 gap-3">
         <div>
@@ -258,7 +281,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import type { EpicColumn, PriorityHint, ComplexityEstimate } from '@/engine/KosTypes';
+import type { EpicColumn, EpicPipelineType, PriorityHint, ComplexityEstimate } from '@/engine/KosTypes';
 import { useUiStore } from '@/stores/ui';
 import { useEpicStore } from '@/stores/epics';
 import { Scheduler } from '@/engine/Scheduler';
@@ -272,6 +295,10 @@ const ui = useUiStore();
 const epicStore = useEpicStore();
 
 const columns: EpicColumn[] = ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done'];
+const pipelineTypes: Array<{ value: EpicPipelineType; label: string }> = [
+  { value: 'create', label: 'Create' },
+  { value: 'fix', label: 'Fix' },
+];
 
 const epic = computed(() => epicStore.epicById(props.epicId));
 const branchName = computed(() => epicStore.epicBranchName(props.epicId));
@@ -285,6 +312,7 @@ const draft = ref({
   complexity: 'medium' as ComplexityEstimate,
   model: '',
   targetRepoIds: [] as string[],
+  pipelineType: 'create' as EpicPipelineType,
   useGitBranch: true,
   dependsOn: [] as string[],
 });
@@ -303,6 +331,7 @@ function loadDraft() {
     complexity: e.complexity,
     model: e.model || '',
     targetRepoIds: [...e.targetRepoIds],
+    pipelineType: e.pipelineType || 'create',
     useGitBranch: e.useGitBranch ?? true,
     dependsOn: [...e.dependsOn],
   };
@@ -347,6 +376,7 @@ async function save() {
     complexity: d.complexity,
     model: d.model,
     targetRepoIds: d.targetRepoIds,
+    pipelineType: d.pipelineType,
     useGitBranch: d.useGitBranch,
     dependsOn: d.dependsOn,
   });

@@ -4,6 +4,16 @@ import { exists } from '@tauri-apps/plugin-fs';
 import mitt from 'mitt';
 import { StreamParser } from './StreamParser';
 
+// ── Specialist tool restrictions (sandboxing by role) ─────────────────────
+
+const SPECIALIST_TOOL_SETS: Record<string, string> = {
+  architect: 'Read,Glob,Grep,Task',
+  implementer: 'Bash,Read,Edit,Write,Glob,Grep,Task',
+  reviewer: 'Read,Glob,Grep',
+  tester: 'Bash,Read,Edit,Write,Glob,Grep,Task',
+  debugger: 'Bash,Read,Glob,Grep',
+};
+
 // ── ClaudeProcess Events ──────────────────────────────────────────────────
 
 export type ClaudeProcessEvents = {
@@ -34,6 +44,7 @@ export class ClaudeProcess {
   private _completedNormally = false;
   private autoCommit = false;
   private epicEnabled = false;
+  private _specialistRole = '';
 
   get sessionId(): string { return this._sessionId; }
 
@@ -47,6 +58,7 @@ export class ClaudeProcess {
   setTeamId(id: string): void { this.teamId = id; }
   setAutoCommit(enabled: boolean): void { this.autoCommit = enabled; }
   setEpicEnabled(enabled: boolean): void { this.epicEnabled = enabled; }
+  setSpecialistRole(role: string): void { this._specialistRole = role; }
 
   isRunning(): boolean { return this.child !== null; }
 
@@ -84,6 +96,7 @@ export class ClaudeProcess {
       let orchestratorTools =
         'mcp__c3p2-orchestrator__delegate,' +
         'mcp__c3p2-orchestrator__validate,' +
+        'mcp__c3p2-orchestrator__diagnose,' +
         'mcp__c3p2-orchestrator__done,' +
         'mcp__c3p2-orchestrator__fail';
       if (this.autoCommit) {
@@ -105,7 +118,12 @@ export class ClaudeProcess {
     } else if (this.mode === 'plan') {
       args.push('--permission-mode', 'plan');
     } else {
-      let allowedTools = 'Bash,Read,Edit,Write,Glob,Grep,Task,AskUserQuestion';
+      let allowedTools: string;
+      if (this._specialistRole && SPECIALIST_TOOL_SETS[this._specialistRole]) {
+        allowedTools = SPECIALIST_TOOL_SETS[this._specialistRole];
+      } else {
+        allowedTools = 'Bash,Read,Edit,Write,Glob,Grep,Task,AskUserQuestion';
+      }
       if (this.teamId) {
         allowedTools += ',mcp__c3p2-orchestrator__send_message' +
                         ',mcp__c3p2-orchestrator__check_inbox';

@@ -173,15 +173,19 @@ export class HeadlessHandle implements AgentHandle {
     const savePromises: Promise<void>[] = [];
     for (const msg of s.messages) {
       if (msg.role === 'user') continue;
-      savePromises.push(this.db.saveMessage({
-        sessionId,
-        role: msg.role,
-        content: msg.content,
-        toolName: msg.toolName,
-        toolInput: msg.toolInput,
-        turnId: msg.turnId,
-        timestamp: Math.floor(msg.timestamp / 1000),
-      }));
+      savePromises.push(
+        this.db.saveMessage({
+          sessionId,
+          role: msg.role,
+          content: msg.content,
+          toolName: msg.toolName,
+          toolInput: msg.toolInput,
+          turnId: msg.turnId,
+          timestamp: Math.floor(msg.timestamp / 1000),
+        }).catch(err => {
+          console.error(`[HeadlessHandle] Failed to persist ${msg.role} message for session ${sessionId}:`, err);
+        }),
+      );
     }
     await Promise.all(savePromises);
     s.messages = [];

@@ -10,6 +10,8 @@ export type EpicColumn =
   | 'review'
   | 'done';
 
+export type EpicPipelineType = 'create' | 'fix';
+
 export type PriorityHint =
   | 'critical'
   | 'high'
@@ -55,10 +57,14 @@ export interface Epic {
   complexity: ComplexityEstimate;
   model: string;
   targetRepoIds: string[];
+  pipelineType: EpicPipelineType;
   useGitBranch: boolean;
   dependsOn: string[];
   rejectionCount: number;
   rejectionFeedback: string;
+  lastAttemptFiles: string[];
+  lastValidationResults: Array<{ command: string; passed: boolean; output: string }>;
+  lastArchitectPlan: string;
   computedScore: number;
   rootSessionId: string | null;
   costTotal: number;

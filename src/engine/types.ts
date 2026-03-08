@@ -150,6 +150,11 @@ export type EngineEvents = {
   'orchestrator:delegationStarted': { role: string; task: string; parentSessionId?: string };
   'git:statusChanged': { entries: GitFileEntry[] };
   'orchestrator:checkpointCreated': { hash: string; message: string };
+  'orchestrator:artifacts': {
+    epicId: string;
+    validations: Array<{ command: string; passed: boolean; output: string }>;
+    childOutputs: Array<{ role: string; agentName: string; output: string }>;
+  };
   'epic:phaseChanged': { epicId: string; phase: string };
   'epic:completed': { epicId: string; summary: string };
   'epic:failed': { epicId: string; reason: string };
@@ -194,6 +199,9 @@ export interface ProcessOptions {
   agentName?: string;
   teamId?: string;
   autoCommit?: boolean;
+  profileIds?: string[];
+  epicEnabled?: boolean;
+  specialistRole?: string;
 }
 
 // ── Attached Context / Images ─────────────────────────────────────────────

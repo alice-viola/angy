@@ -75,17 +75,7 @@ export function sendMessageToEngine(
   sessionId: string,
   text: string,
   chatPanel: AgentHandle,
-  options: {
-    workingDir: string;
-    mode?: string;
-    model?: string;
-    systemPrompt?: string;
-    resumeSessionId?: string;
-    images?: Array<{ data: string; mediaType: string }>;
-    agentName?: string;
-    teamId?: string;
-    autoCommit?: boolean;
-  } = { workingDir: '.' },
+  options: ProcessOptions = { workingDir: '.' },
 ): ClaudeProcess {
   return getProcessManager().sendMessage(sessionId, text, chatPanel, options);
 }

@@ -34,8 +34,8 @@
           class="h-full"
           @file-edited="onFileEdited"
           @file-clicked="onFileClicked"
-          @orchestrate-requested="onOrchestratorStart"
-          @orchestrate-started="onOrchestrateStarted"
+        @orchestrate-requested="onOrchestratorStart"
+        @orchestrate-started="(sid: string, fix: boolean) => onOrchestrateStarted(sid, fix)"
         />
       </template>
 
@@ -91,8 +91,8 @@ import { useKeyboard } from './composables/useKeyboard';
 import { useOrchestrator } from './composables/useOrchestrator';
 import { useGraphBuilder } from './composables/useGraphBuilder';
 import { useMissionControl } from './composables/useMissionControl';
-import { sendMessageToEngine, setOrchestratorLookup, setProcessManager } from './composables/useEngine';
-import { ORCHESTRATOR_SYSTEM_PROMPT } from './engine/Orchestrator';
+import { sendMessageToEngine, cancelProcess, setOrchestratorLookup, setProcessManager } from './composables/useEngine';
+import { ORCHESTRATOR_SYSTEM_PROMPT, SPECIALIST_PROMPTS } from './engine/Orchestrator';
 import { DelegationStatus } from './engine/types';
 import { DiffEngine } from './engine/DiffEngine';
 import { engineBus } from './engine/EventBus';
@@ -547,9 +547,9 @@ function buildChatPanelAPI(opts: {
     delegateToChild: async (
       parentSessionId: string,
       task: string,
-      _context: string,
-      _specialistProfileId: string,
-      _contextProfileIds: string[],
+      context: string,
+      specialistProfileId: string,
+      contextProfileIds: string[],
       agentName?: string,
       teamId?: string,
       teammates?: string[],
@@ -568,12 +568,31 @@ function buildChatPanelAPI(opts: {
       }
       fleetStore.rebuildFromSessions();
 
-      let systemPrompt = '';
-      if (teammates && teammates.length > 0 && agentName) {
-        systemPrompt = `Your agent name is "${agentName}". ` +
-          `You are on a team with: ${teammates.join(', ')}. ` +
-          `Use send_message(to, content) and check_inbox() to coordinate.`;
+      // Build system prompt: specialist identity + orchestrator context + team coordination
+      const promptParts: string[] = [];
+
+      const role = specialistProfileId.replace('specialist-', '');
+      const specialistPrompt = SPECIALIST_PROMPTS[role];
+      if (specialistPrompt) {
+        promptParts.push(specialistPrompt);
       }
+
+      if (context) {
+        const truncated = context.length > 4000
+          ? context.substring(0, 4000) + '\n...(truncated)'
+          : context;
+        promptParts.push(`## Context from orchestrator\n${truncated}`);
+      }
+
+      if (teammates && teammates.length > 0 && agentName) {
+        promptParts.push(
+          `Your agent name is "${agentName}". ` +
+          `You are on a team with: ${teammates.join(', ')}. ` +
+          `Use send_message(to, content) and check_inbox() to coordinate.`,
+        );
+      }
+
+      const systemPrompt = promptParts.join('\n\n');
 
       const handle = {
         appendTextDelta: panel.appendTextDelta,
@@ -605,9 +624,15 @@ function buildChatPanelAPI(opts: {
         systemPrompt,
         agentName,
         teamId,
+        profileIds: contextProfileIds.length > 0 ? contextProfileIds : undefined,
+        specialistRole: role,
       });
 
       return childSid;
+    },
+
+    cancelChild: (sessionId: string) => {
+      cancelProcess(sessionId);
     },
 
     sessionFinalOutput: (sid: string) => {
@@ -634,10 +659,11 @@ function onOrchestratorStart(goal: string) {
   startOrchestration(goal);
 }
 
-async function onOrchestrateStarted(sessionId: string) {
+async function onOrchestrateStarted(sessionId: string, fixMode = false) {
   ui.setRightPanelMode('graph');
   if (graphCleanup) graphCleanup();
   graphCleanup = startLiveGraph(sessionId);
+  orchestrator.setFixMode(fixMode);
   orchestrator.setChatPanel(buildChatPanelAPI({
     sendSystemPrompt: () => orchestrator.getSystemPrompt(),
     sendAutoCommit: ui.autoCommitEnabled,

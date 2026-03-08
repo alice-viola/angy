@@ -121,6 +121,9 @@ export class ProcessManager {
     if (options.agentName) proc.setAgentName(options.agentName);
     if (options.teamId) proc.setTeamId(options.teamId);
     if (options.autoCommit) proc.setAutoCommit(options.autoCommit);
+    if (options.profileIds) proc.setProfileIds(options.profileIds);
+    if (options.epicEnabled) proc.setEpicEnabled(options.epicEnabled);
+    if (options.specialistRole) proc.setSpecialistRole(options.specialistRole);
 
     this.processes.set(sessionId, proc);
     this.wireEvents(sessionId, proc, handle, options);

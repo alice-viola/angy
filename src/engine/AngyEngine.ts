@@ -19,7 +19,7 @@
 import { Database } from './Database';
 import { SessionService } from './SessionService';
 import { ProcessManager } from './ProcessManager';
-import { Orchestrator, ORCHESTRATOR_SYSTEM_PROMPT } from './Orchestrator';
+import { Orchestrator, SPECIALIST_PROMPTS } from './Orchestrator';
 import type { OrchestratorChatPanelAPI } from './Orchestrator';
 import { OrchestratorPool } from './OrchestratorPool';
 import { BranchManager } from './BranchManager';
@@ -172,6 +172,9 @@ export class AngyEngine {
 
     const orch = new Orchestrator();
     orch.setEpicOptions(options);
+    if (epic.pipelineType === 'fix' || (epic.rejectionCount > 0 && epic.rejectionFeedback)) {
+      orch.setFixMode(true);
+    }
     this.wireOrchestratorEvents(orch, epicId);
     this.epicOrchestrators.set(epicId, orch);
 
@@ -208,8 +211,31 @@ export class AngyEngine {
       goal +=
         `## IMPORTANT: Previous Attempt Rejected (attempt #${epic.rejectionCount})\n` +
         `The previous implementation was reviewed and rejected. You MUST address the following feedback before anything else:\n\n` +
-        `${epic.rejectionFeedback}\n\n` +
-        `Start by analyzing what went wrong in the previous attempt, then fix the issues described above.\n`;
+        `${epic.rejectionFeedback}\n\n`;
+
+      // Include artifacts from the previous attempt
+      if (epic.lastAttemptFiles && epic.lastAttemptFiles.length > 0) {
+        goal += `### Files Modified in Previous Attempt\n`;
+        for (const f of epic.lastAttemptFiles.slice(0, 30)) {
+          goal += `- ${f}\n`;
+        }
+        goal += '\n';
+      }
+      if (epic.lastValidationResults && epic.lastValidationResults.length > 0) {
+        goal += `### Validation Results from Previous Attempt\n`;
+        for (const v of epic.lastValidationResults.slice(0, 10)) {
+          goal += `- \`${v.command}\` — ${v.passed ? 'PASSED' : 'FAILED'}\n`;
+          if (!v.passed && v.output) {
+            goal += `  Output: ${v.output.substring(0, 300)}\n`;
+          }
+        }
+        goal += '\n';
+      }
+      if (epic.lastArchitectPlan) {
+        goal += `### Architect Plan from Previous Attempt\n${epic.lastArchitectPlan.substring(0, 2000)}\n\n`;
+      }
+
+      goal += `Start by using diagnose() to inspect the current state, then fix the issues described above.\n`;
     } else {
       goal += `Implement this epic end-to-end. Start by delegating to an architect to analyze the codebase and design the solution.`;
     }
@@ -257,17 +283,19 @@ export class AngyEngine {
           workingDir: workspace,
           mode: 'orchestrator',
           model,
-          systemPrompt: ORCHESTRATOR_SYSTEM_PROMPT,
+          systemPrompt: _orch.getSystemPrompt(),
           resumeSessionId: handle.getRealSessionId(sid) || undefined,
+          epicEnabled: !!_orch.getEpicOptions(),
+          autoCommit: _orch.isAutoCommitEnabled(),
         });
       },
 
       delegateToChild: async (
         parentSessionId: string,
         task: string,
-        _context: string,
-        _specialistProfileId: string,
-        _contextProfileIds: string[],
+        context: string,
+        specialistProfileId: string,
+        contextProfileIds: string[],
         agentName?: string,
         teamId?: string,
         teammates?: string[],
@@ -275,14 +303,11 @@ export class AngyEngine {
       ) => {
         const resolvedDir = workingDir || workspace;
 
-        // Create child in-memory first (without persisting/emitting yet)
         const childSid = this.sessions.manager.createChildSession(
           parentSessionId, resolvedDir, 'agent', task,
         );
         const childInfo = this.sessions.getSession(childSid);
 
-        // Set title and epicId BEFORE persisting/emitting so the UI
-        // receives the complete session info on the session:created event
         if (childInfo) {
           if (agentName) {
             childInfo.title = agentName.charAt(0).toUpperCase() + agentName.slice(1);
@@ -293,17 +318,34 @@ export class AngyEngine {
           }
         }
 
-        // Now persist and emit — the session already has all fields set
         await this.sessions.persistSession(childSid);
         engineBus.emit('session:created', { sessionId: childSid, parentSessionId });
 
-        let systemPrompt = '';
+        // Build system prompt: specialist identity + orchestrator context + team coordination
+        const promptParts: string[] = [];
+
+        const role = specialistProfileId.replace('specialist-', '');
+        const specialistPrompt = SPECIALIST_PROMPTS[role];
+        if (specialistPrompt) {
+          promptParts.push(specialistPrompt);
+        }
+
+        if (context) {
+          const truncated = context.length > 4000
+            ? context.substring(0, 4000) + '\n...(truncated)'
+            : context;
+          promptParts.push(`## Context from orchestrator\n${truncated}`);
+        }
+
         if (teammates?.length && agentName) {
-          systemPrompt =
+          promptParts.push(
             `Your agent name is "${agentName}". ` +
             `You are on a team with: ${teammates.join(', ')}. ` +
-            `Use send_message(to, content) and check_inbox() to coordinate.`;
+            `Use send_message(to, content) and check_inbox() to coordinate.`,
+          );
         }
+
+        const systemPrompt = promptParts.join('\n\n');
 
         this.processes.sendMessage(childSid, task, handle, {
           workingDir: resolvedDir,
@@ -312,9 +354,15 @@ export class AngyEngine {
           systemPrompt,
           agentName,
           teamId,
+          profileIds: contextProfileIds.length > 0 ? contextProfileIds : undefined,
+          specialistRole: role,
         });
 
         return childSid;
+      },
+
+      cancelChild: (sessionId: string) => {
+        this.processes.cancelProcess(sessionId);
       },
 
       sessionFinalOutput: (sid: string) => {
@@ -411,7 +459,7 @@ export class AngyEngine {
   async createEpic(
     projectId: string,
     title: string,
-    opts?: Partial<Pick<Epic, 'description' | 'acceptanceCriteria' | 'priorityHint' | 'complexity' | 'model' | 'targetRepoIds' | 'dependsOn'>>,
+    opts?: Partial<Pick<Epic, 'description' | 'acceptanceCriteria' | 'priorityHint' | 'complexity' | 'model' | 'targetRepoIds' | 'dependsOn' | 'pipelineType'>>,
   ): Promise<Epic> {
     const now = new Date().toISOString();
     const epic: Epic = {
@@ -425,10 +473,14 @@ export class AngyEngine {
       complexity: opts?.complexity ?? 'medium',
       model: opts?.model ?? '',
       targetRepoIds: opts?.targetRepoIds ?? [],
+      pipelineType: opts?.pipelineType ?? 'create',
       useGitBranch: true,
       dependsOn: opts?.dependsOn ?? [],
       rejectionCount: 0,
       rejectionFeedback: '',
+      lastAttemptFiles: [],
+      lastValidationResults: [],
+      lastArchitectPlan: '',
       computedScore: 0,
       rootSessionId: null,
       costTotal: 0,
@@ -489,6 +541,32 @@ export class AngyEngine {
         hash: e.hash,
         message: e.message,
       });
+    });
+
+    orch.on('artifactsCollected', async (e) => {
+      try {
+        // Extract file list from child outputs (look for common file path patterns)
+        const fileSet = new Set<string>();
+        for (const child of e.childOutputs) {
+          const matches = child.output.match(/(?:^|\s)((?:src|lib|app|test|tests)\/[\w/.-]+\.\w+)/gm);
+          if (matches) {
+            for (const m of matches) fileSet.add(m.trim());
+          }
+        }
+
+        // Extract architect plan from architect child outputs
+        const architectOutput = e.childOutputs.find(c => c.role === 'architect');
+        const architectPlan = architectOutput?.output.substring(0, 3000) || '';
+
+        await this.epics.updateEpic(epicId, {
+          lastAttemptFiles: Array.from(fileSet).slice(0, 50),
+          lastValidationResults: e.validations.slice(0, 20),
+          lastArchitectPlan: architectPlan,
+        });
+        this.emitEpicUpdated(epicId);
+      } catch (err) {
+        console.error(`[AngyEngine] Failed to persist artifacts for epic ${epicId}:`, err);
+      }
     });
   }
 

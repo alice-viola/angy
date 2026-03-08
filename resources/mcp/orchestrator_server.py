@@ -34,11 +34,11 @@ TOOLS = [
             "properties": {
                 "role": {
                     "type": "string",
-                    "enum": ["architect", "implementer", "reviewer", "tester"],
+                    "enum": ["architect", "implementer", "reviewer", "tester", "debugger"],
                     "description": (
                         "Specialist role: architect (designs/plans), "
                         "implementer (writes code), reviewer (reviews code), "
-                        "tester (writes/runs tests)"
+                        "tester (writes/runs tests), debugger (diagnoses issues)"
                     ),
                 },
                 "task": {
@@ -191,6 +191,37 @@ TOOLS = [
             "additionalProperties": False,
         },
     },
+    {
+        "name": "diagnose",
+        "description": (
+            "Inspect the current state of the codebase without modifying anything. "
+            "Use this to see git diffs, recent commits, repo status, or file contents. "
+            "Useful for understanding what happened in a previous attempt."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "enum": ["git_diff", "git_log", "git_status", "file_contents"],
+                    "description": (
+                        "What to inspect: git_diff (working tree changes), "
+                        "git_log (recent commits), git_status (repo status), "
+                        "file_contents (read a specific file)"
+                    ),
+                },
+                "target": {
+                    "type": "string",
+                    "description": (
+                        "For file_contents: the file path to read. "
+                        "For other actions: optional arguments (e.g. number of commits for git_log)."
+                    ),
+                },
+            },
+            "required": ["action"],
+            "additionalProperties": False,
+        },
+    },
 ]
 
 # Tool call acknowledgments — Claude sees these as tool results
@@ -200,6 +231,7 @@ TOOL_ACKS = {
     "done": "Orchestration marked as complete.",
     "fail": "Orchestration marked as failed.",
     "spawn_orchestrator": "Command received. Sub-orchestrator will be spawned and results provided in your next message.",
+    "diagnose": "Command received. Diagnosis results will be provided in your next message.",
 }
 
 INBOX_BASE = os.path.expanduser("~/.angy/inboxes")
