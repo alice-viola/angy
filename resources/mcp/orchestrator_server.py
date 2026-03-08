@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 MCP server for C3P2 orchestrator — zero dependencies (stdlib only).
-version: 2.0.0
+version: 3.0.0
 
 Exposes 8 tools over JSON-RPC 2.0 / stdio:
   delegate           — Delegate work to a specialist agent
@@ -355,7 +355,7 @@ def main():
             reply(req_id, {
                 "protocolVersion": params.get("protocolVersion", "2025-11-25"),
                 "capabilities": {"tools": {}},
-                "serverInfo": {"name": "c3p2-orchestrator", "version": "2.0.0"},
+                "serverInfo": {"name": "c3p2-orchestrator", "version": "3.0.0"},
             })
 
         elif method in ("notifications/initialized", "notifications/cancelled"):

@@ -11,6 +11,14 @@
       >
         {{ epics.length }}
       </span>
+      <button
+        v-if="column === 'done' && epics.length > 0"
+        class="ml-auto text-[10px] text-[var(--text-muted)] hover:text-[var(--accent-red)] transition-colors"
+        title="Clear all done epics"
+        @click="clearAll"
+      >
+        Clear all
+      </button>
     </div>
 
     <!-- Epic cards -->
@@ -95,6 +103,12 @@ function onDrop(e: DragEvent) {
 }
 
 const epicStore = useEpicStore();
+
+async function clearAll() {
+  for (const epic of epics.value) {
+    await epicStore.deleteEpic(epic.id);
+  }
+}
 
 const epics = computed(() => {
   let items = epicStore.epicsByColumn(props.projectIds, props.column);

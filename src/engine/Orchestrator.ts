@@ -234,19 +234,20 @@ export class Orchestrator {
       let needsInstall = true;
       try {
         const existing = await readTextFile(targetPath);
-        if (existing.includes('version: 2.0.0')) {
+        if (existing.includes('version: 3.0.0')) {
           needsInstall = false;
         }
       } catch { /* doesn't exist */ }
 
       if (needsInstall) {
-        // Read from bundled resources
         try {
           const srcPath = await resolveResource('resources/mcp/orchestrator_server.py');
+          console.log('[Orchestrator] Copying MCP script from', srcPath, 'to', targetPath);
           const content = await readTextFile(srcPath);
           await writeTextFile(targetPath, content);
-        } catch {
-          console.warn('[Orchestrator] Could not copy MCP script from resources');
+          console.log('[Orchestrator] MCP script installed successfully');
+        } catch (copyErr) {
+          console.warn('[Orchestrator] Could not copy MCP script from resources:', copyErr);
           return false;
         }
       }
@@ -312,12 +313,9 @@ export class Orchestrator {
   async start(goal: string, contextProfileIds: string[] = [], autoCommit = false): Promise<string> {
     if (!this.chatPanel || this._running) return '';
 
-    // Ensure MCP server is installed and verify it's reachable
     const mcpOk = await Orchestrator.ensureMcpServerInstalled();
     if (!mcpOk) {
-      console.error('[Orchestrator] MCP server installation failed — aborting start');
-      this.events.emit('failed', { reason: 'MCP server installation failed. Check that python3 is available.' });
-      return '';
+      console.warn('[Orchestrator] MCP server installation/update failed — continuing (server may already be installed from a previous run)');
     }
 
     this.autoCommit = autoCommit;
