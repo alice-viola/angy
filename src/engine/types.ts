@@ -171,6 +171,7 @@ export type EngineEvents = {
   'agent:thinkingDelta': { sessionId: string; text: string };
   'agent:thinking': { sessionId: string; thinking: boolean };
   'agent:turnDone': { sessionId: string };
+  'agent:fileEdited': { sessionId: string; filePath: string; toolName: string; toolInput?: Record<string, any> };
 };
 
 // ── Agent Handle (UI-agnostic event sink for Claude process output) ──────

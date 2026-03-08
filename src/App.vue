@@ -713,6 +713,7 @@ let onAgentStatusBus: (e: { agentId: string; status: string; activity: string })
 let onEpicRequestStart: (e: { epicId: string }) => void;
 let onEpicRequestStop: (e: { epicId: string }) => void;
 let onEpicStoreSync: () => Promise<void>;
+let onAgentFileEdited: (e: { sessionId: string; filePath: string; toolName: string; toolInput?: Record<string, any> }) => void;
 
 // ── Global keyboard event: Cmd+N new chat ───────────────────────────────
 
@@ -853,6 +854,12 @@ onMounted(async () => {
   };
   engineBus.on('epic:storeSyncNeeded', onEpicStoreSync);
 
+  // Wire headless file-edit events into the effects/diff chain
+  onAgentFileEdited = ({ sessionId, filePath, toolName, toolInput }) => {
+    onFileEdited(sessionId, filePath, toolName, toolInput);
+  };
+  engineBus.on('agent:fileEdited', onAgentFileEdited);
+
   // Initialize Pinia stores from engine's database (DB is already open via engine)
   const db = getDatabase();
   if (db) {
@@ -907,6 +914,7 @@ onUnmounted(() => {
   engineBus.off('epic:requestStart', onEpicRequestStart);
   engineBus.off('epic:requestStop', onEpicRequestStop);
   engineBus.off('epic:storeSyncNeeded', onEpicStoreSync);
+  engineBus.off('agent:fileEdited', onAgentFileEdited);
 
   if (graphCleanup) {
     graphCleanup();

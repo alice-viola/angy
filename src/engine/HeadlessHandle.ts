@@ -236,4 +236,8 @@ export class HeadlessHandle implements AgentHandle {
   setRealSessionId(sessionId: string, realId: string): void {
     this.getOrCreate(sessionId).realClaudeSessionId = realId;
   }
+
+  onFileEdited(sessionId: string, filePath: string, toolName: string, toolInput?: Record<string, any>): void {
+    engineBus.emit('agent:fileEdited', { sessionId, filePath, toolName, toolInput });
+  }
 }
