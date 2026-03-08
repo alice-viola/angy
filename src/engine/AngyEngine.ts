@@ -220,6 +220,9 @@ export class AngyEngine {
     if (sessionInfo) {
       sessionInfo.epicId = epicId;
       await this.sessions.persistSession(sessionId);
+      // Emit session:created so the Pinia store picks up the root
+      // session immediately (with epicId already set)
+      engineBus.emit('session:created', { sessionId });
     }
 
     console.log(`[AngyEngine] Epic orchestrator started: epic=${epicId}, session=${sessionId}`);
@@ -271,25 +274,28 @@ export class AngyEngine {
         workingDir?: string,
       ) => {
         const resolvedDir = workingDir || workspace;
-        const childSid = await this.sessions.createChildSession(
+
+        // Create child in-memory first (without persisting/emitting yet)
+        const childSid = this.sessions.manager.createChildSession(
           parentSessionId, resolvedDir, 'agent', task,
         );
+        const childInfo = this.sessions.getSession(childSid);
 
-        if (agentName) {
-          const childInfo = this.sessions.getSession(childSid);
-          if (childInfo) {
+        // Set title and epicId BEFORE persisting/emitting so the UI
+        // receives the complete session info on the session:created event
+        if (childInfo) {
+          if (agentName) {
             childInfo.title = agentName.charAt(0).toUpperCase() + agentName.slice(1);
           }
-        }
-
-        const epicId = this.pool.getEpicForSession(parentSessionId);
-        if (epicId) {
-          const childInfo = this.sessions.getSession(childSid);
-          if (childInfo) {
+          const epicId = this.pool.getEpicForSession(parentSessionId);
+          if (epicId) {
             childInfo.epicId = epicId;
-            await this.sessions.persistSession(childSid);
           }
         }
+
+        // Now persist and emit — the session already has all fields set
+        await this.sessions.persistSession(childSid);
+        engineBus.emit('session:created', { sessionId: childSid, parentSessionId });
 
         let systemPrompt = '';
         if (teammates?.length && agentName) {
