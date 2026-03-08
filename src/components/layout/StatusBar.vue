@@ -21,16 +21,9 @@
       <span class="text-[var(--text-muted)]">Processing</span>
     </div>
 
-    <!-- Right: settings + view mode toggle + model -->
+    <!-- Right: model + panel toggles -->
     <div class="flex items-center gap-3">
       <span class="text-[var(--text-faint)]">{{ ui.currentModel }}</span>
-      <button
-        @click="openSettings"
-        class="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
-        title="Settings (⌘,)"
-      >
-        ⚙
-      </button>
       <!-- Context-dependent panel toggle -->
       <button
         v-if="ui.viewMode === 'manager'"
@@ -62,28 +55,6 @@
         </svg>
         Chat
       </button>
-
-      <button
-        @click="ui.toggleViewMode()"
-        class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[10px] font-medium transition-colors"
-        :class="ui.viewMode === 'manager'
-          ? 'bg-[color-mix(in_srgb,var(--accent-mauve)_15%,transparent)] text-[var(--accent-mauve)] hover:bg-[color-mix(in_srgb,var(--accent-mauve)_25%,transparent)]'
-          : 'bg-[color-mix(in_srgb,var(--accent-teal)_15%,transparent)] text-[var(--accent-teal)] hover:bg-[color-mix(in_srgb,var(--accent-teal)_25%,transparent)]'"
-        :title="ui.viewMode === 'manager' ? 'Switch to Editor (⌘E)' : 'Switch to Manager (⌘E)'"
-      >
-        <svg v-if="ui.viewMode === 'manager'" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
-          <rect x="1" y="1" width="10" height="10" rx="1.5" />
-          <path d="M4 1V11" />
-          <path d="M4 4H11" />
-        </svg>
-        <svg v-else width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
-          <rect x="1" y="1" width="10" height="10" rx="1.5" />
-          <path d="M4 1V11" />
-          <path d="M8 1V11" />
-        </svg>
-        {{ ui.viewMode === 'manager' ? 'Editor' : 'Manager' }}
-        <span class="text-[9px] opacity-60">⌘E</span>
-      </button>
     </div>
   </div>
 </template>
@@ -99,7 +70,6 @@ const projectsStore = useProjectsStore();
 
 const workspaceLabel = computed(() => {
   if (!ui.workspacePath) return 'Open folder…';
-  // Show project name when a project is active
   if (ui.activeProjectId) {
     const project = projectsStore.projectById(ui.activeProjectId);
     if (project) return project.name;
@@ -117,9 +87,5 @@ async function openFolder() {
   if (selected && typeof selected === 'string') {
     ui.workspacePath = selected;
   }
-}
-
-function openSettings() {
-  window.dispatchEvent(new CustomEvent('angy:open-settings'));
 }
 </script>

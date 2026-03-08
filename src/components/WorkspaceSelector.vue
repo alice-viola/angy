@@ -4,19 +4,6 @@
     <div class="grid-bg" />
 
     <div class="panel">
-      <!-- Logo -->
-      <div class="logo">
-        <div class="logo-icon">
-          <img src="/angylogo.png" alt="Angy" class="logo-img" />
-        </div>
-        <div class="logo-text">
-          <div class="logo-name">Angy</div>
-          <div class="logo-tag">Agent Fleet Manager</div>
-        </div>
-      </div>
-
-      <div class="divider" />
-
       <!-- Open folder CTA -->
       <div class="cta-section">
         <p class="cta-label">Select a workspace folder to get started</p>
@@ -140,58 +127,6 @@ onMounted(async () => {
     0 0 0 1px #ffffff04,
     0 24px 60px #00000060,
     0 8px 24px #00000040;
-}
-
-/* ── Logo ───────────────────────────────────────────────────────────── */
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
-.logo-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--accent-mauve) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent-mauve) 22%, transparent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.logo-img {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-}
-
-.logo-text {
-  display: flex;
-  flex-direction: column;
-}
-
-.logo-name {
-  font-size: 17px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.3px;
-  line-height: 1.2;
-}
-
-.logo-tag {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 1px;
-}
-
-/* ── Divider ────────────────────────────────────────────────────────── */
-.divider {
-  height: 1px;
-  background: var(--border-subtle);
-  margin: 0 -24px 20px;
 }
 
 /* ── CTA ────────────────────────────────────────────────────────────── */

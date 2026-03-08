@@ -1,71 +1,91 @@
 <template>
-  <!-- Top-level view routing based on viewMode -->
-  <HomeView v-if="ui.viewMode === 'home'" />
-  <KanbanView v-else-if="ui.viewMode === 'kanban'" />
+  <AppShell>
+    <template #actions>
+      <HomeActions v-if="ui.viewMode === 'home'" @open-workspace="onOpenWorkspace" />
+      <KanbanActions v-else-if="ui.viewMode === 'kanban'"
+        @add-epic="kanbanViewRef?.addEpic()"
+        @schedule-now="kanbanViewRef?.scheduleNow()"
+        @open-git-tree="kanbanViewRef?.openGitTree()"
+        @open-scheduler-config="kanbanViewRef?.openSchedulerConfig()" />
+      <ManagerActions v-else-if="ui.viewMode === 'manager'"
+        @new-agent="onNewChat()"
+        @orchestrate="onOrchestrate()"
+        @enter-mission-control="onEnterMissionControl()" />
+      <MissionControlActions v-else-if="ui.viewMode === 'mission-control'"
+        @exit-mission-control="onExitMissionControl()" />
+    </template>
 
-  <!-- Workspace-dependent views: show selector until a workspace is chosen -->
-  <WorkspaceSelector v-else-if="!ui.workspacePath" />
+    <!-- Top-level view routing based on viewMode -->
+    <HomeView v-if="ui.viewMode === 'home'" />
+    <KanbanView v-else-if="ui.viewMode === 'kanban'" ref="kanbanViewRef" />
 
-  <template v-else>
-    <MainSplitter
-      @agent-selected="onAgentSelected"
-      @new-chat="onNewChat"
-      @delete-agent="onDeleteAgent"
-      @rename-agent="onRenameAgent"
-      @favorite-toggled="onFavoriteToggled"
-      @delete-all="onDeleteAll"
-      @delete-older="onDeleteOlder"
-      @keep-today="onKeepToday"
-      @file-clicked="onFileClicked"
-      @turn-clicked="onTurnClicked"
-      @toggle-view="ui.toggleViewMode()"
-      @orchestrate="onOrchestrate"
-      @exit-mission-control="onExitMissionControl"
-      @mission-control-filter="onMissionControlFilter"
-      @enter-mission-control="onEnterMissionControl"
-    >
-      <template #code-viewer>
-        <CodeViewer ref="codeViewerRef" />
-      </template>
+    <!-- Workspace-dependent views: show selector until a workspace is chosen -->
+    <WorkspaceSelector v-else-if="!ui.workspacePath" />
 
-      <template #chat>
-        <ChatPanel
-          ref="chatPanelRef"
-          class="h-full"
-          @file-edited="onFileEdited"
-          @file-clicked="onFileClicked"
-        @orchestrate-requested="onOrchestratorStart"
-        @orchestrate-started="(sid: string, fix: boolean) => onOrchestrateStarted(sid, fix)"
-        />
-      </template>
+    <template v-else>
+      <MainSplitter
+        @agent-selected="onAgentSelected"
+        @new-chat="onNewChat"
+        @delete-agent="onDeleteAgent"
+        @rename-agent="onRenameAgent"
+        @favorite-toggled="onFavoriteToggled"
+        @delete-all="onDeleteAll"
+        @delete-older="onDeleteOlder"
+        @keep-today="onKeepToday"
+        @file-clicked="onFileClicked"
+        @turn-clicked="onTurnClicked"
+        @toggle-view="ui.toggleViewMode()"
+        @exit-mission-control="onExitMissionControl"
+        @mission-control-filter="onMissionControlFilter"
+      >
+        <template #code-viewer>
+          <CodeViewer ref="codeViewerRef" />
+        </template>
 
-      <template #effects>
-        <EffectsPanel
-          ref="effectsPanelRef"
-          @file-clicked="onFileClicked"
-          @turn-clicked="onTurnClicked"
-        />
-      </template>
+        <template #chat>
+          <ChatPanel
+            ref="chatPanelRef"
+            class="h-full"
+            @file-edited="onFileEdited"
+            @file-clicked="onFileClicked"
+            @orchestrate-requested="onOrchestratorStart"
+            @orchestrate-started="(sid: string, fix: boolean) => onOrchestrateStarted(sid, fix)"
+          />
+        </template>
 
-      <template #terminal>
-        <TerminalPanel
-          v-if="ui.terminalVisible"
-          :workingDirectory="ui.workspacePath || '.'"
-        />
-      </template>
-    </MainSplitter>
+        <template #effects>
+          <EffectsPanel
+            ref="effectsPanelRef"
+            @file-clicked="onFileClicked"
+            @turn-clicked="onTurnClicked"
+          />
+        </template>
 
-    <!-- Dialogs -->
-    <SettingsDialog :visible="showSettings" @close="showSettings = false" @saved="onSettingsSaved" />
-    <ProfileEditor :visible="showProfileEditor" @close="showProfileEditor = false" />
-    <OrchestratorDialog :visible="showOrchestratorDialog" @close="showOrchestratorDialog = false" @start="onOrchestratorStart" />
-  </template>
+        <template #terminal>
+          <TerminalPanel
+            v-if="ui.terminalVisible"
+            :workingDirectory="ui.workspacePath || '.'"
+          />
+        </template>
+      </MainSplitter>
+
+      <!-- Dialogs -->
+      <SettingsDialog :visible="showSettings" @close="showSettings = false" @saved="onSettingsSaved" />
+      <ProfileEditor :visible="showProfileEditor" @close="showProfileEditor = false" />
+      <OrchestratorDialog :visible="showOrchestratorDialog" @close="showOrchestratorDialog = false" @start="onOrchestratorStart" />
+    </template>
+  </AppShell>
 
   <NotificationToast />
 </template>
 
 <script setup lang="ts">
 import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import AppShell from './components/layout/AppShell.vue';
+import HomeActions from './components/layout/actions/HomeActions.vue';
+import KanbanActions from './components/layout/actions/KanbanActions.vue';
+import ManagerActions from './components/layout/actions/ManagerActions.vue';
+import MissionControlActions from './components/layout/actions/MissionControlActions.vue';
 import WorkspaceSelector from './components/WorkspaceSelector.vue';
 import HomeView from './components/home/HomeView.vue';
 import KanbanView from './components/kanban/KanbanView.vue';
@@ -156,6 +176,15 @@ useKeyboard();
 const chatPanelRef = ref<InstanceType<typeof ChatPanel> | null>(null);
 const codeViewerRef = ref<InstanceType<typeof CodeViewer> | null>(null);
 const effectsPanelRef = ref<InstanceType<typeof EffectsPanel> | null>(null);
+const kanbanViewRef = ref<InstanceType<typeof KanbanView> | null>(null);
+
+// ── Top-bar action handlers ──────────────────────────────────────────────
+
+function onOpenWorkspace() {
+  ui.activeProjectId = null;
+  ui.workspacePath = '';
+  ui.switchToMode('manager');
+}
 
 // ── Event handlers ──────────────────────────────────────────────────────
 

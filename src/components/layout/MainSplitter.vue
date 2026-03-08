@@ -1,5 +1,5 @@
 <template>
-  <div class="h-screen w-screen flex flex-col bg-[var(--bg-surface)] text-[var(--text-primary)]">
+  <div class="h-full w-full flex flex-col bg-[var(--bg-surface)] text-[var(--text-primary)]">
     <!-- Mission Control: full-screen graph dashboard -->
     <MissionControlView
       v-if="ui.viewMode === 'mission-control'"
@@ -25,9 +25,6 @@
           @delete-all-requested="$emit('delete-all')"
           @delete-older-requested="$emit('delete-older')"
           @keep-today-requested="$emit('keep-today')"
-          @toggle-view="$emit('toggle-view')"
-          @orchestrate="$emit('orchestrate')"
-          @enter-mission-control="$emit('enter-mission-control')"
         />
       </Pane>
 
@@ -159,8 +156,6 @@
       </Pane>
     </Splitpanes>
 
-    <!-- Status bar -->
-    <StatusBar />
   </div>
 </template>
 
@@ -174,7 +169,6 @@ import AgentFleetPanel from '../fleet/AgentFleetPanel.vue';
 import WorkspaceTree from '../sidebar/WorkspaceTree.vue';
 import GitPanel from '../sidebar/GitPanel.vue';
 import SearchPanel from '../sidebar/SearchPanel.vue';
-import StatusBar from './StatusBar.vue';
 import AgentGraph from '../graph/AgentGraph.vue';
 import MissionControlView from '../graph/MissionControlView.vue';
 import DiffSplitView from '../editor/DiffSplitView.vue';
@@ -194,10 +188,8 @@ const emit = defineEmits<{
   'file-clicked': [filePath: string];
   'turn-clicked': [turnId: number];
   'toggle-view': [];
-  'orchestrate': [];
   'exit-mission-control': [];
   'mission-control-filter': [sessionId: string | null];
-  'enter-mission-control': [];
 }>();
 
 // ── Store ─────────────────────────────────────────────────────────────────
