@@ -76,8 +76,19 @@
       </span>
     </div>
 
-    <!-- Move left/right arrows -->
+    <!-- Move left/right arrows + PR button -->
     <div class="flex items-center justify-end gap-1 mt-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <button
+        v-if="epic.column === 'done' && branchName"
+        class="p-0.5 rounded hover:bg-[var(--bg-raised)] transition-colors"
+        :class="prLoading ? 'opacity-50 pointer-events-none text-[var(--text-faint)]' : prError ? 'text-red-400 hover:text-red-300' : 'text-[var(--text-faint)] hover:text-[var(--accent-green)]'"
+        :title="prError || 'Create Pull Request'"
+        @click.stop="createPR(epic.id, epic.projectId)"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 15v6m-3-3h6M6 9a3 3 0 100-6 3 3 0 000 6zm0 0v9m12-3a3 3 0 100-6 3 3 0 000 6z" />
+        </svg>
+      </button>
       <button
         v-if="currentIndex > 0"
         class="p-0.5 rounded text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors"
@@ -110,6 +121,7 @@ import { useProjectsStore } from '@/stores/projects';
 import { useEpicStore } from '@/stores/epics';
 import { useSessionsStore } from '@/stores/sessions';
 import { engineBus } from '@/engine/EventBus';
+import { useCreatePR } from '@/composables/useCreatePR';
 
 const props = defineProps<{ epic: Epic }>();
 const emit = defineEmits<{ select: [id: string] }>();
@@ -120,6 +132,7 @@ const epicStore = useEpicStore();
 const sessionsStore = useSessionsStore();
 
 const branchName = computed(() => epicStore.epicBranchName(props.epic.id));
+const { loading: prLoading, error: prError, createPR } = useCreatePR();
 
 const agentCount = computed(() => {
   const rootId = props.epic.rootSessionId;

@@ -51,6 +51,47 @@ export class BranchManager {
     return result.code === 0 && result.stdout.trim().length > 0
   }
 
+  async getRemoteUrl(repoPath: string, remoteName = 'origin'): Promise<string | null> {
+    try {
+      const result = await this.runGit(repoPath, ['remote', 'get-url', remoteName])
+      if (result.code !== 0) return null
+      return result.stdout.trim() || null
+    } catch {
+      return null
+    }
+  }
+
+  async pushBranch(repoPath: string, branchName: string, remoteName = 'origin'): Promise<boolean> {
+    try {
+      const result = await this.runGit(repoPath, ['push', '-u', remoteName, branchName])
+      if (result.code !== 0) {
+        console.warn(`[BranchManager] Failed to push branch ${branchName}: ${result.stderr}`)
+        return false
+      }
+      console.log(`[BranchManager] Pushed branch ${branchName} to ${remoteName}`)
+      return true
+    } catch (err) {
+      console.warn(`[BranchManager] Error pushing branch:`, err)
+      return false
+    }
+  }
+
+  static parseGitHubUrl(remoteUrl: string): { owner: string; repo: string } | null {
+    // SSH format: git@github.com:owner/repo.git
+    const sshMatch = remoteUrl.match(/^git@github\.com:([^/]+)\/([^/]+?)(?:\.git)?$/)
+    if (sshMatch) {
+      return { owner: sshMatch[1], repo: sshMatch[2] }
+    }
+
+    // HTTPS format: https://github.com/owner/repo.git
+    const httpsMatch = remoteUrl.match(/^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/)
+    if (httpsMatch) {
+      return { owner: httpsMatch[1], repo: httpsMatch[2] }
+    }
+
+    return null
+  }
+
   static epicTitleToSlug(title: string): string {
     return title
       .toLowerCase()
