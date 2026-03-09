@@ -1,6 +1,7 @@
 import mitt from 'mitt';
 import { Command } from '@tauri-apps/plugin-shell';
 import type { OrchestratorOptions, EpicPipelineType } from './KosTypes';
+import type { TechProfile } from './TechDetector';
 
 // ── Orchestrator Command (parsed from MCP tool calls) ────────────────────────
 
@@ -42,6 +43,7 @@ export type OrchestratorEvents = {
   artifactsCollected: {
     childOutputs: Array<{ role: string; agentName: string; output: string }>;
   };
+  autoProfilesDetected: { profiles: TechProfile[] };
 };
 
 // ── ChatPanel interface (decouples from Vue component) ───────────────────────

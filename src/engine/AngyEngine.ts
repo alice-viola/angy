@@ -575,6 +575,14 @@ export class AngyEngine {
         message: e.message,
       });
     });
+    orch.on('autoProfilesDetected', (data) => {
+      engineBus.emit('orchestrator:autoProfilesDetected', {
+        orchestratorId: orch.sessionId(),
+        profileIds: data.profiles.map((p: { id: string }) => p.id),
+        profileNames: data.profiles.map((p: { name: string }) => p.name),
+        profileIcons: data.profiles.map((p: { icon: string }) => p.icon),
+      });
+    });
 
     orch.on('artifactsCollected', async (e) => {
       try {

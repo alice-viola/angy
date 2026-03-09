@@ -6,6 +6,7 @@ import { engineBus } from '../engine/EventBus';
 import type { AngyEngine } from '../engine/AngyEngine';
 import type { BranchManager } from '../engine/BranchManager';
 import type { OrchestratorOptions } from '../engine/KosTypes';
+import { getTechProfileById, type TechProfile } from '../engine/TechDetector';
 
 // ── Singleton instances ──────────────────────────────────────────────────────
 
@@ -25,6 +26,7 @@ const running = ref(false);
 const delegations = ref(0);
 const lastEvent = ref('');
 const activeEpicCount = ref(0);
+const autoProfiles = ref<TechProfile[]>([]);
 
 // ── Wire up standalone orchestrator events to reactive state ─────────────────
 
@@ -52,6 +54,16 @@ orchestrator.on('failed', (e) => {
 orchestrator.on('checkpointCreated', (e) => {
   lastEvent.value = `Checkpoint: ${e.hash}`;
   engineBus.emit('orchestrator:checkpointCreated', { hash: e.hash, message: e.message });
+});
+
+orchestrator.on('autoProfilesDetected', (e) => {
+  autoProfiles.value = e.profiles;
+});
+
+engineBus.on('orchestrator:autoProfilesDetected', (data) => {
+  autoProfiles.value = data.profileIds
+    .map(id => getTechProfileById(id))
+    .filter((p): p is TechProfile => p !== undefined);
 });
 
 // ── Wire epic orchestrator events ────────────────────────────────────────────
@@ -221,6 +233,7 @@ export function useOrchestrator() {
     isRunning,
     totalDelegations,
     lastEvent,
+    autoProfiles,
     // Actions
     startOrchestration,
     cancelOrchestration,
