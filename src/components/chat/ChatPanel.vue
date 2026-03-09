@@ -91,6 +91,13 @@
     </InputBar>
     <div v-else class="py-3 text-center text-[11px] text-[var(--text-muted)] border-t border-[var(--border-subtle)]">
       This agent is managed by the scheduler
+      <div v-if="autoProfiles.length" class="flex items-center justify-center gap-1.5 mt-1 flex-wrap">
+        <span v-for="p in autoProfiles" :key="p.id"
+              class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px]"
+              style="background: color-mix(in srgb, var(--accent-teal) 15%, transparent); color: var(--accent-teal)">
+          {{ p.icon }} {{ p.name }}
+        </span>
+      </div>
     </div>
   </div>
 </template>
@@ -116,6 +123,7 @@ import { sendMessageToEngine, sendToolResultToEngine, cancelProcess, type ChatPa
 import { Orchestrator, ORCHESTRATOR_SYSTEM_PROMPT, ORCHESTRATOR_FIX_PROMPT } from '../../engine/Orchestrator';
 import type { AgentStatus, AttachedContext, AttachedImage, MessageRecord } from '../../engine/types';
 import { engineBus } from '../../engine/EventBus';
+import { useOrchestrator } from '../../composables/useOrchestrator';
 
 // ── Message type ──────────────────────────────────────────────────────────
 
@@ -172,6 +180,7 @@ const sessionsStore = useSessionsStore();
 const fleetStore = useFleetStore();
 const ui = useUiStore();
 const projectsStore = useProjectsStore();
+const { autoProfiles } = useOrchestrator();
 
 // ── Selector state ──────────────────────────────────────────────────────
 const currentMode = ref('agent');

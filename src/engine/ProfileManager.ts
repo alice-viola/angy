@@ -2,6 +2,7 @@ import { readTextFile, writeTextFile, readDir, mkdir, remove } from '@tauri-apps
 import { homeDir, join } from '@tauri-apps/api/path';
 import mitt from 'mitt';
 import { SPECIALIST_PROMPTS } from './Orchestrator';
+import { detectTechnologies, type TechProfile } from './TechDetector';
 
 export interface PersonalityProfile {
   id: string;
@@ -171,5 +172,9 @@ export class ProfileManager {
       await remove(`${this.profilesDir}/${id}.json`);
     } catch {}
     this.events.emit('profilesChanged');
+  }
+
+  async detectAutoProfiles(workingDir: string): Promise<TechProfile[]> {
+    return detectTechnologies(workingDir);
   }
 }

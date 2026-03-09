@@ -323,6 +323,7 @@ export class Orchestrator {
   private childTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
   private childOutputs: Array<{ role: string; agentName: string; output: string }> = [];
   private orchestrationLog: Array<{ timestamp: number; event: string; details: string }> = [];
+  private autoProfiles: TechProfile[] = [];
 
   static readonly MCP_SERVER_NAME = 'c3p2-orchestrator';
   static readonly MAX_STEP_ATTEMPTS = 5;
@@ -343,6 +344,16 @@ export class Orchestrator {
   currentPhase() { return this._currentPhase; }
   totalDelegations() { return this._totalDelegations; }
   getOrchestrationLog() { return this.orchestrationLog; }
+
+  setAutoProfiles(profiles: TechProfile[]): void {
+    this.autoProfiles = profiles;
+    if (profiles.length > 0) {
+      this.logEvent('autoProfilesDetected', profiles.map(p => p.name).join(', '));
+      this.events.emit('autoProfilesDetected', { profiles });
+    }
+  }
+  getAutoProfiles(): TechProfile[] { return this.autoProfiles; }
+  getAutoProfileIds(): string[] { return this.autoProfiles.map(p => p.id); }
 
   private logEvent(event: string, details: string = '') {
     this.orchestrationLog.push({ timestamp: Date.now(), event, details });

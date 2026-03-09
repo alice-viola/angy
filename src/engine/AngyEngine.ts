@@ -34,6 +34,7 @@ import {
   type EpicRepository,
   type ProjectRepository,
 } from './repositories';
+import { detectTechnologies, buildTechPromptPrefix } from './TechDetector';
 
 // ── Singleton ────────────────────────────────────────────────────────────
 
@@ -218,6 +219,10 @@ export class AngyEngine {
       }
     }
 
+    // Detect technology profiles from workspace
+    const detectedProfiles = await detectTechnologies(workspace);
+    orch.setAutoProfiles(detectedProfiles);
+
     // Build OrchestratorChatPanelAPI backed by HeadlessHandle + ProcessManager
     const panelAPI = this.buildHeadlessPanelAPI(handle, orch, workspace, epic.model || undefined);
     orch.setChatPanel(panelAPI);
@@ -375,7 +380,18 @@ export class AngyEngine {
           promptParts.push(`\nYou have access to these tools: ${toolList}. Use only these tools.`);
         }
 
+        // Prepend technology profile guidelines for implementer/tester roles
+        const autoProfiles = _orch.getAutoProfiles();
+        if (autoProfiles.length > 0 && (role === 'implementer' || role === 'tester')) {
+          promptParts.unshift(buildTechPromptPrefix(autoProfiles));
+        }
+
         const systemPrompt = promptParts.join('\n\n');
+
+        const allProfileIds = [
+          ...(contextProfileIds.length > 0 ? contextProfileIds : []),
+          ..._orch.getAutoProfileIds(),
+        ];
 
         this.processes.sendMessage(childSid, task, handle, {
           workingDir: resolvedDir,
@@ -384,7 +400,7 @@ export class AngyEngine {
           systemPrompt,
           agentName,
           teamId,
-          profileIds: contextProfileIds.length > 0 ? contextProfileIds : undefined,
+          profileIds: allProfileIds.length > 0 ? allProfileIds : undefined,
           specialistRole: role,
         });
 
@@ -581,6 +597,15 @@ export class AngyEngine {
         profileIds: data.profiles.map((p: { id: string }) => p.id),
         profileNames: data.profiles.map((p: { name: string }) => p.name),
         profileIcons: data.profiles.map((p: { icon: string }) => p.icon),
+      });
+    });
+
+    orch.on('autoProfilesDetected', (data) => {
+      engineBus.emit('orchestrator:autoProfilesDetected', {
+        orchestratorId: orch.sessionId(),
+        profileIds: data.profiles.map(p => p.id),
+        profileNames: data.profiles.map(p => p.name),
+        profileIcons: data.profiles.map(p => p.icon),
       });
     });
 

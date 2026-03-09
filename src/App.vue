@@ -113,6 +113,7 @@ import { useGraphBuilder } from './composables/useGraphBuilder';
 import { useMissionControl } from './composables/useMissionControl';
 import { sendMessageToEngine, cancelProcess, setOrchestratorLookup, setProcessManager } from './composables/useEngine';
 import { ORCHESTRATOR_SYSTEM_PROMPT, SPECIALIST_PROMPTS, SPECIALIST_TOOLS } from './engine/Orchestrator';
+import { detectTechnologies, buildTechPromptPrefix } from './engine/TechDetector';
 import { DelegationStatus } from './engine/types';
 import { DiffEngine } from './engine/DiffEngine';
 import { engineBus } from './engine/EventBus';
@@ -643,7 +644,18 @@ function buildChatPanelAPI(opts: {
         promptParts.push(`\nYou have access to these tools: ${toolList}. Use only these tools.`);
       }
 
+      // Prepend technology profile guidelines for implementer/tester roles
+      const autoProfiles = orchestrator.getAutoProfiles();
+      if (autoProfiles.length > 0 && (role === 'implementer' || role === 'tester')) {
+        promptParts.unshift(buildTechPromptPrefix(autoProfiles));
+      }
+
       const systemPrompt = promptParts.join('\n\n');
+
+      const allProfileIds = [
+        ...(contextProfileIds.length > 0 ? contextProfileIds : []),
+        ...orchestrator.getAutoProfileIds(),
+      ];
 
       const handle = {
         appendTextDelta: panel.appendTextDelta,
@@ -677,7 +689,7 @@ function buildChatPanelAPI(opts: {
         systemPrompt,
         agentName,
         teamId,
-        profileIds: contextProfileIds.length > 0 ? contextProfileIds : undefined,
+        profileIds: allProfileIds.length > 0 ? allProfileIds : undefined,
         specialistRole: role,
       });
 
@@ -697,7 +709,7 @@ function buildChatPanelAPI(opts: {
   };
 }
 
-function onOrchestratorStart(goal: string) {
+async function onOrchestratorStart(goal: string) {
   showOrchestratorDialog.value = false;
   ui.setRightPanelMode('graph');
   orchestrator.setChatPanel(buildChatPanelAPI({
@@ -709,6 +721,12 @@ function onOrchestratorStart(goal: string) {
     },
   }));
   orchestrator.setWorkspace(ui.workspacePath || '.');
+
+  // Detect technology profiles from workspace
+  const workspace = ui.workspacePath || '.';
+  const detectedProfiles = await detectTechnologies(workspace);
+  orchestrator.setAutoProfiles(detectedProfiles);
+
   startOrchestration(goal);
 }
 
@@ -723,6 +741,12 @@ async function onOrchestrateStarted(sessionId: string, fixMode = false) {
     injectUserMessage: true,
   }));
   orchestrator.setWorkspace(ui.workspacePath || '.');
+
+  // Detect technology profiles from workspace
+  const workspace = ui.workspacePath || '.';
+  const detectedProfiles = await detectTechnologies(workspace);
+  orchestrator.setAutoProfiles(detectedProfiles);
+
   await orchestrator.attachToSession(sessionId, ui.autoCommitEnabled);
 }
 
