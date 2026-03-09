@@ -51,6 +51,7 @@
 
           <!-- Right panel: profile editor -->
           <div class="flex-1 overflow-y-auto p-4">
+            <p class="text-[11px] text-[var(--text-muted)] mb-3">Profiles customize agent behavior with custom system prompts. Select a profile in the chat input bar.</p>
             <template v-if="editing">
               <div class="space-y-3">
                 <div v-if="editing.isBuiltIn" class="text-[10px] text-[var(--text-faint)] italic">
@@ -103,7 +104,7 @@
           <template v-if="activeTab === 'General'">
             <div class="space-y-3">
               <div>
-                <label class="text-xs text-[var(--text-secondary)] mb-1 block">Claude CLI Path</label>
+                <label class="text-xs text-[var(--text-secondary)] mb-1 flex items-center">Claude CLI Path<InfoTip text="Path to the claude binary. Leave empty to auto-detect from your system PATH." /></label>
                 <input
                   v-model="settings.claudePath"
                   placeholder="Auto-detect"
@@ -113,7 +114,7 @@
               </div>
 
               <div>
-                <label class="text-xs text-[var(--text-secondary)] mb-1 block">Default Model</label>
+                <label class="text-xs text-[var(--text-secondary)] mb-1 flex items-center">Default Model<InfoTip text="The AI model used for new conversations. Opus is most capable; Haiku is fastest and cheapest." /></label>
                 <select
                   v-model="settings.defaultModel"
                   class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none"
@@ -269,6 +270,8 @@ import { useThemeStore } from '../../stores/theme';
 import type { ThemeVariant } from '../../themes/catppuccin';
 import { ProfileManager, type PersonalityProfile } from '../../engine/ProfileManager';
 import { Scheduler } from '../../engine/Scheduler';
+import InfoTip from '@/components/common/InfoTip.vue';
+
 
 defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ close: []; saved: [settings: Record<string, string>] }>();

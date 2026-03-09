@@ -21,6 +21,9 @@
       v-show="activeMessages.length > 0 || isProcessing"
     >
       <div class="max-w-[860px] mx-auto py-8 px-6 space-y-5">
+        <SectionTip tipId="pipeline-modes" title="Pipeline Modes" icon="⚡">
+          <strong>Normal</strong>: single agent chat. <strong>Orchestrate</strong>: spawns architect → implementer → tester → reviewer pipeline. <strong>Fixer</strong>: spawns a bug-fixing pipeline.
+        </SectionTip>
         <template v-for="item in groupedMessages" :key="item.id">
           <!-- AskUserQuestion → QuestionWidget -->
           <QuestionWidget
@@ -114,6 +117,7 @@ import InputBar from '../input/InputBar.vue';
 import ModeSelector from '../input/ModeSelector.vue';
 import ModelSelector from '../input/ModelSelector.vue';
 import ProfileSelector from '../input/ProfileSelector.vue';
+import SectionTip from '../common/SectionTip.vue';
 import { useSessionsStore, getDatabase } from '../../stores/sessions';
 import { useFleetStore } from '../../stores/fleet';
 import { useUiStore } from '../../stores/ui';

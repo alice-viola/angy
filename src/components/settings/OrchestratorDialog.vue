@@ -20,6 +20,7 @@
             placeholder="Describe the task for the orchestrator..."
             @keydown.meta.enter="onStart"
           />
+          <p class="text-[11px] text-[var(--text-muted)] mt-1.5">Describe what you want built or fixed. The orchestrator will break this into tasks and delegate to specialist agents (architect, implementer, tester, reviewer).</p>
         </div>
         <div class="flex justify-end gap-2 px-5 py-3 border-t border-[var(--border-subtle)]">
           <button

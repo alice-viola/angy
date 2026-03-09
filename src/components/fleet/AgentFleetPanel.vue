@@ -8,6 +8,10 @@
 
     <!-- Agent list -->
     <div class="flex-1 overflow-y-auto py-1 px-1.5">
+      <SectionTip tipId="fleet-intro" title="Agent Fleet" icon="🤖">
+        Each row is an AI agent conversation. Click + to start a new agent, or use <strong>Orchestrate</strong> mode to spawn a coordinated team. Agents spawned by an orchestrator appear as nested children.
+      </SectionTip>
+
       <template v-for="agent in visibleAgents" :key="agent.sessionId">
         <!-- Date divider -->
         <div
@@ -35,7 +39,7 @@
 
       <!-- Empty state -->
       <div v-if="visibleAgents.length === 0" class="flex items-center justify-center h-full">
-        <span class="text-xs text-[var(--text-faint)]">No agents yet</span>
+        <span class="text-xs text-[var(--text-faint)]">No agents yet. Press ⌘N or click + to start your first AI agent conversation.</span>
       </div>
     </div>
   </div>
@@ -45,6 +49,7 @@
 import { computed } from 'vue';
 import AgentCard from './AgentCard.vue';
 import FleetHeader from './FleetHeader.vue';
+import SectionTip from '../common/SectionTip.vue';
 import { useFleetStore } from '../../stores/fleet';
 import { useUiStore } from '../../stores/ui';
 import { transformChatToEpic } from '../../composables/useEpicFromChat';

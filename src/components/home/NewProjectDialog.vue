@@ -34,7 +34,7 @@
           <!-- Repositories -->
           <div>
             <div class="flex items-center justify-between mb-2">
-              <label class="text-xs text-[var(--text-secondary)]">Repositories</label>
+              <label class="text-xs text-[var(--text-secondary)] flex items-center">Repositories<InfoTip text="Add the git repositories this project's agents will work on. At least one repo is recommended." /></label>
               <button
                 @click="addRepo"
                 class="text-[10px] text-[var(--accent-teal)] hover:text-[var(--text-primary)] transition-colors"
@@ -78,14 +78,17 @@
               </div>
 
               <div class="flex items-center gap-3">
-                <input
-                  v-model="repo.defaultBranch"
-                  placeholder="main"
-                  class="w-32 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-mauve)]"
-                />
+                <div class="flex items-center gap-0.5">
+                  <input
+                    v-model="repo.defaultBranch"
+                    placeholder="main"
+                    class="w-32 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-mauve)]"
+                  />
+                  <InfoTip text="The main branch used as the base for epic branches." />
+                </div>
                 <label class="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] cursor-pointer">
                   <input type="checkbox" v-model="repo.primary" class="accent-[var(--accent-mauve)]" />
-                  Primary
+                  Primary<InfoTip text="The primary repo is the default workspace when opening this project." position="right" />
                 </label>
               </div>
             </div>
@@ -117,6 +120,7 @@
 import { ref, reactive } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useProjectsStore } from '@/stores/projects';
+import InfoTip from '@/components/common/InfoTip.vue';
 
 const emit = defineEmits<{
   close: [];

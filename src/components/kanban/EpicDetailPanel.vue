@@ -55,7 +55,7 @@
 
       <!-- Acceptance Criteria -->
       <div>
-        <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Acceptance Criteria</label>
+        <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Acceptance Criteria <InfoTip text="Define what 'done' looks like. The reviewing agent checks these criteria before approving." /></label>
         <textarea
           v-model="draft.acceptanceCriteria"
           rows="3"
@@ -68,7 +68,7 @@
 
       <!-- Pipeline Type -->
       <div>
-        <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Pipeline</label>
+        <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Pipeline <InfoTip text="Determines the agent workflow. Create: architect → implement → test → review. Fix: diagnose and fix bugs. Investigate/Plan: read-only analysis." /></label>
         <div class="mt-1 flex items-center gap-1">
           <button
             v-for="pt in pipelineTypes"
@@ -91,7 +91,7 @@
       <!-- Priority & Complexity row -->
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Priority</label>
+          <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Priority <InfoTip text="Affects scheduling order. Critical and High priority epics are picked up first by the scheduler." /></label>
           <select
             v-model="draft.priorityHint"
             class="mt-1 w-full text-sm px-2 py-1.5 rounded border border-[var(--border-subtle)]
@@ -106,7 +106,7 @@
           </select>
         </div>
         <div>
-          <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Complexity</label>
+          <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Complexity <InfoTip text="Helps the scheduler estimate capacity. Larger epics may get more agent time and resources." /></label>
           <select
             v-model="draft.complexity"
             class="mt-1 w-full text-sm px-2 py-1.5 rounded border border-[var(--border-subtle)]
@@ -140,7 +140,7 @@
 
       <!-- Target Repos -->
       <div>
-        <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Target Repos</label>
+        <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Target Repos <InfoTip text="Which repositories this epic's agents will work in. If empty, agents use all project repos." /></label>
         <div class="mt-1">
           <RepoScopeSelector
             :projectId="epic.projectId"
@@ -152,7 +152,7 @@
       <!-- Auto branch -->
       <div>
         <div class="flex items-center justify-between">
-          <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Auto branch</label>
+          <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Auto branch <InfoTip text="Creates a dedicated git branch (epic/id) for this epic's changes, preventing conflicts with other work." /></label>
           <button
             class="relative w-7 h-4 rounded-full transition-colors"
             :class="draft.useGitBranch ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-raised)]'"
@@ -179,7 +179,7 @@
 
       <!-- Dependencies -->
       <div>
-        <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Dependencies</label>
+        <label class="text-[10px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Dependencies <InfoTip text="This epic won't start until all its dependencies reach the Done column." /></label>
         <div class="mt-1 space-y-1">
           <div
             v-for="depId in draft.dependsOn"
@@ -291,6 +291,7 @@ import { useEpicStore } from '@/stores/epics';
 import { Scheduler } from '@/engine/Scheduler';
 import { engineBus } from '@/engine/EventBus';
 import RepoScopeSelector from './RepoScopeSelector.vue';
+import InfoTip from '@/components/common/InfoTip.vue';
 
 const props = defineProps<{ epicId: string }>();
 const emit = defineEmits<{ close: [] }>();
