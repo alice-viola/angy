@@ -10,7 +10,7 @@
           :column="col"
           :projectIds="ui.kanbanProjectIds"
           :filterText="ui.kanbanFilterText"
-          @selectEpic="selectedEpicId = $event"
+          @selectEpic="onSelectEpic($event)"
           @addEpic="addEpic"
           @dropEpic="onDropEpic"
         />
@@ -21,7 +21,9 @@
         <EpicDetailPanel
           v-if="selectedEpicId"
           :epicId="selectedEpicId"
+          :isNew="isNewEpic"
           @close="selectedEpicId = null"
+          @created="isNewEpic = false"
         />
       </transition>
     </div>
@@ -57,16 +59,23 @@ const ui = useUiStore();
 const epicStore = useEpicStore();
 
 const selectedEpicId = ref<string | null>(null);
+const isNewEpic = ref(false);
 const showSchedulerConfig = ref(false);
 const showGitTree = ref(false);
 
 const columns: EpicColumn[] = ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done'];
 const projectId = computed(() => ui.activeProjectId ?? '');
 
+function onSelectEpic(epicId: string) {
+  selectedEpicId.value = epicId;
+  isNewEpic.value = false;
+}
+
 async function addEpic() {
   if (!projectId.value) return;
   const epic = await epicStore.createEpic(projectId.value, 'New Epic');
   selectedEpicId.value = epic.id;
+  isNewEpic.value = true;
 }
 
 function onScheduleNow() {
