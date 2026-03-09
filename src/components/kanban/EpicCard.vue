@@ -89,7 +89,7 @@
         </svg>
       </button>
       <button
-        v-if="currentIndex < columnOrder.length - 1"
+        v-if="currentIndex >= 0 && currentIndex < columnOrder.length - 1"
         class="p-0.5 rounded text-[var(--text-faint)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-raised)] transition-colors"
         title="Move right"
         @click.stop="moveRight"

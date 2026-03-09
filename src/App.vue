@@ -114,6 +114,7 @@ import { sendMessageToEngine, cancelProcess, setOrchestratorLookup, setProcessMa
 import { ORCHESTRATOR_SYSTEM_PROMPT, SPECIALIST_PROMPTS, SPECIALIST_TOOLS } from './engine/Orchestrator';
 import { detectTechnologies, buildTechPromptPrefix } from './engine/TechDetector';
 import { DelegationStatus } from './engine/types';
+import type { EpicColumn } from './engine/KosTypes';
 import { DiffEngine } from './engine/DiffEngine';
 import { engineBus } from './engine/EventBus';
 import { AngyEngine } from './engine/AngyEngine';
@@ -775,7 +776,7 @@ let onSchedulerInfo: (e: { epicId?: string; title: string; message: string }) =>
 let onSessionCreatedBus: (e: { sessionId: string }) => void;
 let onAgentStatusBus: (e: { agentId: string; status: string; activity: string }) => void;
 let onEpicRequestStart: (e: { epicId: string }) => void;
-let onEpicRequestStop: (e: { epicId: string }) => void;
+let onEpicRequestStop: (e: { epicId: string; targetColumn?: EpicColumn }) => void;
 let onEpicStoreSync: () => Promise<void>;
 let onAgentFileEdited: (e: { sessionId: string; filePath: string; toolName: string; toolInput?: Record<string, any> }) => void;
 
@@ -893,12 +894,12 @@ onMounted(async () => {
   };
   engineBus.on('epic:requestStart', onEpicRequestStart);
 
-  onEpicRequestStop = async ({ epicId }) => {
+  onEpicRequestStop = async ({ epicId, targetColumn }) => {
     console.log(`[App] epic:requestStop received for: ${epicId}`);
     try {
       await engine.cancelEpicOrchestration(epicId);
-      await epicStore.moveEpic(epicId, 'backlog');
-      console.log(`[App] Epic stopped and moved to backlog: ${epicId}`);
+      await epicStore.moveEpic(epicId, targetColumn || 'backlog');
+      console.log(`[App] Epic stopped and moved to ${targetColumn || 'backlog'}: ${epicId}`);
     } catch (err) {
       console.error(`[App] Failed to stop epic ${epicId}:`, err);
     }

@@ -12,9 +12,9 @@
         {{ epics.length }}
       </span>
       <button
-        v-if="column === 'done' && epics.length > 0"
+        v-if="(column === 'done' || column === 'discarded') && epics.length > 0"
         class="ml-auto text-[10px] text-[var(--text-muted)] hover:text-[var(--accent-red)] transition-colors"
-        title="Clear all done epics"
+        :title="`Clear all ${column} epics`"
         @click="clearAll"
       >
         Clear all
@@ -130,6 +130,7 @@ const emptyDescriptions: Record<EpicColumn, string> = {
   'in-progress': 'AI agents are actively working on these.',
   review: 'Completed work waiting for your review.',
   done: 'Finished and approved epics.',
+  discarded: 'Epics that were abandoned or failed.',
 };
 
 const emptyText = computed(() => emptyDescriptions[props.column]);
@@ -142,6 +143,7 @@ const headerColor = computed(() => {
     'in-progress': 'var(--accent-yellow)',
     review: 'var(--accent-peach)',
     done: 'var(--accent-green)',
+    discarded: 'var(--accent-red)',
   };
   return map[props.column];
 });

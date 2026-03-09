@@ -8,7 +8,8 @@ export type EpicColumn =
   | 'todo'
   | 'in-progress'
   | 'review'
-  | 'done';
+  | 'done'
+  | 'discarded';
 
 export type EpicPipelineType = 'create' | 'fix' | 'investigate' | 'plan';
 

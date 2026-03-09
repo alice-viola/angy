@@ -135,7 +135,7 @@ export interface GitFileEntry {
   staged: boolean;
 }
 
-import type { Epic } from './KosTypes';
+import type { Epic, EpicColumn } from './KosTypes';
 
 // ── Engine Event Bus Types ────────────────────────────────────────────────
 
@@ -163,7 +163,7 @@ export type EngineEvents = {
   'scheduler:error': { epicId?: string; title: string; message: string };
   'scheduler:info': { epicId?: string; title: string; message: string };
   'epic:requestStart': { epicId: string };
-  'epic:requestStop': { epicId: string };
+  'epic:requestStop': { epicId: string; targetColumn?: EpicColumn };
   'epic:updated': { epicId: string; epic: Epic };
   'orchestrator:autoProfilesDetected': { orchestratorId: string; profileIds: string[]; profileNames: string[]; profileIcons: string[] };
   'epic:storeSyncNeeded': void;

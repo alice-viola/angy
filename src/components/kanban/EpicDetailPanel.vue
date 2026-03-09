@@ -343,7 +343,7 @@ const emit = defineEmits<{ close: []; created: [] }>();
 const ui = useUiStore();
 const epicStore = useEpicStore();
 
-const columns: EpicColumn[] = ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done'];
+const columns: EpicColumn[] = ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done', 'discarded'];
 const pipelineTypes: Array<{ value: EpicPipelineType; label: string }> = [
   { value: 'create', label: 'Create' },
   { value: 'fix', label: 'Fix' },
