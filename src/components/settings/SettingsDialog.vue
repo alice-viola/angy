@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
     <div v-if="visible" class="fixed inset-0 z-50 flex items-center justify-center bg-black/60" @click.self="$emit('close')">
-      <div class="w-[520px] max-h-[80vh] bg-[var(--bg-window)] border border-[var(--border-standard)] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+      <div class="w-[640px] max-h-[80vh] bg-[var(--bg-window)] border border-[var(--border-standard)] rounded-xl shadow-2xl overflow-hidden flex flex-col">
         <!-- Header -->
         <div class="flex items-center justify-between px-5 py-3 border-b border-[var(--border-subtle)]">
           <span class="text-sm font-medium text-[var(--text-primary)]">Settings</span>
@@ -21,8 +21,83 @@
           </button>
         </div>
 
-        <!-- Content -->
-        <div class="flex-1 overflow-y-auto p-5 space-y-4">
+        <!-- Content: Profiles tab gets a full-height split-pane with no outer padding -->
+        <div v-if="activeTab === 'Profiles'" class="flex flex-1 overflow-hidden">
+          <!-- Left sidebar: profile list -->
+          <div class="w-48 border-r border-[var(--border-subtle)] flex flex-col overflow-hidden">
+            <div class="flex-1 overflow-y-auto">
+              <button
+                v-for="p in profiles"
+                :key="p.id"
+                @click="selectProfile(p)"
+                class="w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors"
+                :class="selectedProfileId === p.id
+                  ? 'bg-[color-mix(in_srgb,var(--accent-mauve)_15%,transparent)] text-[var(--text-primary)]'
+                  : 'text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]'"
+              >
+                <span>{{ p.icon ?? '🤖' }}</span>
+                <span class="truncate">{{ p.name }}</span>
+              </button>
+            </div>
+            <div class="p-2 border-t border-[var(--border-subtle)]">
+              <button
+                @click="createNewProfile"
+                class="w-full text-xs px-3 py-1.5 rounded bg-[var(--bg-raised)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+              >
+                + New Profile
+              </button>
+            </div>
+          </div>
+
+          <!-- Right panel: profile editor -->
+          <div class="flex-1 overflow-y-auto p-4">
+            <template v-if="editing">
+              <div class="space-y-3">
+                <div v-if="editing.isBuiltIn" class="text-[10px] text-[var(--text-faint)] italic">
+                  Built-in profile — read only
+                </div>
+                <div :class="editing.isBuiltIn ? 'opacity-50 pointer-events-none' : ''" class="space-y-3">
+                  <div>
+                    <label class="text-xs text-[var(--text-secondary)] mb-1 block">Name</label>
+                    <input
+                      v-model="editing.name"
+                      class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-xs text-[var(--text-secondary)] mb-1 block">Icon</label>
+                    <input
+                      v-model="editing.icon"
+                      class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                    />
+                  </div>
+                  <div>
+                    <label class="text-xs text-[var(--text-secondary)] mb-1 block">System Prompt</label>
+                    <textarea
+                      v-model="editing.systemPrompt"
+                      rows="8"
+                      class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)] resize-none"
+                    />
+                  </div>
+                  <div class="flex gap-2">
+                    <button
+                      @click="saveProfileEntry"
+                      class="text-xs px-4 py-1.5 rounded bg-[var(--accent-mauve)] text-[var(--bg-base)] font-medium"
+                    >Save</button>
+                    <button
+                      @click="deleteProfileEntry"
+                      class="text-xs px-4 py-1.5 rounded bg-[var(--bg-raised)] text-[var(--text-muted)]"
+                    >Delete</button>
+                  </div>
+                </div>
+              </div>
+            </template>
+            <div v-else class="text-xs text-[var(--text-faint)]">Select a profile to edit</div>
+          </div>
+        </div>
+
+        <!-- Other tabs: padded content wrapper -->
+        <div v-else class="flex-1 overflow-y-auto p-5 space-y-4">
           <!-- General tab -->
           <template v-if="activeTab === 'General'">
             <div class="space-y-3">
@@ -97,8 +172,13 @@
 
         <!-- Footer -->
         <div class="flex justify-end gap-2 px-5 py-3 border-t border-[var(--border-subtle)]">
-          <button @click="$emit('close')" class="text-xs px-4 py-1.5 rounded bg-[var(--bg-raised)] text-[var(--text-muted)]">Cancel</button>
-          <button @click="save" class="text-xs px-4 py-1.5 rounded bg-[var(--accent-mauve)] text-[var(--bg-base)] font-medium">Save</button>
+          <template v-if="activeTab === 'Profiles'">
+            <button @click="$emit('close')" class="text-xs px-4 py-1.5 rounded bg-[var(--accent-mauve)] text-[var(--bg-base)] font-medium">Close</button>
+          </template>
+          <template v-else>
+            <button @click="$emit('close')" class="text-xs px-4 py-1.5 rounded bg-[var(--bg-raised)] text-[var(--text-muted)]">Cancel</button>
+            <button @click="save" class="text-xs px-4 py-1.5 rounded bg-[var(--accent-mauve)] text-[var(--bg-base)] font-medium">Save</button>
+          </template>
         </div>
       </div>
     </div>
@@ -109,13 +189,19 @@
 import { ref, reactive, onMounted } from 'vue';
 import { useThemeStore } from '../../stores/theme';
 import type { ThemeVariant } from '../../themes/catppuccin';
+import { ProfileManager, type PersonalityProfile } from '../../engine/ProfileManager';
 
 defineProps<{ visible: boolean }>();
 const emit = defineEmits<{ close: []; saved: [settings: Record<string, string>] }>();
 
 const themeStore = useThemeStore();
 const activeTab = ref('General');
-const tabs = ['General', 'Theme', 'Keyboard'];
+const tabs = ['General', 'Theme', 'Keyboard', 'Profiles'];
+
+const profileManager = new ProfileManager();
+const profiles = ref<PersonalityProfile[]>([]);
+const selectedProfileId = ref('');
+const editing = ref<PersonalityProfile | null>(null);
 
 const settings = reactive({
   claudePath: '',
@@ -159,6 +245,38 @@ async function save() {
   emit('close');
 }
 
+function selectProfile(p: PersonalityProfile) {
+  selectedProfileId.value = p.id;
+  editing.value = { ...p };
+}
+
+async function createNewProfile() {
+  const newProfile: PersonalityProfile = {
+    id: `profile-${Date.now()}`,
+    name: 'New Profile',
+    icon: '🤖',
+    systemPrompt: '',
+    isBuiltIn: false,
+  };
+  await profileManager.saveProfile(newProfile);
+  profiles.value = profileManager.userProfiles();
+  selectProfile(newProfile);
+}
+
+async function saveProfileEntry() {
+  if (!editing.value || editing.value.isBuiltIn) return;
+  await profileManager.saveProfile(editing.value);
+  profiles.value = profileManager.userProfiles();
+}
+
+async function deleteProfileEntry() {
+  if (!editing.value || editing.value.isBuiltIn) return;
+  await profileManager.deleteProfile(editing.value.id);
+  profiles.value = profileManager.userProfiles();
+  editing.value = profiles.value[0] ?? null;
+  selectedProfileId.value = editing.value?.id ?? '';
+}
+
 onMounted(async () => {
   try {
     const { readTextFile } = await import('@tauri-apps/plugin-fs');
@@ -167,5 +285,11 @@ onMounted(async () => {
     const content = await readTextFile(await join(home, '.angy', 'settings.json'));
     Object.assign(settings, JSON.parse(content));
   } catch {}
+
+  await profileManager.init();
+  profiles.value = profileManager.userProfiles();
+  if (profiles.value.length > 0) {
+    selectProfile(profiles.value[0]);
+  }
 });
 </script>
