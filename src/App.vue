@@ -75,7 +75,6 @@
 
   <!-- Global dialogs (available on all views) -->
   <SettingsDialog :visible="showSettings" @close="showSettings = false" @saved="onSettingsSaved" />
-  <ProfileEditor :visible="showProfileEditor" @close="showProfileEditor = false" />
   <NotificationToast />
 </template>
 
@@ -96,7 +95,6 @@ import CodeViewer from './components/editor/CodeViewer.vue';
 import type { GitUnifiedDiff } from './engine/GitManager';
 import TerminalPanel from './components/terminal/TerminalPanel.vue';
 import SettingsDialog from './components/settings/SettingsDialog.vue';
-import ProfileEditor from './components/settings/ProfileEditor.vue';
 import OrchestratorDialog from './components/settings/OrchestratorDialog.vue';
 import NotificationToast from './components/home/NotificationToast.vue';
 import { useUiStore } from './stores/ui';
@@ -162,7 +160,6 @@ async function showGraphForSession(sessionId: string) {
 
 // ── Dialog visibility ──────────────────────────────────────────────────
 const showSettings = ref(false);
-const showProfileEditor = ref(false);
 const showOrchestratorDialog = ref(false);
 
 // ── Orchestrator ──────────────────────────────────────────────────────
@@ -789,10 +786,6 @@ function onGlobalOpenSettings() {
   showSettings.value = true;
 }
 
-function onGlobalOpenProfileEditor() {
-  showProfileEditor.value = true;
-}
-
 function onGitFileDiffReady({ filePath, staged, diff }: { filePath: string; staged: boolean; diff: GitUnifiedDiff }) {
   if (diff.isBinary) return;
   const rightLabel = staged ? 'Staged' : 'Working Tree';
@@ -809,7 +802,6 @@ function onGitFileDiffReady({ filePath, staged, diff }: { filePath: string; stag
 onMounted(async () => {
   window.addEventListener('angy:new-chat', onGlobalNewChat);
   window.addEventListener('angy:open-settings', onGlobalOpenSettings);
-  window.addEventListener('angy:open-profile-editor', onGlobalOpenProfileEditor);
   gitStore.manager.on('fileDiffReady', onGitFileDiffReady);
   themeStore.loadSavedTheme();
 
@@ -963,7 +955,6 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('angy:new-chat', onGlobalNewChat);
   window.removeEventListener('angy:open-settings', onGlobalOpenSettings);
-  window.removeEventListener('angy:open-profile-editor', onGlobalOpenProfileEditor);
   gitStore.manager.off('fileDiffReady', onGitFileDiffReady);
 
   // Clean up engineBus listeners to prevent leaks
