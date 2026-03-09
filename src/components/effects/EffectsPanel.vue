@@ -32,6 +32,9 @@
         </div>
         <div class="text-[11px] text-[var(--text-muted)]">No changes yet</div>
         <div class="text-[10px] text-[var(--text-faint)] mt-1">File edits will appear as your agent works</div>
+        <SectionTip tipId="effects-intro" title="Effects" icon="📝" class="mt-3 w-full">
+          This panel tracks every file your agents create or modify. Use the toggle to see changes from one agent or all agents. Click a file to open it in the editor.
+        </SectionTip>
       </div>
       <template v-else>
         <template v-for="group in groupedChanges" :key="group.turnId">
@@ -60,6 +63,7 @@ import type { FileChange } from '../../engine/types';
 import { useSessionsStore } from '../../stores/sessions';
 import FileChangeItem from './FileChangeItem.vue';
 import TurnDivider from './TurnDivider.vue';
+import SectionTip from '../common/SectionTip.vue';
 
 // ── Props & Emits ────────────────────────────────────────────────────────
 

@@ -6,7 +6,10 @@
     <div class="panel">
       <!-- Open folder CTA -->
       <div class="cta-section">
-        <p class="cta-label">Select a workspace folder to get started</p>
+        <p class="cta-label">
+          Select a workspace folder to get started
+          <InfoTip text="A workspace is the folder (usually a git repo) that your AI agents will read and modify." position="bottom" />
+        </p>
         <button class="open-btn" @click="openFolder">
           <!-- Folder open icon -->
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -56,6 +59,7 @@ import { ref, onMounted } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useUiStore } from '../stores/ui';
 import { getDatabase } from '../stores/sessions';
+import InfoTip from '@/components/common/InfoTip.vue';
 
 const ui = useUiStore();
 const recentWorkspaces = ref<string[]>([]);

@@ -3,7 +3,11 @@
     <!-- Board + Detail panel -->
     <div class="flex flex-1 overflow-hidden">
       <!-- Columns -->
-      <div class="flex-1 flex gap-2 p-2 overflow-x-auto">
+      <div class="flex-1 flex flex-col overflow-hidden">
+        <SectionTip tipId="kanban-intro" title="Epic Board" icon="📋">
+          <p>Drag epics across columns to manage their lifecycle. Move an epic to <strong>In Progress</strong> to start an AI orchestration pipeline. Epics in <strong>Review</strong> need your approval before completing.</p>
+        </SectionTip>
+        <div class="flex-1 flex gap-2 p-2 overflow-x-auto">
         <KanbanColumn
           v-for="col in columns"
           :key="col"
@@ -15,8 +19,9 @@
           @dropEpic="onDropEpic"
         />
       </div>
+      </div>
 
-      <!-- Detail panel slide-out -->
+    <!-- Detail panel slide-out -->
       <transition name="slide">
         <EpicDetailPanel
           v-if="selectedEpicId"
@@ -50,6 +55,7 @@ import { engineBus } from '@/engine/EventBus';
 import { Scheduler } from '@/engine/Scheduler';
 import KanbanColumn from './KanbanColumn.vue';
 import EpicDetailPanel from './EpicDetailPanel.vue';
+import SectionTip from '@/components/common/SectionTip.vue';
 import SchedulerConfigDialog from './SchedulerConfigDialog.vue';
 import GitTreeDialog from './GitTreeDialog.vue';
 

@@ -3,6 +3,14 @@
     <!-- Main content -->
     <div class="flex-1 overflow-y-auto">
       <div class="max-w-[900px] mx-auto px-8 py-12">
+        <!-- Welcome tip -->
+        <SectionTip tipId="home-welcome" title="Welcome to Angy" icon="🚀">
+          Angy helps you orchestrate AI coding agents. Start by creating a
+          <strong class="text-[var(--text-primary)]">Project</strong> — a collection of repos your agents work on.
+          Then use the <strong class="text-[var(--text-primary)]">Kanban</strong> board to plan epics, and the
+          <strong class="text-[var(--text-primary)]">Agent Fleet</strong> to run them.
+        </SectionTip>
+
         <!-- Header with Open Workspace CTA -->
         <div class="flex items-center justify-between mb-8">
           <div />
@@ -17,6 +25,7 @@
               <div class="font-medium">Open Workspace</div>
               <div class="text-[10px] text-[var(--text-muted)]">Agent fleet without a project</div>
             </div>
+            <InfoTip text="Opens a folder directly without a project. Best for quick one-off tasks. For organized multi-repo work, create a Project instead." position="bottom" />
           </button>
         </div>
 
@@ -30,7 +39,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
           </div>
-          <p class="text-sm text-[var(--text-muted)] mb-4">No projects yet. Create your first project to get started.</p>
+          <p class="text-sm text-[var(--text-muted)] mb-4">Create a project to organize your repos, plan work in Kanban, and let AI agents build your code.</p>
           <button
             @click="showNewProject = true"
             class="px-4 py-2 text-xs bg-[var(--accent-mauve)] text-white rounded-lg hover:brightness-110 transition-all"
@@ -79,6 +88,8 @@ import { useUiStore } from '@/stores/ui';
 import ProjectCard from './ProjectCard.vue';
 import NewProjectDialog from './NewProjectDialog.vue';
 import ProjectSettingsDialog from './ProjectSettingsDialog.vue';
+import SectionTip from '@/components/common/SectionTip.vue';
+import InfoTip from '@/components/common/InfoTip.vue';
 
 const projectsStore = useProjectsStore();
 const ui = useUiStore();

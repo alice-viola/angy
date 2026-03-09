@@ -57,7 +57,7 @@
         v-if="epics.length === 0 && column !== 'idea'"
         class="text-[10px] text-[var(--text-muted)] text-center py-4 italic"
       >
-        No epics
+        {{ emptyText }}
       </p>
     </div>
   </div>
@@ -122,6 +122,17 @@ const epics = computed(() => {
 const columnLabel = computed(() =>
   props.column.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
 );
+
+const emptyDescriptions: Record<EpicColumn, string> = {
+  idea: "Capture rough ideas here. They won't be scheduled until moved to Backlog.",
+  backlog: 'Epics waiting to be planned and refined.',
+  todo: 'Ready for work. The scheduler picks these up automatically.',
+  'in-progress': 'AI agents are actively working on these.',
+  review: 'Completed work waiting for your review.',
+  done: 'Finished and approved epics.',
+};
+
+const emptyText = computed(() => emptyDescriptions[props.column]);
 
 const headerColor = computed(() => {
   const map: Record<EpicColumn, string> = {
