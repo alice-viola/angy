@@ -52,6 +52,7 @@ export interface OrchestratorChatPanelAPI {
   newChat(workspace?: string): string | Promise<string>;
   configureSession(sessionId: string, mode: string, profileIds: string[]): void;
   sendMessageToSession(sessionId: string, message: string): void | Promise<void>;
+  postAssistantMessage?(sessionId: string, content: string): Promise<void>;
   delegateToChild(
     parentSessionId: string,
     task: string,
@@ -680,6 +681,11 @@ export class Orchestrator {
         break;
       default:
         console.warn('[Orchestrator] Unknown MCP tool action:', action);
+        this.feedResult(
+          `ERROR: Unknown tool "${action}". Available tools: delegate, diagnose, done, fail` +
+          `${this.autoCommit ? ', checkpoint' : ''}${this.epicOptions ? ', spawn_orchestrator' : ''}. ` +
+          `Use one of these tools to proceed.`
+        );
         return;
     }
 
@@ -836,6 +842,11 @@ export class Orchestrator {
 
       case 'done':
         this.emitArtifacts();
+        if (cmd.summary && this.chatPanel?.postAssistantMessage) {
+          this.chatPanel.postAssistantMessage(this._sessionId, cmd.summary).catch(err => {
+            console.error('[Orchestrator] Failed to post report message:', err);
+          });
+        }
         this._running = false;
         this._currentPhase = 'completed';
         this.events.emit('phaseChanged', { phase: this._currentPhase });

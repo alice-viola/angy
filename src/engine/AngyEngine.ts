@@ -262,7 +262,7 @@ export class AngyEngine {
         goal += '\n';
       }
       if (epic.lastArchitectPlan) {
-        goal += `### Architect Plan from Previous Attempt\n${epic.lastArchitectPlan.slice(-4000)}\n\n`;
+        goal += `### Architect Plan from Previous Attempt\n${epic.lastArchitectPlan}\n\n`;
       }
 
       goal += `Start by using diagnose() to inspect the current state, then fix the issues described above.\n`;
@@ -320,12 +320,16 @@ export class AngyEngine {
         });
       },
 
+      postAssistantMessage: async (sid: string, content: string) => {
+        await handle.postAssistantMessage(sid, content);
+      },
+
       delegateToChild: async (
         parentSessionId: string,
         task: string,
         context: string,
         specialistProfileId: string,
-        contextProfileIds: string[],
+        _contextProfileIds: string[],
         agentName?: string,
         teamId?: string,
         teammates?: string[],
@@ -380,18 +384,13 @@ export class AngyEngine {
           promptParts.push(`\nYou have access to these tools: ${toolList}. Use only these tools.`);
         }
 
-        // Prepend technology profile guidelines for implementer/tester roles
+        // Prepend technology profile guidelines for all specialist roles
         const autoProfiles = _orch.getAutoProfiles();
-        if (autoProfiles.length > 0 && (role === 'implementer' || role === 'tester')) {
+        if (autoProfiles.length > 0) {
           promptParts.unshift(buildTechPromptPrefix(autoProfiles));
         }
 
         const systemPrompt = promptParts.join('\n\n');
-
-        const allProfileIds = [
-          ...(contextProfileIds.length > 0 ? contextProfileIds : []),
-          ..._orch.getAutoProfileIds(),
-        ];
 
         this.processes.sendMessage(childSid, task, handle, {
           workingDir: resolvedDir,
@@ -400,7 +399,6 @@ export class AngyEngine {
           systemPrompt,
           agentName,
           teamId,
-          profileIds: allProfileIds.length > 0 ? allProfileIds : undefined,
           specialistRole: role,
         });
 
@@ -622,7 +620,7 @@ export class AngyEngine {
 
         // Extract architect plan from architect child outputs
         const architectOutput = e.childOutputs.find(c => c.role === 'architect');
-        const architectPlan = architectOutput?.output.substring(0, 3000) || '';
+        const architectPlan = architectOutput?.output || '';
 
         await this.epics.updateEpic(epicId, {
           lastAttemptFiles: Array.from(fileSet).slice(0, 50),

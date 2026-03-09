@@ -29,7 +29,6 @@ export class ClaudeProcess {
   private mode = 'agent';
   private model = '';
   private systemPrompt = '';
-  private _profileIds: string[] = [];
   private agentName = '';
   private teamId = '';
   private _completedNormally = false;
@@ -44,7 +43,6 @@ export class ClaudeProcess {
   setMode(m: string): void { this.mode = m; }
   setModel(m: string): void { this.model = m; }
   setSystemPrompt(prompt: string): void { this.systemPrompt = prompt; }
-  setProfileIds(ids: string[]): void { this._profileIds = ids; }
   setAgentName(name: string): void { this.agentName = name; }
   setTeamId(id: string): void { this.teamId = id; }
   setAutoCommit(enabled: boolean): void { this.autoCommit = enabled; }
@@ -77,10 +75,6 @@ export class ClaudeProcess {
 
     if (this.systemPrompt) {
       args.push('--append-system-prompt', this.systemPrompt);
-    }
-
-    for (const profileId of this._profileIds) {
-      args.push('--profile', profileId);
     }
 
     if (this.mode === 'orchestrator') {

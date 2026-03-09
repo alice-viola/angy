@@ -202,7 +202,6 @@ export interface ProcessOptions {
   agentName?: string;
   teamId?: string;
   autoCommit?: boolean;
-  profileIds?: string[];
   epicEnabled?: boolean;
   specialistRole?: string;
 }

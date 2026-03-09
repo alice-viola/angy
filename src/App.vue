@@ -606,7 +606,7 @@ function buildChatPanelAPI(opts: {
       task: string,
       context: string,
       specialistProfileId: string,
-      contextProfileIds: string[],
+      _contextProfileIds: string[],
       agentName?: string,
       teamId?: string,
       teammates?: string[],
@@ -656,16 +656,11 @@ function buildChatPanelAPI(opts: {
 
       // Prepend technology profile guidelines for implementer/tester roles
       const autoProfiles = orchestrator.getAutoProfiles();
-      if (autoProfiles.length > 0 && (role === 'implementer' || role === 'tester')) {
+      if (autoProfiles.length > 0) {
         promptParts.unshift(buildTechPromptPrefix(autoProfiles));
       }
 
       const systemPrompt = promptParts.join('\n\n');
-
-      const allProfileIds = [
-        ...(contextProfileIds.length > 0 ? contextProfileIds : []),
-        ...orchestrator.getAutoProfileIds(),
-      ];
 
       const handle = {
         appendTextDelta: panel.appendTextDelta,
@@ -699,7 +694,6 @@ function buildChatPanelAPI(opts: {
         systemPrompt,
         agentName,
         teamId,
-        profileIds: allProfileIds.length > 0 ? allProfileIds : undefined,
         specialistRole: role,
       });
 

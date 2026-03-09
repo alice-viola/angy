@@ -149,6 +149,24 @@ export class HeadlessHandle implements AgentHandle {
     engineBus.emit('agent:toolUse', { sessionId, toolName, summary, toolInput });
   }
 
+  /**
+   * Post a standalone assistant message to a session (e.g. done() report).
+   * Persists to DB and emits events so the chat UI can display it.
+   */
+  async postAssistantMessage(sessionId: string, content: string): Promise<void> {
+    const s = this.getOrCreate(sessionId);
+    const ts = Math.floor(Date.now() / 1000);
+    await this.db.saveMessage({
+      sessionId,
+      role: 'assistant',
+      content,
+      turnId: s.turnCounter,
+      timestamp: ts,
+    });
+    engineBus.emit('agent:textDelta', { sessionId, text: content });
+    engineBus.emit('agent:turnDone', { sessionId });
+  }
+
   async markDone(sessionId: string): Promise<void> {
     const s = this.sessions.get(sessionId);
     if (!s) return;
