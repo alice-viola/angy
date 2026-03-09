@@ -54,9 +54,9 @@
             <template v-if="editing">
               <div class="space-y-3">
                 <div v-if="editing.isBuiltIn" class="text-[10px] text-[var(--text-faint)] italic">
-                  Built-in profile — read only
+                  Built-in profile — saving will create a custom override
                 </div>
-                <div :class="editing.isBuiltIn ? 'opacity-50 pointer-events-none' : ''" class="space-y-3">
+                <div class="space-y-3">
                   <div>
                     <label class="text-xs text-[var(--text-secondary)] mb-1 block">Name</label>
                     <input
@@ -85,6 +85,7 @@
                       class="text-xs px-4 py-1.5 rounded bg-[var(--accent-mauve)] text-[var(--bg-base)] font-medium"
                     >Save</button>
                     <button
+                      v-if="!editing.isBuiltIn"
                       @click="deleteProfileEntry"
                       class="text-xs px-4 py-1.5 rounded bg-[var(--bg-raised)] text-[var(--text-muted)]"
                     >Delete</button>
@@ -258,15 +259,23 @@ async function createNewProfile() {
     systemPrompt: '',
     isBuiltIn: false,
   };
-  await profileManager.saveProfile(newProfile);
+  try {
+    await profileManager.saveProfile(newProfile);
+  } catch (e) {
+    console.error('Failed to save new profile:', e);
+  }
   profiles.value = profileManager.userProfiles();
   selectProfile(newProfile);
 }
 
 async function saveProfileEntry() {
-  if (!editing.value || editing.value.isBuiltIn) return;
-  await profileManager.saveProfile(editing.value);
-  profiles.value = profileManager.userProfiles();
+  if (!editing.value) return;
+  try {
+    await profileManager.saveProfile(editing.value);
+    profiles.value = profileManager.userProfiles();
+  } catch (e) {
+    console.error('Failed to save profile:', e);
+  }
 }
 
 async function deleteProfileEntry() {

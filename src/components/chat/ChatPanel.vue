@@ -350,6 +350,7 @@ watch(
 function getOrCreateState(sessionId: string): SessionState {
   let state = sessionStates.value.get(sessionId);
   if (!state) {
+    const existingSession = sessionsStore.sessions.get(sessionId);
     const raw: SessionState = {
       messages: [],
       turnCounter: 0,
@@ -361,7 +362,7 @@ function getOrCreateState(sessionId: string): SessionState {
       editCount: 0,
       lastActivity: '',
       costUsd: 0,
-      realClaudeSessionId: null,
+      realClaudeSessionId: existingSession?.claudeSessionId || null,
       pendingThinkingContent: '',
       thinkingStartTime: 0,
     };
