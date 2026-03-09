@@ -716,7 +716,7 @@ async function onOrchestrateStarted(sessionId: string, fixMode = false) {
   ui.setRightPanelMode('graph');
   if (graphCleanup) graphCleanup();
   graphCleanup = startLiveGraph(sessionId);
-  orchestrator.setFixMode(fixMode);
+  orchestrator.setPipelineType(fixMode ? 'fix' : 'create');
   orchestrator.setChatPanel(buildChatPanelAPI({
     sendSystemPrompt: () => orchestrator.getSystemPrompt(),
     sendAutoCommit: ui.autoCommitEnabled,

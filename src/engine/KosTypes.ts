@@ -10,7 +10,7 @@ export type EpicColumn =
   | 'review'
   | 'done';
 
-export type EpicPipelineType = 'create' | 'fix';
+export type EpicPipelineType = 'create' | 'fix' | 'investigate' | 'plan';
 
 export type PriorityHint =
   | 'critical'

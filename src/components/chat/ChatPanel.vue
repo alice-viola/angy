@@ -508,7 +508,8 @@ async function onSend(text: string, _contexts?: AttachedContext[], _images?: Att
 
   if (isOrchestrate) {
     const isFixer = currentPipeline === 'fixer';
-    engineMessage = Orchestrator.buildInitialMessage(text, { fixMode: isFixer });
+    const pipelineType = isFixer ? 'fix' : 'create';
+    engineMessage = Orchestrator.buildInitialMessage(text, { pipelineType });
     systemPrompt = isFixer ? ORCHESTRATOR_FIX_PROMPT : ORCHESTRATOR_SYSTEM_PROMPT;
   }
 

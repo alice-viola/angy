@@ -73,7 +73,9 @@ export class OrchestratorPool {
     }
 
     // Prepare repos: checkpoint dirty state, optionally create epic branch
-    if (repos.length > 0) {
+    // Read-only pipelines (investigate, plan) skip repo preparation entirely
+    const isReadOnly = epic.pipelineType === 'investigate' || epic.pipelineType === 'plan'
+    if (repos.length > 0 && !isReadOnly) {
       for (const repo of repos) {
         await this.branchManager.createCheckpoint(repo.path, epic.title)
 

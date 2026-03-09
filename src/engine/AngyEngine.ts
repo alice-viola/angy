@@ -172,8 +172,10 @@ export class AngyEngine {
 
     const orch = new Orchestrator();
     orch.setEpicOptions(options);
-    if (epic.pipelineType === 'fix' || (epic.rejectionCount > 0 && epic.rejectionFeedback)) {
-      orch.setFixMode(true);
+    if (epic.rejectionCount > 0 && epic.rejectionFeedback) {
+      orch.setPipelineType('fix');
+    } else {
+      orch.setPipelineType(epic.pipelineType);
     }
     this.wireOrchestratorEvents(orch, epicId);
     this.epicOrchestrators.set(epicId, orch);

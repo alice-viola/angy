@@ -74,18 +74,17 @@
             v-for="pt in pipelineTypes"
             :key="pt.value"
             class="flex-1 text-[10px] py-1.5 rounded border font-medium transition-colors"
-            :class="draft.pipelineType === pt.value
-              ? pt.value === 'create'
-                ? 'text-[var(--accent-green)] bg-[color-mix(in_srgb,var(--accent-green)_12%,transparent)] border-[color-mix(in_srgb,var(--accent-green)_30%,transparent)]'
-                : 'text-[var(--accent-peach)] bg-[color-mix(in_srgb,var(--accent-peach)_12%,transparent)] border-[color-mix(in_srgb,var(--accent-peach)_30%,transparent)]'
-              : 'text-[var(--text-muted)] bg-[var(--bg-base)] border-[var(--border-subtle)] hover:text-[var(--text-secondary)]'"
+            :class="draft.pipelineType !== pt.value
+              ? 'text-[var(--text-muted)] bg-[var(--bg-base)] border-[var(--border-subtle)] hover:text-[var(--text-secondary)]'
+              : ''"
+            :style="pipelineButtonStyle(pt.value)"
             @click="draft.pipelineType = pt.value"
           >
             {{ pt.label }}
           </button>
         </div>
         <p class="mt-1 text-[9px] text-[var(--text-muted)]">
-          {{ draft.pipelineType === 'create' ? 'Architect → Implement → Test → Review' : 'Diagnose → Debug → Fix → Test → Review' }}
+          {{ pipelineDescriptions[draft.pipelineType] }}
         </p>
       </div>
 
@@ -303,7 +302,33 @@ const columns: EpicColumn[] = ['idea', 'backlog', 'todo', 'in-progress', 'review
 const pipelineTypes: Array<{ value: EpicPipelineType; label: string }> = [
   { value: 'create', label: 'Create' },
   { value: 'fix', label: 'Fix' },
+  { value: 'investigate', label: 'Investigate' },
+  { value: 'plan', label: 'Plan' },
 ];
+
+const pipelineColors: Record<EpicPipelineType, string> = {
+  create: 'var(--accent-green)',
+  fix: 'var(--accent-peach)',
+  investigate: 'var(--accent-blue)',
+  plan: 'var(--accent-lavender)',
+};
+
+const pipelineDescriptions: Record<EpicPipelineType, string> = {
+  create: 'Architect → Implement → Test → Review',
+  fix: 'Diagnose → Debug → Fix → Test → Review',
+  investigate: 'Analyze → Investigate → Report (read-only)',
+  plan: 'Analyze → Design → Plan (read-only)',
+};
+
+function pipelineButtonStyle(ptValue: EpicPipelineType) {
+  if (draft.value.pipelineType !== ptValue) return {};
+  const color = pipelineColors[ptValue];
+  return {
+    color: color,
+    backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)`,
+    borderColor: `color-mix(in srgb, ${color} 30%, transparent)`,
+  };
+}
 
 const epic = computed(() => epicStore.epicById(props.epicId));
 const branchName = computed(() => epicStore.epicBranchName(props.epicId));

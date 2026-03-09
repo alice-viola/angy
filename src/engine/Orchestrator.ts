@@ -1,6 +1,6 @@
 import mitt from 'mitt';
 import { Command } from '@tauri-apps/plugin-shell';
-import type { OrchestratorOptions } from './KosTypes';
+import type { OrchestratorOptions, EpicPipelineType } from './KosTypes';
 
 // ── Orchestrator Command (parsed from MCP tool calls) ────────────────────────
 
@@ -232,6 +232,55 @@ const FIX_WORKFLOW =
   `The architect role is not used in fix workflows because fixes should be scoped to the specific problem, ` +
   `not redesigned from scratch.\n\n`;
 
+const INVESTIGATE_WORKFLOW =
+  `# Investigation Workflow\n\n` +
+  `This is a **read-only investigation**. You must NOT modify any code. Your goal is to produce ` +
+  `a structured investigation report that answers the questions in the goal.\n\n` +
+  `1. **Analyze**: Delegate to an architect to read and analyze the relevant parts of the codebase.\n` +
+  `   - Use diagnose() to inspect git state, read specific files, or check repo status.\n` +
+  `   - For broad analysis, delegate to an architect with a focused question.\n` +
+  `   - You may run multiple architect delegations in parallel to investigate different areas.\n` +
+  `2. **Synthesize**: After collecting all findings, synthesize them into a structured report.\n` +
+  `3. **Complete**: Call done(summary="...") with the full investigation report.\n\n` +
+  `## Output Format\n` +
+  `Your done() summary MUST follow this structure:\n` +
+  `## FINDINGS\nKey discoveries and answers to the investigation questions.\n\n` +
+  `## EVIDENCE\nSpecific file paths, code snippets, and data points that support the findings.\n\n` +
+  `## CONCLUSIONS\nSynthesized conclusions and actionable recommendations.\n\n` +
+  `## OPEN QUESTIONS\nAnything that could not be determined and would need further investigation.\n\n` +
+  `# Constraints\n` +
+  `- **Read-only**: Do NOT delegate to implementer or tester roles. Only use architect and debugger.\n` +
+  `- Do NOT modify files, run builds, or create branches.\n` +
+  `- Focus on answering the specific questions in the goal.\n` +
+  `- Be thorough — read actual code, don't speculate.\n\n`;
+
+const PLAN_WORKFLOW =
+  `# Planning Workflow\n\n` +
+  `This is a **read-only planning** session. You must NOT modify any code. Your goal is to produce ` +
+  `a structured architectural plan for the changes described in the goal.\n\n` +
+  `1. **Analyze**: Delegate to an architect to read the codebase and design the solution.\n` +
+  `   - The architect should analyze the current code structure, identify files to modify/create,\n` +
+  `     and produce a detailed implementation plan.\n` +
+  `   - Use diagnose() to inspect git state or read specific files for additional context.\n` +
+  `   - For complex plans, you may delegate to multiple architects to analyze different subsystems.\n` +
+  `2. **Synthesize**: Combine architect findings into a comprehensive plan.\n` +
+  `3. **Complete**: Call done(summary="...") with the full architectural plan.\n\n` +
+  `## Output Format\n` +
+  `Your done() summary MUST follow this structure:\n` +
+  `## ANALYSIS\nSummary of the current codebase state relevant to the planned changes.\n\n` +
+  `## FILES TO MODIFY\nList each file path with a description of what changes are needed.\n\n` +
+  `## FILES TO CREATE\nAny new files needed, with their purpose and contents outline.\n\n` +
+  `## IMPLEMENTATION STEPS\nOrdered, specific steps to implement the plan. Group parallelizable steps.\n` +
+  `Note dependencies between steps.\n\n` +
+  `## KEY DECISIONS\nArchitectural choices made and their rationale.\n\n` +
+  `## RISKS\nPotential issues, edge cases, and migration concerns.\n\n` +
+  `## ESTIMATED COMPLEXITY\nOverall assessment of the effort required.\n\n` +
+  `# Constraints\n` +
+  `- **Read-only**: Do NOT delegate to implementer or tester roles. Only use architect.\n` +
+  `- Do NOT modify files, run builds, or create branches.\n` +
+  `- Ground the plan in actual code — read files before recommending changes.\n` +
+  `- Be specific enough that an implementer could follow the plan directly.\n\n`;
+
 /**
  * System prompt for CREATION orchestrator sessions.
  */
@@ -242,6 +291,9 @@ export const ORCHESTRATOR_SYSTEM_PROMPT = ORCHESTRATOR_PREAMBLE + ORCHESTRATOR_R
  * Replaces the creation workflow with the fix workflow.
  */
 export const ORCHESTRATOR_FIX_PROMPT = ORCHESTRATOR_PREAMBLE + ORCHESTRATOR_RULES + ORCHESTRATOR_EXAMPLE + FIX_WORKFLOW;
+
+export const ORCHESTRATOR_INVESTIGATE_PROMPT = ORCHESTRATOR_PREAMBLE + ORCHESTRATOR_RULES + INVESTIGATE_WORKFLOW;
+export const ORCHESTRATOR_PLAN_PROMPT = ORCHESTRATOR_PREAMBLE + ORCHESTRATOR_RULES + PLAN_WORKFLOW;
 
 export class Orchestrator {
   private events = mitt<OrchestratorEvents>();
@@ -265,7 +317,7 @@ export class Orchestrator {
   private autoCommit = false;
   private gitAvailable = false;
   private epicOptions: OrchestratorOptions | null = null;
-  private _fixMode = false;
+  private _pipelineType: EpicPipelineType = 'create';
   private childTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
   private childOutputs: Array<{ role: string; agentName: string; output: string }> = [];
   private orchestrationLog: Array<{ timestamp: number; event: string; details: string }> = [];
@@ -279,8 +331,10 @@ export class Orchestrator {
   setWorkspace(ws: string) { this.workspace = ws; }
   setEpicOptions(opts: OrchestratorOptions | null) { this.epicOptions = opts; }
   getEpicOptions() { return this.epicOptions; }
-  setFixMode(fix: boolean) { this._fixMode = fix; }
-  isFixMode() { return this._fixMode; }
+  setPipelineType(type: EpicPipelineType) { this._pipelineType = type; }
+  getPipelineType() { return this._pipelineType; }
+  isFixMode() { return this._pipelineType === 'fix'; }
+  isReadOnly() { return this._pipelineType === 'investigate' || this._pipelineType === 'plan'; }
   isRunning() { return this._running; }
   isEpicScoped() { return this.epicOptions !== null; }
   sessionId() { return this._sessionId; }
@@ -430,13 +484,13 @@ export class Orchestrator {
       this._sessionId, 'orchestrator', ['specialist-orchestrator'],
     );
 
-    this.logEvent('started', `session=${this._sessionId}, team=${this.teamId}, fixMode=${this._fixMode}`);
+    this.logEvent('started', `session=${this._sessionId}, team=${this.teamId}, pipelineType=${this._pipelineType}`);
 
     const initialMessage = Orchestrator.buildInitialMessage(goal, {
       autoCommit: this.autoCommit,
       gitAvailable: this.gitAvailable,
       epicOptions: this.epicOptions,
-      fixMode: this._fixMode,
+      pipelineType: this._pipelineType,
       epicContext: this.getEpicSystemPromptAddition(),
     });
 
@@ -453,15 +507,18 @@ export class Orchestrator {
     gitAvailable?: boolean;
     epicOptions?: OrchestratorOptions | null;
     fixMode?: boolean;
+    pipelineType?: EpicPipelineType;
     epicContext?: string;
   }): string {
     const opts = options || {};
+    const pipelineType: EpicPipelineType = opts.pipelineType || (opts.fixMode ? 'fix' : 'create');
+    const isReadOnly = pipelineType === 'investigate' || pipelineType === 'plan';
 
     const extraTools: string[] = [];
-    if (opts.autoCommit && opts.gitAvailable) {
+    if (opts.autoCommit && opts.gitAvailable && !isReadOnly) {
       extraTools.push(`- \`checkpoint(message)\` — create a git checkpoint commit to save progress`);
     }
-    if (opts.epicOptions) {
+    if (opts.epicOptions && !isReadOnly) {
       extraTools.push(`- \`spawn_orchestrator(task, working_dir?)\` — spawn a child orchestrator for complex sub-tasks`);
     }
 
@@ -476,16 +533,25 @@ export class Orchestrator {
     }
 
     const toolNames = ['delegate', 'diagnose'];
-    if (opts.autoCommit && opts.gitAvailable) toolNames.push('checkpoint');
-    if (opts.epicOptions) toolNames.push('spawn_orchestrator');
+    if (opts.autoCommit && opts.gitAvailable && !isReadOnly) toolNames.push('checkpoint');
+    if (opts.epicOptions && !isReadOnly) toolNames.push('spawn_orchestrator');
     toolNames.push('done', 'fail');
     message += `Available tools: ${toolNames.join(', ')}. See system prompt for details.\n\n`;
 
-    if (opts.fixMode) {
-      message += `Start by calling diagnose(action="git_diff") to see the current state, ` +
-        `then delegate to a debugger to analyze the rejection feedback.\n`;
-    } else {
-      message += `Start by calling delegate(role="architect", task="...") to analyze the codebase and design the solution.\n`;
+    switch (pipelineType) {
+      case 'fix':
+        message += `Start by calling diagnose(action="git_diff") to see the current state, ` +
+          `then delegate to a debugger to analyze the rejection feedback.\n`;
+        break;
+      case 'investigate':
+        message += `Start by calling delegate(role="architect", task="...") to analyze the codebase and investigate the questions above.\n`;
+        break;
+      case 'plan':
+        message += `Start by calling delegate(role="architect", task="...") to analyze the codebase and design the solution described above.\n`;
+        break;
+      default:
+        message += `Start by calling delegate(role="architect", task="...") to analyze the codebase and design the solution.\n`;
+        break;
     }
 
     return message;
@@ -709,9 +775,11 @@ export class Orchestrator {
     if (this._stepAttempts <= 2) {
       let hint = '';
       if (this._totalDelegations === 0) {
-        hint = this._fixMode
-          ? ' Start by calling diagnose(action="git_diff") to inspect the current state.'
-          : ' Start by calling delegate(role="architect", task="...") to analyze the codebase.';
+        if (this._pipelineType === 'fix') {
+          hint = ' Start by calling diagnose(action="git_diff") to inspect the current state.';
+        } else {
+          hint = ' Start by calling delegate(role="architect", task="...") to analyze the codebase.';
+        }
       } else {
         hint = ' Call delegate(role="implementer", task="...") to write the code, ' +
           'or delegate(role="tester", task="verify builds") to check existing work, or done(summary="...") if finished.';
@@ -793,6 +861,17 @@ export class Orchestrator {
 
   private async executeDelegation(cmd: OrchestratorCommand) {
     if (!cmd.role || !cmd.task || !this.chatPanel) return;
+
+    if (this.isReadOnly()) {
+      const allowedRoles = ['architect', 'debugger'];
+      if (!allowedRoles.includes(cmd.role!.toLowerCase())) {
+        this.feedResult(
+          `ERROR: Role "${cmd.role}" is not allowed in ${this._pipelineType} pipelines. ` +
+          `Only architect and debugger roles are permitted. This is a read-only pipeline.`
+        );
+        return;
+      }
+    }
 
     if (this._totalDelegations >= Orchestrator.MAX_TOTAL_DELEGATIONS) {
       this.feedResult(
@@ -1200,10 +1279,24 @@ export class Orchestrator {
   // ── System Prompt (dynamic, includes checkpoint instructions if enabled) ──
 
   getSystemPrompt(): string {
-    let prompt = this._fixMode ? ORCHESTRATOR_FIX_PROMPT : ORCHESTRATOR_SYSTEM_PROMPT;
+    let prompt: string;
+    switch (this._pipelineType) {
+      case 'fix':
+        prompt = ORCHESTRATOR_FIX_PROMPT;
+        break;
+      case 'investigate':
+        prompt = ORCHESTRATOR_INVESTIGATE_PROMPT;
+        break;
+      case 'plan':
+        prompt = ORCHESTRATOR_PLAN_PROMPT;
+        break;
+      default:
+        prompt = ORCHESTRATOR_SYSTEM_PROMPT;
+        break;
+    }
     prompt = prompt.replace('{project_context}', 'Project context will be provided in the goal message below.');
 
-    if (this.autoCommit) {
+    if (this.autoCommit && !this.isReadOnly()) {
       prompt +=
         `\n\n# Checkpointing\n\n` +
         `Auto-commit is enabled. After completing each phase (architect, implement, test, review), ` +
