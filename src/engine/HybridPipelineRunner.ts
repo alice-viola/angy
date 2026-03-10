@@ -59,6 +59,7 @@ const MODULE_SCHEMA = {
           description: { type: 'string' },
           files: { type: 'array', items: { type: 'string' } },
           task: { type: 'string' },
+          dependsOn: { type: 'array', items: { type: 'string' } },
         },
         required: ['name', 'description', 'files', 'task'],
       },
@@ -85,7 +86,7 @@ interface Verdict {
 }
 
 interface ModuleSplit {
-  modules: Array<{ name: string; description: string; files: string[]; task: string }>;
+  modules: Array<{ name: string; description: string; files: string[]; task: string; dependsOn?: string[] }>;
 }
 
 interface TestResult {
@@ -130,7 +131,7 @@ export class HybridPipelineRunner {
   private counterpartSessionId: string | null = null;
   private architectSessionId: string | null = null;
 
-  static readonly AGENT_TIMEOUT_MS = 10 * 60 * 1000;
+  static readonly AGENT_TIMEOUT_MS = 120 * 60 * 1000;
 
   constructor(opts: HybridPipelineOptions) {
     this.handle = opts.handle;
@@ -194,7 +195,7 @@ export class HybridPipelineRunner {
       if (this._cancelled) return;
 
       let revisionCycles = 0;
-      while (this.isChallenged(planVerdict) && revisionCycles < 2) {
+      while (this.isChallenged(planVerdict) && revisionCycles < 5) {
         revisionCycles++;
         this.log(`Plan challenged (cycle ${revisionCycles}/2), revising`);
         this.setPhase(`revising plan (cycle ${revisionCycles})`);
@@ -223,20 +224,52 @@ export class HybridPipelineRunner {
       const moduleSplit = await this.splitPlan(approvedPlan);
       this.log(`Plan split into ${moduleSplit.modules.length} modules: ${moduleSplit.modules.map(m => m.name).join(', ')}`);
 
-      // ── Phase 2: Implement ─────────────────────────────────────
+      // ── Phase 2: Implement (dependency-aware) ─────────────────
       this.setPhase('implementing');
-      this.log(`Phase 2: Parallel implementation (${moduleSplit.modules.length} builders)`);
+      this.log(`Phase 2: Implementation (${moduleSplit.modules.length} modules)`);
 
-      const builderResults = await Promise.all(
-        moduleSplit.modules.map(m => {
-          const taskWithContext = this.builderTask(m, approvedPlan);
-          return this.delegateAgent('builder', taskWithContext);
-        }),
-      );
-      if (this._cancelled) return;
+      const moduleResults = new Map<string, string>();
+      let remaining = [...moduleSplit.modules];
+      const completed = new Set<string>();
 
-      const allBuilderOutput = builderResults
-        .map((r, i) => `## Module: ${moduleSplit.modules[i].name}\n\n${r}`)
+      while (remaining.length > 0) {
+        const ready = remaining.filter(m =>
+          !m.dependsOn || m.dependsOn.length === 0 || m.dependsOn.every(dep => completed.has(dep)),
+        );
+
+        if (ready.length === 0) {
+          throw new Error(`Circular or unresolvable dependency in modules: ${remaining.map(m => m.name).join(', ')}`);
+        }
+
+        this.log(`Running ${ready.length} module(s) in parallel: ${ready.map(m => m.name).join(', ')}`);
+
+        const settled = await Promise.allSettled(
+          ready.map(async (m, i) => {
+            if (i > 0) await new Promise(r => setTimeout(r, i * 5000));
+            const result = await this.delegateAgent('builder', this.builderTask(m));
+            return { name: m.name, result };
+          }),
+        );
+        if (this._cancelled) return;
+
+        for (let i = 0; i < ready.length; i++) {
+          const m = ready[i];
+          const outcome = settled[i];
+          completed.add(m.name);
+          if (outcome.status === 'fulfilled') {
+            moduleResults.set(m.name, outcome.value.result);
+          } else {
+            const errMsg = outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason);
+            this.log(`Builder for ${m.name} failed: ${errMsg}`);
+            moduleResults.set(m.name, `ERROR: Builder for module "${m.name}" failed — ${errMsg}. This module needs to be rebuilt.`);
+          }
+        }
+
+        remaining = remaining.filter(m => !completed.has(m.name));
+      }
+
+      const allBuilderOutput = moduleSplit.modules
+        .map(m => `## Module: ${m.name}\n\n${moduleResults.get(m.name) || ''}`)
         .join('\n\n---\n\n');
 
       // ── Phase 3: Verify and Fix Loop ───────────────────────────
@@ -249,7 +282,7 @@ export class HybridPipelineRunner {
       if (this._cancelled) return;
 
       let fixCycles = 0;
-      while (this.hasChangesRequested(codeVerdict) && fixCycles < 3) {
+      while (this.hasChangesRequested(codeVerdict) && fixCycles < 20) {
         fixCycles++;
         this.log(`Changes requested (cycle ${fixCycles}/3), fixing`);
         this.setPhase(`fixing (cycle ${fixCycles})`);
@@ -265,59 +298,94 @@ export class HybridPipelineRunner {
         if (this._cancelled) return;
       }
 
-      // ── Phase 4: Final Verification ────────────────────────────
+      // ── Phase 4: Final Verification (test → review → fix loop) ──
       this.setPhase('testing');
       this.log('Phase 4: Testing');
 
-      const testerOutput = await this.delegateAgent('tester', this.testTask());
+      let phase4Cycles = 0;
+      const MAX_PHASE4_CYCLES = 10;
+
+      // Step 1: Initial test
+      let lastTesterOutput = await this.delegateAgent('tester', this.testTask());
       if (this._cancelled) return;
+      let lastTestResult = await this.extractTestResult(lastTesterOutput);
 
-      const testResult = await this.extractTestResult(testerOutput);
+      // Fix test failures if needed
+      while ((!lastTestResult.buildPassed || !lastTestResult.testsPassed) && phase4Cycles < MAX_PHASE4_CYCLES) {
+        phase4Cycles++;
+        this.log(`Tests failed (cycle ${phase4Cycles}/${MAX_PHASE4_CYCLES}), fixing`);
+        this.setPhase(`fixing test failures (cycle ${phase4Cycles})`);
 
-      if (!testResult.buildPassed || !testResult.testsPassed) {
-        this.log('Tests failed, attempting fix');
-        this.setPhase('fixing test failures');
-
-        const failureText = (testResult.failures || []).join('\n');
-        await this.delegateAgent('builder', this.fixTask(`Test failures:\n${failureText}\n\nFull tester output:\n${testerOutput}`));
+        const failureText = (lastTestResult.failures || []).join('\n');
+        await this.delegateAgent('builder', this.fixTask(`Test failures:\n${failureText}\n\nFull tester output:\n${lastTesterOutput}`));
         if (this._cancelled) return;
 
-        const retestOutput = await this.delegateAgent('tester', this.testTask());
+        lastTesterOutput = await this.delegateAgent('tester', this.testTask());
         if (this._cancelled) return;
-
-        const retestResult = await this.extractTestResult(retestOutput);
-        if (!retestResult.buildPassed || !retestResult.testsPassed) {
-          this._running = false;
-          this.setPhase('failed');
-          this.events.emit('failed', { reason: 'Tests still failing after fix attempt' });
-          return;
-        }
+        lastTestResult = await this.extractTestResult(lastTesterOutput);
       }
 
+      if (!lastTestResult.buildPassed || !lastTestResult.testsPassed) {
+        this._running = false;
+        this.setPhase('failed');
+        this.events.emit('failed', { reason: `Tests still failing after ${phase4Cycles} fix cycles` });
+        return;
+      }
+
+      // Step 2: Counterpart final review + fix loop (same pattern as Phase 3)
       this.setPhase('final review');
       this.log('Phase 4: Final counterpart review');
 
-      const finalVerdict = await this.extractVerdict(
+      let finalVerdict = await this.extractVerdict(
         await this.delegateCounterpart(this.finalReviewTask(goal, acceptanceCriteria)),
       );
       if (this._cancelled) return;
 
-      if (this.hasChangesRequested(finalVerdict)) {
-        this.setPhase('final fixes');
+      while (this.hasChangesRequested(finalVerdict) && phase4Cycles < MAX_PHASE4_CYCLES) {
+        phase4Cycles++;
+        this.log(`Final review requested changes (cycle ${phase4Cycles}/${MAX_PHASE4_CYCLES}), fixing`);
+        this.setPhase(`final fixes (cycle ${phase4Cycles})`);
+
         const finalIssues = this.formatIssues(finalVerdict);
-        await this.delegateAgent('builder', this.fixTask(finalIssues));
+        const fixResult = await this.delegateAgent('builder', this.fixTask(finalIssues));
         if (this._cancelled) return;
 
-        const finalRetest = await this.delegateAgent('tester', this.testTask());
+        // Re-test after fix
+        this.setPhase(`re-testing (cycle ${phase4Cycles})`);
+        const retestOutput = await this.delegateAgent('tester', this.testTask());
         if (this._cancelled) return;
+        const retestResult = await this.extractTestResult(retestOutput);
 
-        const finalTestResult = await this.extractTestResult(finalRetest);
-        if (!finalTestResult.buildPassed || !finalTestResult.testsPassed) {
-          this._running = false;
-          this.setPhase('failed');
-          this.events.emit('failed', { reason: 'Tests failing after final review fixes' });
-          return;
+        if (!retestResult.buildPassed || !retestResult.testsPassed) {
+          this.log(`Tests failed after fix cycle ${phase4Cycles}, fixing tests`);
+          const failureText = (retestResult.failures || []).join('\n');
+          await this.delegateAgent('builder', this.fixTask(`Test failures after review fix:\n${failureText}\n\nFull tester output:\n${retestOutput}`));
+          if (this._cancelled) return;
+
+          const reRetestOutput = await this.delegateAgent('tester', this.testTask());
+          if (this._cancelled) return;
+          const reRetestResult = await this.extractTestResult(reRetestOutput);
+          if (!reRetestResult.buildPassed || !reRetestResult.testsPassed) {
+            this._running = false;
+            this.setPhase('failed');
+            this.events.emit('failed', { reason: `Tests failing after final review fix cycle ${phase4Cycles}` });
+            return;
+          }
         }
+
+        // Counterpart re-verifies the fixes
+        this.setPhase(`counterpart re-verifying (cycle ${phase4Cycles})`);
+        finalVerdict = await this.extractVerdict(
+          await this.delegateCounterpart(this.recheckTask(finalIssues, fixResult)),
+        );
+        if (this._cancelled) return;
+      }
+
+      if (this.hasChangesRequested(finalVerdict)) {
+        this._running = false;
+        this.setPhase('failed');
+        this.events.emit('failed', { reason: `Counterpart still requesting changes after ${phase4Cycles} Phase 4 cycles` });
+        return;
       }
 
       // ── Done ───────────────────────────────────────────────────
@@ -344,12 +412,32 @@ export class HybridPipelineRunner {
 
   // ── Agent delegation ────────────────────────────────────────────────
 
+  static readonly CRASH_THRESHOLD_MS = 10_000;
+  static readonly MAX_CRASH_RETRIES = 2;
+
   private async delegateAgent(role: string, task: string): Promise<string> {
     const { result } = await this.delegateAgentReturningSid(role, task);
     return result;
   }
 
   private async delegateAgentReturningSid(role: string, task: string): Promise<{ sessionId: string; result: string }> {
+    for (let attempt = 0; attempt <= HybridPipelineRunner.MAX_CRASH_RETRIES; attempt++) {
+      const startTime = Date.now();
+      const { sessionId, result } = await this.spawnAgent(role, task);
+      const elapsed = Date.now() - startTime;
+
+      if (elapsed < HybridPipelineRunner.CRASH_THRESHOLD_MS && attempt < HybridPipelineRunner.MAX_CRASH_RETRIES) {
+        this.log(`Agent ${role} exited in ${elapsed}ms (< ${HybridPipelineRunner.CRASH_THRESHOLD_MS}ms) — likely crashed. Retrying (attempt ${attempt + 1}/${HybridPipelineRunner.MAX_CRASH_RETRIES})...`);
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
+
+      return { sessionId, result };
+    }
+    throw new Error(`Agent ${role} crashed ${HybridPipelineRunner.MAX_CRASH_RETRIES + 1} times`);
+  }
+
+  private async spawnAgent(role: string, task: string): Promise<{ sessionId: string; result: string }> {
     const agentName = this.generateAgentName(role);
 
     this.events.emit('delegationStarted', {
@@ -478,7 +566,15 @@ export class HybridPipelineRunner {
   private async splitPlan(plan: string): Promise<ModuleSplit> {
     return this.structuredCall<ModuleSplit>(
       MODULE_SCHEMA,
-      `Split this architect plan into module-scoped builder tasks. Each module should be a genuinely independent, substantial unit of work (e.g. backend vs frontend). Do NOT create a module for a single file (README, docker-compose, config). Include these in the nearest module. Use 2-3 modules maximum.\n\n${plan}`,
+      `Split this architect plan into module-scoped builder tasks. Each module should be a genuinely independent, substantial unit of work (e.g. backend vs frontend). Do NOT create a module for a single file (README, docker-compose, config). Include these in the nearest module. Use 2-3 modules maximum.
+
+IMPORTANT: Module names must be short, lowercase, single-word identifiers (e.g. "foundation", "backend", "frontend"). No spaces, no special characters, no em-dashes. These names are used as dependency keys and must match exactly.
+
+If a module depends on another module being built first (e.g. a shared package that backend and frontend both import from), set "dependsOn" to the exact name strings of the prerequisite modules. Modules with no dependencies should set dependsOn to an empty array. Modules that can run in parallel should NOT depend on each other.
+
+Example: if "foundation" creates a shared package, and "backend" and "frontend" both import from it, then backend.dependsOn = ["foundation"] and frontend.dependsOn = ["foundation"]. The runner will build foundation first, then backend and frontend in parallel.
+
+${plan}`,
     );
   }
 
@@ -626,7 +722,7 @@ You already have the full plan in context from your previous turn.
 Produce ONLY the revised/amended sections. Keep everything that was not challenged.`;
   }
 
-  private builderTask(module: { name: string; description: string; files: string[]; task: string }, fullPlan: string): string {
+  private builderTask(module: { name: string; description: string; files: string[]; task: string; dependsOn?: string[] }): string {
     return `## Task: Build ${module.name}
 
 ${module.task}
@@ -634,10 +730,7 @@ ${module.task}
 ## Your Files (FILE OWNERSHIP)
 ${module.files.join('\n')}
 
-Do NOT create or modify files outside this list.
-
-## Full Plan Context (for reference — implement only YOUR module)
-${fullPlan}`;
+Do NOT create or modify files outside this list.`;
   }
 
   private codeReviewTask(plan: string, builderOutputs: string, acceptanceCriteria: string): string {
