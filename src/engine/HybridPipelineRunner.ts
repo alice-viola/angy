@@ -303,7 +303,7 @@ export class HybridPipelineRunner {
       this.log('Phase 4: Testing');
 
       let phase4Cycles = 0;
-      const MAX_PHASE4_CYCLES = 10;
+      const MAX_PHASE4_CYCLES = 20;
 
       // Step 1: Initial test
       let lastTesterOutput = await this.delegateAgent('tester', this.testTask());
