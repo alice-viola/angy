@@ -1,9 +1,48 @@
 import { Command, type Child } from '@tauri-apps/plugin-shell';
 import { homeDir } from '@tauri-apps/api/path';
-import { exists } from '@tauri-apps/plugin-fs';
+import { exists, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
+import { join, appDataDir } from '@tauri-apps/api/path';
 import mitt from 'mitt';
 import { StreamParser } from './StreamParser';
 import { SPECIALIST_TOOLS } from './Orchestrator';
+
+// ── File-based diagnostic logging ────────────────────────────────────────
+
+let _logPath: string | null = null;
+let _logBuffer: string[] = [];
+let _flushScheduled = false;
+
+async function initLogPath(): Promise<string> {
+  if (_logPath) return _logPath;
+  const dataDir = await appDataDir();
+  const logsDir = await join(dataDir, 'logs');
+  try { await mkdir(logsDir, { recursive: true }); } catch { /* exists */ }
+  _logPath = await join(logsDir, 'claude-process.log');
+  return _logPath;
+}
+
+function diagLog(msg: string): void {
+  const ts = new Date().toISOString();
+  const line = `[${ts}] ${msg}`;
+  console.log(line);
+  _logBuffer.push(line);
+  if (!_flushScheduled) {
+    _flushScheduled = true;
+    setTimeout(flushLog, 500);
+  }
+}
+
+async function flushLog(): Promise<void> {
+  _flushScheduled = false;
+  if (_logBuffer.length === 0) return;
+  const lines = _logBuffer.splice(0);
+  try {
+    const path = await initLogPath();
+    await writeTextFile(path, lines.join('\n') + '\n', { append: true });
+  } catch {
+    // best-effort — don't crash the app if logging fails
+  }
+}
 
 // ── ClaudeProcess Events ──────────────────────────────────────────────────
 
@@ -17,10 +56,13 @@ export type ClaudeProcessEvents = {
 // ── ClaudeProcess ─────────────────────────────────────────────────────────
 
 export class ClaudeProcess {
+  private static instanceCounter = 0;
+
   readonly events = mitt<ClaudeProcessEvents>();
   readonly streamParser = new StreamParser();
 
   private child: Child | null = null;
+  private childPid: number | null = null;
   private stdoutBuffer = '';
   private stderrBuffer = '';
 
@@ -35,6 +77,7 @@ export class ClaudeProcess {
   private autoCommit = false;
   private epicEnabled = false;
   private _specialistRole = '';
+  private readonly _instanceId = ++ClaudeProcess.instanceCounter;
 
   get sessionId(): string { return this._sessionId; }
 
@@ -237,20 +280,19 @@ export class ClaudeProcess {
     });
 
     command.on('close', (payload) => {
-      // Process any remaining buffered data
       if (this.stdoutBuffer.trim()) {
         this.streamParser.feed(this.stdoutBuffer);
         this.stdoutBuffer = '';
       }
 
-      // Treat signal-killed exit as success if we saw the result event
       const exitCode = this._completedNormally ? 0 : (payload.code ?? 1);
-      console.log('[Claude] Process exited with code', exitCode);
+      diagLog(`[Claude #${this._instanceId}] PID=${this.childPid} exited code=${exitCode} completedNormally=${this._completedNormally} signal=${(payload as any).signal ?? 'none'}`);
       if (exitCode !== 0 && this.stderrBuffer.trim()) {
         this.events.emit('errorOccurred', this.stderrBuffer.trim());
       }
       this.stderrBuffer = '';
       this.child = null;
+      this.childPid = null;
       this.events.emit('finished', exitCode);
     });
 
@@ -258,15 +300,14 @@ export class ClaudeProcess {
       this.events.emit('errorOccurred', error);
     });
 
-    // Kill process when Claude finishes (Tauri can't close stdin, so process hangs)
     this.streamParser.events.on('resultReady', (payload) => {
       if (payload.result?.type === 'result' && this.child) {
         this._completedNormally = true;
+        diagLog(`[Claude #${this._instanceId}] resultReady → killing PID ${this.childPid}`);
         this.child.kill().catch(() => {});
       }
     });
 
-    // Build JSON envelope
     const contentArray: any[] = [];
     for (const img of images) {
       contentArray.push({
@@ -293,16 +334,16 @@ export class ClaudeProcess {
 
     try {
       this.child = await command.spawn();
+      this.childPid = (this.child as any).pid ?? null;
+      diagLog(`[Claude #${this._instanceId}] Spawned PID=${this.childPid} session=${this._sessionId}`);
       this.events.emit('started', undefined);
 
-      // Write JSON envelope to stdin then close
       const json = JSON.stringify(envelope);
       console.log('[Claude →]', json);
       await this.child.write(json + '\n');
-      // Note: Tauri shell plugin doesn't have closeWriteChannel equivalent.
-      // The stdin is kept open, but the CLI reads the first JSON message and proceeds.
     } catch (err: any) {
       this.child = null;
+      this.childPid = null;
       this.events.emit('errorOccurred',
         `Failed to start 'claude'. Is it installed and in your PATH? ${err?.message ?? err}`);
     }
@@ -346,12 +387,13 @@ export class ClaudeProcess {
         this.stdoutBuffer = '';
       }
       const exitCode = this._completedNormally ? 0 : (payload.code ?? 1);
-      console.log('[Claude] Process exited with code', exitCode);
+      diagLog(`[Claude #${this._instanceId}] PID=${this.childPid} exited code=${exitCode} completedNormally=${this._completedNormally} signal=${(payload as any).signal ?? 'none'}`);
       if (exitCode !== 0 && this.stderrBuffer.trim()) {
         this.events.emit('errorOccurred', this.stderrBuffer.trim());
       }
       this.stderrBuffer = '';
       this.child = null;
+      this.childPid = null;
       this.events.emit('finished', exitCode);
     });
 
@@ -359,10 +401,10 @@ export class ClaudeProcess {
       this.events.emit('errorOccurred', error);
     });
 
-    // Kill process when Claude finishes (Tauri can't close stdin, so process hangs)
     this.streamParser.events.on('resultReady', (payload) => {
       if (payload.result?.type === 'result' && this.child) {
         this._completedNormally = true;
+        diagLog(`[Claude #${this._instanceId}] resultReady → killing PID ${this.childPid}`);
         this.child.kill().catch(() => {});
       }
     });
@@ -383,12 +425,15 @@ export class ClaudeProcess {
 
     try {
       this.child = await command.spawn();
+      this.childPid = (this.child as any).pid ?? null;
+      diagLog(`[Claude #${this._instanceId}] Spawned PID=${this.childPid} session=${this._sessionId}`);
       this.events.emit('started', undefined);
       const json = JSON.stringify(envelope);
       console.log('[Claude →]', json);
       await this.child.write(json + '\n');
     } catch (err: any) {
       this.child = null;
+      this.childPid = null;
       this.events.emit('errorOccurred',
         `Failed to start 'claude': ${err?.message ?? err}`);
     }
@@ -423,6 +468,7 @@ export class ClaudeProcess {
   async cancel(): Promise<void> {
     if (!this.child) return;
 
+    diagLog(`[Claude #${this._instanceId}] cancel() → killing PID ${this.childPid}`);
     try {
       await this.child.kill();
     } catch {
@@ -430,6 +476,7 @@ export class ClaudeProcess {
     }
 
     this.child = null;
+    this.childPid = null;
     this.events.emit('finished', -1);
   }
 

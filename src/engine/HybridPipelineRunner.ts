@@ -130,6 +130,7 @@ export class HybridPipelineRunner {
   private activeProcesses = new Set<string>();
   private counterpartSessionId: string | null = null;
   private architectSessionId: string | null = null;
+  private _goal = '';
 
   static readonly AGENT_TIMEOUT_MS = 120 * 60 * 1000;
 
@@ -179,6 +180,7 @@ export class HybridPipelineRunner {
   async run(goal: string, acceptanceCriteria: string): Promise<void> {
     this._running = true;
     this._cancelled = false;
+    this._goal = goal;
 
     try {
       // ── Phase 1: Plan ──────────────────────────────────────────
@@ -222,9 +224,10 @@ export class HybridPipelineRunner {
       // ── Split plan into modules ────────────────────────────────
       this.setPhase('splitting plan');
       const moduleSplit = await this.splitPlan(approvedPlan);
+      this.validateModuleSplit(moduleSplit.modules);
       this.log(`Plan split into ${moduleSplit.modules.length} modules: ${moduleSplit.modules.map(m => m.name).join(', ')}`);
 
-      // ── Phase 2: Implement (dependency-aware) ─────────────────
+      // ── Phase 2: Implement (dependency-aware, parallel) ───────
       this.setPhase('implementing');
       this.log(`Phase 2: Implementation (${moduleSplit.modules.length} modules)`);
 
@@ -241,20 +244,30 @@ export class HybridPipelineRunner {
           throw new Error(`Circular or unresolvable dependency in modules: ${remaining.map(m => m.name).join(', ')}`);
         }
 
-        this.log(`Running ${ready.length} module(s) sequentially: ${ready.map(m => m.name).join(', ')}`);
+        this.log(`Running ${ready.length} module(s) in parallel: ${ready.map(m => m.name).join(', ')}`);
 
-        for (const m of ready) {
-          try {
-            const result = await this.delegateAgent('builder', this.builderTask(m));
-            moduleResults.set(m.name, result);
-          } catch (err) {
-            const errMsg = err instanceof Error ? err.message : String(err);
-            this.log(`Builder for ${m.name} failed: ${errMsg}`);
-            moduleResults.set(m.name, `ERROR: Builder for module "${m.name}" failed — ${errMsg}. This module needs to be rebuilt.`);
-          }
-          completed.add(m.name);
-          if (this._cancelled) return;
+        const results = await Promise.all(
+          ready.map(async (m) => {
+            try {
+              const result = await this.delegateAgent('builder', this.builderTask(m));
+              return { name: m.name, result, failed: false };
+            } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
+              this.log(`Builder for ${m.name} failed: ${errMsg}`);
+              return {
+                name: m.name,
+                result: `ERROR: Builder for module "${m.name}" failed — ${errMsg}. This module needs to be rebuilt.`,
+                failed: true,
+              };
+            }
+          }),
+        );
+
+        for (const r of results) {
+          moduleResults.set(r.name, r.result);
+          completed.add(r.name);
         }
+        if (this._cancelled) return;
 
         remaining = remaining.filter(m => !completed.has(m.name));
       }
@@ -464,7 +477,7 @@ export class HybridPipelineRunner {
 
       this.pendingResolvers.set(childSid, (r) => {
         clearTimeout(timeout);
-        this.childOutputs.push({ role, agentName, output: r.substring(0, 3000) });
+        this.childOutputs.push({ role, agentName, output: r });
         resolve(r);
       });
 
@@ -529,7 +542,7 @@ export class HybridPipelineRunner {
 
       this.pendingResolvers.set(sid, (result) => {
         clearTimeout(timeout);
-        this.childOutputs.push({ role, agentName, output: result.substring(0, 3000) });
+        this.childOutputs.push({ role, agentName, output: result });
         resolve(result);
       });
 
@@ -544,18 +557,23 @@ export class HybridPipelineRunner {
 
   // ── Structured extraction calls ─────────────────────────────────────
 
+  private emitInternalCall(callType: 'extractVerdict' | 'splitPlan' | 'extractTestResult', status: 'started' | 'completed'): void {
+    engineBus.emit('pipeline:internalCall', { epicId: this.epicId, callType, status });
+  }
+
   private async extractVerdict(agentOutput: string): Promise<Verdict> {
-    const truncated = agentOutput.length > 8000
-      ? agentOutput.substring(agentOutput.length - 8000)
-      : agentOutput;
-    return this.structuredCall<Verdict>(
+    this.emitInternalCall('extractVerdict', 'started');
+    const result = await this.structuredCall<Verdict>(
       VERDICT_SCHEMA,
-      `Extract the verdict and issues from this agent review output:\n\n${truncated}`,
+      `Extract the verdict and issues from this agent review output:\n\n${agentOutput}`,
     );
+    this.emitInternalCall('extractVerdict', 'completed');
+    return result;
   }
 
   private async splitPlan(plan: string): Promise<ModuleSplit> {
-    return this.structuredCall<ModuleSplit>(
+    this.emitInternalCall('splitPlan', 'started');
+    const result = await this.structuredCall<ModuleSplit>(
       MODULE_SCHEMA,
       `Split this architect plan into module-scoped builder tasks. Each module should be a genuinely independent, substantial unit of work (e.g. backend vs frontend). Do NOT create a module for a single file (README, docker-compose, config). Include these in the nearest module. Use 2-3 modules maximum.
 
@@ -567,13 +585,18 @@ Example: if "foundation" creates a shared package, and "backend" and "frontend" 
 
 ${plan}`,
     );
+    this.emitInternalCall('splitPlan', 'completed');
+    return result;
   }
 
   private async extractTestResult(testerOutput: string): Promise<TestResult> {
-    return this.structuredCall<TestResult>(
+    this.emitInternalCall('extractTestResult', 'started');
+    const result = await this.structuredCall<TestResult>(
       TEST_RESULT_SCHEMA,
       `Extract the test results from this tester output:\n\n${testerOutput}`,
     );
+    this.emitInternalCall('extractTestResult', 'completed');
+    return result;
   }
 
   private async structuredCall<T>(schema: object, prompt: string): Promise<T> {
@@ -643,6 +666,8 @@ ${plan}`,
 
   private architectTask(goal: string, acceptanceCriteria: string): string {
     return `Analyze the codebase and design a solution for this epic.
+
+IMPORTANT: Assess the specification's completeness before planning. If the input already contains detailed schemas, API contracts, state machines, and component definitions, your plan should reorganize the spec into module-scoped builder tasks rather than redesign from scratch. Preserve the spec's terminology, field names, and structure — do not reinterpret or rename things. Minimize your interpretation layer. If the input is a vague goal, design the full solution as you normally would.
 
 # Goal
 ${goal}
@@ -721,7 +746,17 @@ ${module.task}
 ## Your Files (FILE OWNERSHIP)
 ${module.files.join('\n')}
 
-Do NOT create or modify files outside this list.`;
+Do NOT create or modify files outside this list.
+
+## Self-Verification (REQUIRED before finishing)
+
+After implementing all files, you MUST verify your work:
+1. Build/compile your module (npm run build, tsc --noEmit, go build, cargo check, etc.)
+2. Fix any compilation errors before finishing
+3. If a Dockerfile exists for your module, verify it builds: docker compose build <service>
+4. Run any existing tests that cover your module's files
+
+Do NOT finish until your module compiles cleanly.`;
   }
 
   private codeReviewTask(plan: string, builderOutputs: string, acceptanceCriteria: string): string {
@@ -730,13 +765,15 @@ Do NOT create or modify files outside this list.`;
 # Acceptance Criteria
 ${acceptanceCriteria}
 
-# Approved Plan (summary)
-${plan.substring(0, 4000)}
+# Approved Plan
+You verified this plan in a previous turn. Here it is for reference:
+${plan}
 
 # Builder Outputs
-${builderOutputs.substring(0, 8000)}
+${builderOutputs}
 
 Read the actual code files to verify. Do NOT trust the builder summaries.
+Build and run the code to verify it works — do not rely solely on reading files.
 
 End with:
 - VERDICT: APPROVE — if all acceptance criteria are met
@@ -756,9 +793,10 @@ ${issues}`;
 ${previousIssues}
 
 # Fix Builder Output
-${fixOutput.substring(0, 4000)}
+${fixOutput}
 
 Read the actual files to verify the fixes were applied correctly.
+Build and run the code to confirm the fixes work at runtime.
 
 End with:
 - VERDICT: APPROVE — if all issues are resolved
@@ -766,14 +804,22 @@ End with:
   }
 
   private testTask(): string {
-    return `Build and test the project at ${this.workspace}.
+    return `Verify this project works end-to-end at ${this.workspace}.
 
-Follow this procedure:
-1. BUILD: Build/compile all project components and report any errors
-2. EXISTING TESTS: Run the existing test suite (if any) and report results
-3. NEW TESTS: If the project has a test framework configured, write targeted tests
+# Full Specification
+${this._goal}
 
-Report results clearly with PASS/FAIL for each check.`;
+# Procedure
+
+1. START: Launch the application using its standard method (look for docker-compose.yml, Makefile, package.json scripts, etc.). Wait for all services to be healthy.
+2. VERIFY REQUIREMENTS: Read the specification above and identify every testable requirement. For each one, verify it by actually interacting with the running application — hit endpoints, open URLs, send data, check responses.
+3. ADVERSARIAL: Send malformed inputs, missing fields, boundary values to every endpoint and input surface. Check for crashes, unhandled errors, security issues.
+4. LOGS: Check all container/process logs for errors, warnings, stack traces.
+5. CLEANUP: Stop the application when done.
+
+For each requirement, report PASS or FAIL with evidence (actual HTTP responses, log output, screenshots of terminal output).
+
+If no explicit acceptance criteria section exists, derive testable requirements from the specification — every schema, endpoint, component, and integration point described is an implicit requirement.`;
   }
 
   private finalReviewTask(goal: string, acceptanceCriteria: string): string {
@@ -811,6 +857,18 @@ End with:
     }
 
     return parts.join('\n\n');
+  }
+
+  private validateModuleSplit(modules: ModuleSplit['modules']): void {
+    const seen = new Map<string, string>();
+    for (const m of modules) {
+      for (const f of m.files) {
+        if (seen.has(f)) {
+          throw new Error(`File "${f}" owned by both "${seen.get(f)}" and "${m.name}" — module split has overlapping file ownership`);
+        }
+        seen.set(f, m.name);
+      }
+    }
   }
 
   private generateAgentName(role: string): string {

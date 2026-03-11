@@ -73,8 +73,12 @@
       </template>
     </div>
 
-    <!-- Center: processing indicator -->
-    <div v-if="ui.isProcessing" class="flex items-center gap-1">
+    <!-- Center: pipeline activity indicator -->
+    <div v-if="ui.pipelineActivity" class="flex items-center gap-1.5">
+      <div class="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse"></div>
+      <span class="text-[var(--text-muted)] truncate max-w-[200px]">{{ ui.pipelineActivity }}</span>
+    </div>
+    <div v-else-if="ui.isProcessing" class="flex items-center gap-1">
       <div class="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse"></div>
       <span class="text-[var(--text-muted)]">Processing</span>
     </div>

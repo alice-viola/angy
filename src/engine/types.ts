@@ -167,6 +167,11 @@ export type EngineEvents = {
   'epic:updated': { epicId: string; epic: Epic };
   'orchestrator:autoProfilesDetected': { orchestratorId: string; profileIds: string[]; profileNames: string[]; profileIcons: string[] };
   'epic:storeSyncNeeded': void;
+  'pipeline:internalCall': {
+    epicId: string;
+    callType: 'extractVerdict' | 'splitPlan' | 'extractTestResult';
+    status: 'started' | 'completed';
+  };
   // Headless agent streaming — emitted by HeadlessHandle so ChatPanel can show live updates
   'agent:textDelta': { sessionId: string; text: string };
   'agent:toolUse': { sessionId: string; toolName: string; summary: string; toolInput?: Record<string, any> };

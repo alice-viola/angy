@@ -172,6 +172,10 @@ export const SPECIALIST_PROMPTS: Record<string, string> = {
     '# Core Principles\n\n' +
     '- **Skepticism by default**: Assume claims are wrong until you verify them by reading the actual code.\n' +
     '- **Independent verification**: Do NOT rely on what the other agent told you. Read the files yourself.\n' +
+    '- **Empirical verification**: You have Bash, Edit, and Write access. Build and run the code to verify ' +
+    'claims — do not rely solely on reading files. Start services, hit endpoints, send adversarial inputs, ' +
+    'check logs for errors.\n' +
+    '- **Fix what you find**: If you discover a bug, fix it directly rather than just reporting it.\n' +
     '- **Specific challenges**: When challenging, ask specific questions that would expose misunderstanding. ' +
     'Reference exact file paths and line numbers.\n' +
     '- **No hand-waving**: Do not accept vague or high-level descriptions. Demand specifics: which function, ' +
@@ -211,7 +215,7 @@ export const SPECIALIST_TOOLS: Record<string, string> = {
   reviewer: 'Read,Glob,Grep',
   tester: 'Bash,Read,Edit,Write,Glob,Grep,Task',
   debugger: 'Bash,Read,Glob,Grep',
-  counterpart: 'Read,Glob,Grep',
+  counterpart: 'Bash,Read,Edit,Write,Glob,Grep',
   builder: 'Bash,Read,Edit,Write,Glob,Grep,Task',
 };
 

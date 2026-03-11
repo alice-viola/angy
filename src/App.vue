@@ -781,6 +781,8 @@ let onEpicRequestStart: (e: { epicId: string }) => void;
 let onEpicRequestStop: (e: { epicId: string; targetColumn?: EpicColumn }) => void;
 let onEpicStoreSync: () => Promise<void>;
 let onAgentFileEdited: (e: { sessionId: string; filePath: string; toolName: string; toolInput?: Record<string, any> }) => void;
+let onEpicPhaseChanged: (e: { epicId: string; phase: string }) => void;
+let onPipelineInternalCall: (e: { epicId: string; callType: string; status: string }) => void;
 
 // ── Global keyboard event: Cmd+N new chat ───────────────────────────────
 
@@ -922,6 +924,25 @@ onMounted(async () => {
   };
   engineBus.on('agent:fileEdited', onAgentFileEdited);
 
+  // Pipeline phase and internal call visibility
+  const CALL_LABELS: Record<string, string> = {
+    extractVerdict: 'Extracting verdict',
+    splitPlan: 'Splitting plan',
+    extractTestResult: 'Extracting test results',
+  };
+  onEpicPhaseChanged = ({ phase }) => {
+    ui.pipelineActivity = phase === 'completed' || phase === 'failed' || phase === 'cancelled'
+      ? null
+      : phase;
+  };
+  onPipelineInternalCall = ({ callType, status }) => {
+    ui.pipelineActivity = status === 'started'
+      ? (CALL_LABELS[callType] || callType)
+      : null;
+  };
+  engineBus.on('epic:phaseChanged', onEpicPhaseChanged);
+  engineBus.on('pipeline:internalCall', onPipelineInternalCall);
+
   // Initialize Pinia stores from engine's database (DB is already open via engine)
   const db = getDatabase();
   if (db) {
@@ -976,6 +997,8 @@ onUnmounted(() => {
   engineBus.off('epic:requestStop', onEpicRequestStop);
   engineBus.off('epic:storeSyncNeeded', onEpicStoreSync);
   engineBus.off('agent:fileEdited', onAgentFileEdited);
+  engineBus.off('epic:phaseChanged', onEpicPhaseChanged);
+  engineBus.off('pipeline:internalCall', onPipelineInternalCall);
 
   if (graphCleanup) {
     graphCleanup();
