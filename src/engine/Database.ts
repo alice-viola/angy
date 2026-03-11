@@ -189,7 +189,7 @@ export class Database {
       await this.db.execute(`ALTER TABLE epics ADD COLUMN last_architect_plan TEXT DEFAULT ''`);
     } catch { /* column already exists */ }
     try {
-      await this.db.execute(`ALTER TABLE epics ADD COLUMN pipeline_type TEXT DEFAULT 'create'`);
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN pipeline_type TEXT DEFAULT 'hybrid'`);
     } catch { /* column already exists */ }
 
     await this.db.execute(`
@@ -668,7 +668,7 @@ export class Database {
         epic.model || '',
         JSON.stringify(epic.dependsOn),
         JSON.stringify(epic.targetRepoIds),
-        epic.pipelineType || 'create',
+        epic.pipelineType || 'hybrid',
         epic.useGitBranch ? 1 : 0,
         epic.rejectionCount,
         epic.rejectionFeedback,
@@ -910,7 +910,7 @@ export class Database {
       model: r.model || '',
       dependsOn: JSON.parse(r.depends_on || '[]'),
       targetRepoIds: JSON.parse(r.target_repos || '[]'),
-      pipelineType: r.pipeline_type || 'create',
+      pipelineType: r.pipeline_type || 'hybrid',
       useGitBranch: Boolean(r.use_git_branch ?? 1),
       rejectionCount: r.rejection_count,
       rejectionFeedback: r.rejection_feedback ?? '',

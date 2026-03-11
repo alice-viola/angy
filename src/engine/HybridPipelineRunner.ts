@@ -4,13 +4,14 @@
  * Replaces the LLM-driven Orchestrator for pipelineType='hybrid'.
  * Drives phase transitions programmatically in TypeScript:
  *   Phase 1: Architect plans → Counterpart verifies (challenge loop)
- *   Phase 2: Parallel builders implement modules
+ *   Phase 2: Sequential incremental build — each increment is built
+ *            and verified (compile/smoke test) before starting the next
  *   Phase 3: Persistent counterpart reviews → fix loop
  *   Phase 4: Tester + persistent counterpart final review
  *
  * Uses existing delegation infrastructure (ProcessManager, HeadlessHandle)
  * for specialist agents, and Claude CLI --json-schema for structured
- * extraction of verdicts, module splits, and test results.
+ * extraction of verdicts, increment plans, and test results.
  */
 
 import mitt from 'mitt';
@@ -47,10 +48,10 @@ const VERDICT_SCHEMA = {
   required: ['verdict'],
 };
 
-const MODULE_SCHEMA = {
+const INCREMENT_SCHEMA = {
   type: 'object',
   properties: {
-    modules: {
+    increments: {
       type: 'array',
       items: {
         type: 'object',
@@ -59,13 +60,22 @@ const MODULE_SCHEMA = {
           description: { type: 'string' },
           files: { type: 'array', items: { type: 'string' } },
           task: { type: 'string' },
-          dependsOn: { type: 'array', items: { type: 'string' } },
+          verification: { type: 'string' },
         },
-        required: ['name', 'description', 'files', 'task'],
+        required: ['name', 'description', 'files', 'task', 'verification'],
       },
     },
   },
-  required: ['modules'],
+  required: ['increments'],
+};
+
+const VERIFY_SCHEMA = {
+  type: 'object',
+  properties: {
+    passed: { type: 'boolean' },
+    errors: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['passed'],
 };
 
 const TEST_RESULT_SCHEMA = {
@@ -85,8 +95,19 @@ interface Verdict {
   issues?: Array<{ severity: string; description: string }>;
 }
 
-interface ModuleSplit {
-  modules: Array<{ name: string; description: string; files: string[]; task: string; dependsOn?: string[] }>;
+interface IncrementPlan {
+  increments: Array<{
+    name: string;
+    description: string;
+    files: string[];
+    task: string;
+    verification: string;
+  }>;
+}
+
+interface VerifyResult {
+  passed: boolean;
+  errors?: string[];
 }
 
 interface TestResult {
@@ -203,12 +224,13 @@ export class HybridPipelineRunner {
         this.setPhase(`revising plan (cycle ${revisionCycles})`);
 
         const issueText = this.formatIssues(planVerdict);
-        const revisions = await this.delegateArchitect(this.revisionTask(plan, issueText));
+        const rewrittenPlan = await this.delegateArchitect(this.revisionTask(plan, issueText));
         if (this._cancelled) return;
 
-        // Accumulate: the revision is additive amendments, not a replacement.
-        // The splitter and builders need the full plan + all revisions.
-        plan = plan + '\n\n---\n\n# Revisions (cycle ' + revisionCycles + ')\n\n' + revisions;
+        // Full rewrite replaces the plan — no additive layering.
+        // The architect's persistent session has full context; its output
+        // is a complete, self-contained plan that supersedes the previous one.
+        plan = rewrittenPlan;
 
         this.setPhase('re-verifying plan');
         planVerdict = await this.extractVerdict(
@@ -219,62 +241,62 @@ export class HybridPipelineRunner {
 
       const approvedPlan = plan;
       this.architectSessionId = null;
-      this.log('Plan approved, splitting into modules');
+      this.log('Plan approved, splitting into increments');
 
-      // ── Split plan into modules ────────────────────────────────
+      // ── Split plan into sequential increments ──────────────────
       this.setPhase('splitting plan');
-      const moduleSplit = await this.splitPlan(approvedPlan);
-      this.validateModuleSplit(moduleSplit.modules);
-      this.log(`Plan split into ${moduleSplit.modules.length} modules: ${moduleSplit.modules.map(m => m.name).join(', ')}`);
+      const incrementPlan = await this.splitIntoIncrements(approvedPlan);
+      this.validateIncrements(incrementPlan.increments);
+      const increments = incrementPlan.increments;
+      this.log(`Plan split into ${increments.length} increments: ${increments.map(inc => inc.name).join(', ')}`);
 
-      // ── Phase 2: Implement (dependency-aware, parallel) ───────
+      // ── Phase 2: Incremental Build ─────────────────────────────
       this.setPhase('implementing');
-      this.log(`Phase 2: Implementation (${moduleSplit.modules.length} modules)`);
+      this.log(`Phase 2: Incremental build (${increments.length} increments)`);
 
-      const moduleResults = new Map<string, string>();
-      let remaining = [...moduleSplit.modules];
-      const completed = new Set<string>();
+      const incrementResults: string[] = [];
 
-      while (remaining.length > 0) {
-        const ready = remaining.filter(m =>
-          !m.dependsOn || m.dependsOn.length === 0 || m.dependsOn.every(dep => completed.has(dep)),
-        );
-
-        if (ready.length === 0) {
-          throw new Error(`Circular or unresolvable dependency in modules: ${remaining.map(m => m.name).join(', ')}`);
-        }
-
-        this.log(`Running ${ready.length} module(s) in parallel: ${ready.map(m => m.name).join(', ')}`);
-
-        const results = await Promise.all(
-          ready.map(async (m) => {
-            try {
-              const result = await this.delegateAgent('builder', this.builderTask(m));
-              return { name: m.name, result, failed: false };
-            } catch (err) {
-              const errMsg = err instanceof Error ? err.message : String(err);
-              this.log(`Builder for ${m.name} failed: ${errMsg}`);
-              return {
-                name: m.name,
-                result: `ERROR: Builder for module "${m.name}" failed — ${errMsg}. This module needs to be rebuilt.`,
-                failed: true,
-              };
-            }
-          }),
-        );
-
-        for (const r of results) {
-          moduleResults.set(r.name, r.result);
-          completed.add(r.name);
-        }
+      for (let i = 0; i < increments.length; i++) {
+        const inc = increments[i];
+        this.setPhase(`building increment ${i + 1}/${increments.length}: ${inc.name}`);
+        this.log(`Increment ${i + 1}/${increments.length}: ${inc.name}`);
         if (this._cancelled) return;
 
-        remaining = remaining.filter(m => !completed.has(m.name));
+        // 2a. Builder implements this increment
+        let builderOutput = await this.delegateAgent('builder', this.incrementTask(inc, i, increments.length));
+        if (this._cancelled) return;
+
+        // 2b. Verify (compile check / smoke test)
+        this.setPhase(`verifying increment ${i + 1}/${increments.length}: ${inc.name}`);
+        let verifyResult = await this.verifyIncrement(inc);
+        if (this._cancelled) return;
+
+        // 2c. Fix loop if verification fails (max 3 cycles per increment)
+        let incrementFixCycles = 0;
+        while (!verifyResult.passed && incrementFixCycles < 3) {
+          incrementFixCycles++;
+          this.log(`Increment "${inc.name}" verification failed (cycle ${incrementFixCycles}/3), fixing`);
+          this.setPhase(`fixing increment ${i + 1}: ${inc.name} (cycle ${incrementFixCycles})`);
+
+          const fixIssues = (verifyResult.errors || []).join('\n') || 'Verification failed — see above.';
+          builderOutput = await this.delegateAgent('builder', this.fixTask(
+            `Increment "${inc.name}" failed verification.\n\n## Errors\n${fixIssues}\n\n## Verification criteria\n${inc.verification}\n\n## Files involved\n${inc.files.join('\n')}`,
+          ));
+          if (this._cancelled) return;
+
+          this.setPhase(`re-verifying increment ${i + 1}: ${inc.name} (cycle ${incrementFixCycles})`);
+          verifyResult = await this.verifyIncrement(inc);
+          if (this._cancelled) return;
+        }
+
+        if (!verifyResult.passed) {
+          this.log(`Increment "${inc.name}" still failing after ${incrementFixCycles} fix cycles — continuing to next increment`);
+        }
+
+        incrementResults.push(`## Increment ${i + 1}: ${inc.name}\n\n${builderOutput}`);
       }
 
-      const allBuilderOutput = moduleSplit.modules
-        .map(m => `## Module: ${m.name}\n\n${moduleResults.get(m.name) || ''}`)
-        .join('\n\n---\n\n');
+      const allBuilderOutput = incrementResults.join('\n\n---\n\n');
 
       // ── Phase 3: Verify and Fix Loop ───────────────────────────
       this.setPhase('reviewing implementation');
@@ -398,7 +420,7 @@ export class HybridPipelineRunner {
       this.events.emit('artifactsCollected', { childOutputs: this.childOutputs });
 
       const summary = `Hybrid pipeline completed for epic ${this.epicId}. ` +
-        `${moduleSplit.modules.length} modules implemented, ` +
+        `${increments.length} increments built, ` +
         `${fixCycles} fix cycle(s), tests passed, counterpart approved.`;
 
       this.events.emit('completed', { summary });
@@ -557,7 +579,7 @@ export class HybridPipelineRunner {
 
   // ── Structured extraction calls ─────────────────────────────────────
 
-  private emitInternalCall(callType: 'extractVerdict' | 'splitPlan' | 'extractTestResult', status: 'started' | 'completed'): void {
+  private emitInternalCall(callType: 'extractVerdict' | 'splitPlan' | 'splitIncrements' | 'extractTestResult' | 'verifyIncrement', status: 'started' | 'completed'): void {
     engineBus.emit('pipeline:internalCall', { epicId: this.epicId, callType, status });
   }
 
@@ -571,21 +593,43 @@ export class HybridPipelineRunner {
     return result;
   }
 
-  private async splitPlan(plan: string): Promise<ModuleSplit> {
-    this.emitInternalCall('splitPlan', 'started');
-    const result = await this.structuredCall<ModuleSplit>(
-      MODULE_SCHEMA,
-      `Split this architect plan into module-scoped builder tasks. Each module should be a genuinely independent, substantial unit of work (e.g. backend vs frontend). Do NOT create a module for a single file (README, docker-compose, config). Include these in the nearest module. Use 2-3 modules maximum.
+  private async splitIntoIncrements(plan: string): Promise<IncrementPlan> {
+    this.emitInternalCall('splitIncrements', 'started');
+    const result = await this.structuredCall<IncrementPlan>(
+      INCREMENT_SCHEMA,
+      `Split this architect plan into SEQUENTIAL build increments. Each increment is a deliverable step that builds on the previous ones. The runner will execute them in order, verifying each one before starting the next.
 
-IMPORTANT: Module names must be short, lowercase, single-word identifiers (e.g. "foundation", "backend", "frontend"). No spaces, no special characters, no em-dashes. These names are used as dependency keys and must match exactly.
+# Rules
 
-If a module depends on another module being built first (e.g. a shared package that backend and frontend both import from), set "dependsOn" to the exact name strings of the prerequisite modules. Modules with no dependencies should set dependsOn to an empty array. Modules that can run in parallel should NOT depend on each other.
+1. Increments are ORDERED — each builds on the codebase state left by the previous increment.
+2. Each increment MUST be independently verifiable: after building it, we run a check (compile, smoke test, curl, etc.) to confirm it works before moving on.
+3. Increments CAN mix backend and frontend. Group by feature slice, not tech layer. E.g. "Add user auth" = backend JWT middleware + frontend login page.
+4. Use 4-8 increments for typical projects. Start with scaffold/foundation, end with polish/integration.
+5. Increment names must be short, lowercase, dash-separated identifiers (e.g. "scaffold", "data-layer", "core-api", "auth", "frontend-shell", "dashboard").
+6. The "verification" field describes the specific check to run: "project compiles with no errors", "server starts and GET /health returns 200", "POST /api/users returns 201 with valid body", etc. Be concrete.
+7. The "files" field lists files this increment will CREATE or MODIFY. Later increments may modify files from earlier ones — that is expected.
+8. Small artifacts (README, docker-compose, config) belong in the earliest increment that needs them (usually "scaffold").
 
-Example: if "foundation" creates a shared package, and "backend" and "frontend" both import from it, then backend.dependsOn = ["foundation"] and frontend.dependsOn = ["foundation"]. The runner will build foundation first, then backend and frontend in parallel.
+# Example
+
+Increment 1: "scaffold" — project structure, configs, Dockerfile, docker-compose
+  verification: "docker compose build succeeds with no errors"
+Increment 2: "data-layer" — database schema, models, migrations
+  verification: "migrations run clean, server starts without errors"
+Increment 3: "core-api" — CRUD endpoints for main entities
+  verification: "POST /api/items returns 201, GET /api/items returns list"
+Increment 4: "auth" — JWT middleware, login/register endpoints, protected routes
+  verification: "POST /api/auth/register returns 201, POST /api/auth/login returns token"
+Increment 5: "frontend-shell" — app skeleton, routing, layout, auth pages
+  verification: "npm run build succeeds, app serves without errors"
+Increment 6: "frontend-features" — dashboard, data views, forms wired to API
+  verification: "full build succeeds, app renders main views"
+
+# Plan to split
 
 ${plan}`,
     );
-    this.emitInternalCall('splitPlan', 'completed');
+    this.emitInternalCall('splitIncrements', 'completed');
     return result;
   }
 
@@ -596,6 +640,35 @@ ${plan}`,
       `Extract the test results from this tester output:\n\n${testerOutput}`,
     );
     this.emitInternalCall('extractTestResult', 'completed');
+    return result;
+  }
+
+  private async verifyIncrement(
+    increment: IncrementPlan['increments'][0],
+  ): Promise<VerifyResult> {
+    this.emitInternalCall('verifyIncrement', 'started');
+
+    const testerOutput = await this.delegateAgent('tester',
+      `Verify this increment works. Run ONLY the verification described below — do not run the full test suite or do a comprehensive review. This is a quick smoke test.
+
+## Increment: ${increment.name}
+${increment.description}
+
+## Verification to perform
+${increment.verification}
+
+## Files changed
+${increment.files.join('\n')}
+
+Report whether verification passed or failed, with specific errors if any.`,
+    );
+
+    const result = await this.structuredCall<VerifyResult>(
+      VERIFY_SCHEMA,
+      `Extract whether this verification passed or failed:\n\n${testerOutput}`,
+    );
+
+    this.emitInternalCall('verifyIncrement', 'completed');
     return result;
   }
 
@@ -734,29 +807,43 @@ End with:
 # Counterpart Issues
 ${issues}
 
+# Instructions
+
 You already have the full plan in context from your previous turn.
-Produce ONLY the revised/amended sections. Keep everything that was not challenged.`;
+Produce the COMPLETE, FINAL plan from scratch — every section, every detail.
+Do NOT produce a partial patch or "only the changed sections."
+The output must be a single self-contained document that a fresh builder
+could follow without seeing any prior version. Supersede everything.
+
+Keep everything the counterpart did NOT challenge, but emit it again in full.
+Fix everything the counterpart DID challenge.
+The result must have zero internal contradictions.`;
   }
 
-  private builderTask(module: { name: string; description: string; files: string[]; task: string; dependsOn?: string[] }): string {
-    return `## Task: Build ${module.name}
+  private incrementTask(
+    increment: IncrementPlan['increments'][0],
+    index: number,
+    total: number,
+  ): string {
+    return `## Increment ${index + 1} of ${total}: ${increment.name}
 
-${module.task}
+${increment.task}
 
-## Your Files (FILE OWNERSHIP)
-${module.files.join('\n')}
+## Your Files
+${increment.files.join('\n')}
 
-Do NOT create or modify files outside this list.
+## Verification Criteria
+After implementing, this will be verified by: ${increment.verification}
 
-## Self-Verification (REQUIRED before finishing)
+## Self-Check (REQUIRED before finishing)
 
 After implementing all files, you MUST verify your work:
-1. Build/compile your module (npm run build, tsc --noEmit, go build, cargo check, etc.)
+1. Build/compile the project (npm run build, tsc --noEmit, go build, cargo check, etc.)
 2. Fix any compilation errors before finishing
-3. If a Dockerfile exists for your module, verify it builds: docker compose build <service>
-4. Run any existing tests that cover your module's files
+3. If a Dockerfile exists, verify it builds: docker compose build <service>
+4. Confirm the verification criteria above would pass
 
-Do NOT finish until your module compiles cleanly.`;
+Do NOT finish until your increment compiles cleanly.`;
   }
 
   private codeReviewTask(plan: string, builderOutputs: string, acceptanceCriteria: string): string {
@@ -859,15 +946,18 @@ End with:
     return parts.join('\n\n');
   }
 
-  private validateModuleSplit(modules: ModuleSplit['modules']): void {
-    const seen = new Map<string, string>();
-    for (const m of modules) {
-      for (const f of m.files) {
+  private validateIncrements(increments: IncrementPlan['increments']): void {
+    for (const inc of increments) {
+      const seen = new Set<string>();
+      for (const f of inc.files) {
         if (seen.has(f)) {
-          throw new Error(`File "${f}" owned by both "${seen.get(f)}" and "${m.name}" — module split has overlapping file ownership`);
+          throw new Error(`File "${f}" listed twice in increment "${inc.name}"`);
         }
-        seen.set(f, m.name);
+        seen.add(f);
       }
+    }
+    if (increments.length === 0) {
+      throw new Error('Increment plan produced zero increments');
     }
   }
 

@@ -11,21 +11,6 @@
       </svg>
     </button>
 
-    <!-- Orchestrate -->
-    <button
-      @click="$emit('orchestrate')"
-      class="w-[26px] h-[26px] flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--bg-raised)] hover:text-[var(--accent-mauve)] transition-colors"
-      title="Start Orchestration"
-    >
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.3">
-        <circle cx="7" cy="3" r="2" />
-        <circle cx="3" cy="11" r="2" />
-        <circle cx="11" cy="11" r="2" />
-        <path d="M7 5V8" />
-        <path d="M4 9L7 8L10 9" />
-      </svg>
-    </button>
-
     <!-- Mission Control -->
     <button
       @click="$emit('enter-mission-control')"
@@ -46,7 +31,6 @@
 <script setup lang="ts">
 defineEmits<{
   'new-agent': [];
-  'orchestrate': [];
   'enter-mission-control': [];
 }>();
 </script>

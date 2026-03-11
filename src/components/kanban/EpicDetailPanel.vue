@@ -368,30 +368,24 @@ const { loading: prLoading, error: prError, createPR } = useCreatePR();
 
 const columns: EpicColumn[] = ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done', 'discarded'];
 const pipelineTypes: Array<{ value: EpicPipelineType; label: string }> = [
-  { value: 'create', label: 'Create' },
+  { value: 'hybrid', label: 'Create' },
   { value: 'fix', label: 'Fix' },
   { value: 'investigate', label: 'Investigate' },
   { value: 'plan', label: 'Plan' },
-  { value: 'conversational', label: 'Conversational' },
-  { value: 'hybrid', label: 'Hybrid' },
 ];
 
 const pipelineColors: Record<EpicPipelineType, string> = {
-  create: 'var(--accent-green)',
+  hybrid: 'var(--accent-green)',
   fix: 'var(--accent-peach)',
   investigate: 'var(--accent-blue)',
   plan: 'var(--accent-lavender)',
-  conversational: 'var(--accent-mauve)',
-  hybrid: 'var(--accent-teal)',
 };
 
 const pipelineDescriptions: Record<EpicPipelineType, string> = {
-  create: 'Architect → Implement → Test → Review',
+  hybrid: 'Plan → Incremental Build → Verify → Review → Test',
   fix: 'Diagnose → Debug → Fix → Test → Review',
   investigate: 'Analyze → Investigate → Report (read-only)',
   plan: 'Analyze → Design → Plan (read-only)',
-  conversational: 'Explore → Verify → Challenge → Build → Review',
-  hybrid: 'Architect → Verify Plan → Parallel Build → Review → Test',
 };
 
 function pipelineButtonStyle(ptValue: EpicPipelineType) {
@@ -420,7 +414,7 @@ const draft = ref({
   complexity: 'medium' as ComplexityEstimate,
   model: '',
   targetRepoIds: [] as string[],
-  pipelineType: 'create' as EpicPipelineType,
+  pipelineType: 'hybrid' as EpicPipelineType,
   useGitBranch: false,
   dependsOn: [] as string[],
 });
@@ -448,7 +442,7 @@ function loadDraft() {
     complexity: e.complexity,
     model: e.model || '',
     targetRepoIds: [...e.targetRepoIds],
-    pipelineType: e.pipelineType || 'create',
+    pipelineType: e.pipelineType || 'hybrid',
     useGitBranch: e.useGitBranch ?? true,
     dependsOn: [...e.dependsOn],
   };

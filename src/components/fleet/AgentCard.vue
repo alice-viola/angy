@@ -40,11 +40,11 @@
         style="border-color: var(--accent-teal); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-teal) 40%, transparent)"
       />
 
-      <!-- Orchestrator root: mauve accent bar -->
+      <!-- Orchestrator root: green accent bar -->
       <div
         v-if="isOrchestratorRoot"
         class="absolute left-[2px] top-1 bottom-1 w-[3px] rounded-sm pointer-events-none"
-        :style="{ background: `color-mix(in srgb, var(--accent-mauve) ${selected ? '80%' : '55%'}, transparent)` }"
+        :style="{ background: `color-mix(in srgb, var(--accent-green) ${selected ? '80%' : '55%'}, transparent)` }"
       />
 
       <!-- Sub-orchestrator: teal accent bar -->
@@ -78,8 +78,22 @@
 
       <!-- First line: dot + star + title -->
       <div class="flex items-center gap-1.5 min-w-0 h-5">
-        <!-- Status dot -->
+        <!-- Pipeline icon for epic orchestrator roots -->
+        <svg
+          v-if="isOrchestratorRoot && agent.epicId"
+          class="shrink-0"
+          width="12" height="12" viewBox="0 0 12 12" fill="none"
+          stroke="var(--accent-green)" stroke-width="1.2" stroke-linecap="round"
+        >
+          <circle cx="6" cy="2.5" r="1.5" />
+          <circle cx="3" cy="9.5" r="1.5" />
+          <circle cx="9" cy="9.5" r="1.5" />
+          <path d="M6 4V6.5" />
+          <path d="M3.8 8.2L6 6.5L8.2 8.2" />
+        </svg>
+        <!-- Status dot (hidden for epic roots that show the pipeline icon) -->
         <div
+          v-if="!(isOrchestratorRoot && agent.epicId)"
           class="shrink-0 rounded-full"
           :class="statusDotClass"
           :style="statusDotStyle"
@@ -103,13 +117,13 @@
           {{ agent.title || 'New Agent' }}
         </span>
 
-        <!-- Epic badge -->
+        <!-- Epic pipeline badge -->
         <span
           v-if="agent.epicId"
           class="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full leading-none"
-          style="background: color-mix(in srgb, var(--accent-mauve) 20%, transparent); color: var(--accent-mauve)"
+          style="background: color-mix(in srgb, var(--accent-green) 20%, transparent); color: var(--accent-green)"
         >
-          Epic {{ shortEpicId }}
+          Pipeline
         </span>
 
         <!-- Sub-orchestrator depth badge -->
@@ -143,7 +157,7 @@
       <!-- Second line: activity or timestamp -->
       <div class="flex items-center gap-1.5 min-w-0 h-4 mt-0.5" :style="{ paddingLeft: agent.favorite ? '22px' : '14px' }">
         <!-- Collapsed badge for orchestrator roots -->
-        <span v-if="isOrchestratorRoot && childrenCollapsed && childCount > 0" class="text-[11px] text-[var(--accent-mauve)]">
+        <span v-if="isOrchestratorRoot && childrenCollapsed && childCount > 0" class="text-[11px] text-[var(--accent-green)]">
           {{ childCount }} agent{{ childCount > 1 ? 's' : '' }}
         </span>
         <!-- Activity text when working -->
@@ -232,13 +246,6 @@ const editText = ref('');
 const editInput = ref<HTMLInputElement | null>(null);
 
 // ── Computed ─────────────────────────────────────────────────────────────
-
-const shortEpicId = computed(() => {
-  if (!props.agent.epicId) return '';
-  return props.agent.epicId.length > 8
-    ? props.agent.epicId.slice(0, 8)
-    : props.agent.epicId;
-});
 
 const depth = computed(() => (props.agent as HierarchicalAgent).depth ?? 0);
 const isOrchestratorRoot = computed(() => (props.agent as HierarchicalAgent).isOrchestratorRoot ?? false);

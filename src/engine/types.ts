@@ -169,7 +169,7 @@ export type EngineEvents = {
   'epic:storeSyncNeeded': void;
   'pipeline:internalCall': {
     epicId: string;
-    callType: 'extractVerdict' | 'splitPlan' | 'extractTestResult';
+    callType: 'extractVerdict' | 'splitPlan' | 'splitIncrements' | 'extractTestResult' | 'verifyIncrement';
     status: 'started' | 'completed';
   };
   // Headless agent streaming — emitted by HeadlessHandle so ChatPanel can show live updates

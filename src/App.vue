@@ -11,7 +11,6 @@
         @toggle-merge-mode="kanbanViewRef?.toggleMergeMode()" />
       <ManagerActions v-else-if="ui.viewMode === 'manager'"
         @new-agent="onNewChat()"
-        @orchestrate="onOrchestrate()"
         @enter-mission-control="onEnterMissionControl()" />
       <MissionControlActions v-else-if="ui.viewMode === 'mission-control'"
         @exit-mission-control="onExitMissionControl()" />
@@ -51,8 +50,6 @@
             class="h-full"
             @file-edited="onFileEdited"
             @file-clicked="onFileClicked"
-            @orchestrate-requested="onOrchestratorStart"
-            @orchestrate-started="(sid: string, fix: boolean) => onOrchestrateStarted(sid, fix)"
           />
         </template>
 
@@ -72,7 +69,6 @@
         </template>
       </MainSplitter>
 
-      <OrchestratorDialog :visible="showOrchestratorDialog" @close="showOrchestratorDialog = false" @start="onOrchestratorStart" />
     </template>
   </AppShell>
 
@@ -98,11 +94,10 @@ import CodeViewer from './components/editor/CodeViewer.vue';
 import type { GitUnifiedDiff } from './engine/GitManager';
 import TerminalPanel from './components/terminal/TerminalPanel.vue';
 import SettingsDialog from './components/settings/SettingsDialog.vue';
-import OrchestratorDialog from './components/settings/OrchestratorDialog.vue';
 import NotificationToast from './components/home/NotificationToast.vue';
 import { useUiStore } from './stores/ui';
 import { useThemeStore } from './stores/theme';
-import { useSessionsStore, getDatabase, getSessionManager, initSessionEngines } from './stores/sessions';
+import { useSessionsStore, getDatabase, initSessionEngines } from './stores/sessions';
 import { useFleetStore } from './stores/fleet';
 import { useProjectsStore } from './stores/projects';
 import { useEpicStore } from './stores/epics';
@@ -112,9 +107,7 @@ import { useKeyboard } from './composables/useKeyboard';
 import { useOrchestrator } from './composables/useOrchestrator';
 import { useGraphBuilder } from './composables/useGraphBuilder';
 import { useMissionControl } from './composables/useMissionControl';
-import { sendMessageToEngine, cancelProcess, setOrchestratorLookup, setProcessManager } from './composables/useEngine';
-import { ORCHESTRATOR_SYSTEM_PROMPT, SPECIALIST_PROMPTS, SPECIALIST_TOOLS } from './engine/Orchestrator';
-import { detectTechnologies, buildTechPromptPrefix } from './engine/TechDetector';
+import { setOrchestratorLookup, setProcessManager } from './composables/useEngine';
 import { DelegationStatus } from './engine/types';
 import type { EpicColumn } from './engine/KosTypes';
 import { DiffEngine } from './engine/DiffEngine';
@@ -164,10 +157,8 @@ async function showGraphForSession(sessionId: string) {
 
 // ── Dialog visibility ──────────────────────────────────────────────────
 const showSettings = ref(false);
-const showOrchestratorDialog = ref(false);
-
-// ── Orchestrator ──────────────────────────────────────────────────────
-const { startOrchestration, orchestrator, getOrchestratorForSession, initPool, setEngine } = useOrchestrator();
+// ── Orchestrator (used by epic pipelines) ────────────────────────────
+const { orchestrator, getOrchestratorForSession, initPool, setEngine } = useOrchestrator();
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────
 
@@ -536,227 +527,6 @@ watch(() => ui.workspacePath, async (newPath, oldPath) => {
 
 // ── Orchestrator ─────────────────────────────────────────────────────────
 
-function onOrchestrate() {
-  showOrchestratorDialog.value = true;
-}
-
-/**
- * Build a shared OrchestratorChatPanelAPI backed by ChatPanel + Pinia stores.
- * Used by both dialog-initiated and input-bar-initiated orchestration.
- */
-function buildChatPanelAPI(opts: {
-  newChatHook?: (sid: string) => void;
-  sendSystemPrompt?: () => string;
-  sendAutoCommit?: boolean;
-  injectUserMessage?: boolean;
-}) {
-  return {
-    newChat: async (workspace: string) => {
-      const sid = await chatPanelRef.value?.newChat(workspace) ?? '';
-      opts.newChatHook?.(sid);
-      return sid;
-    },
-
-    configureSession: (sid: string, mode: string, _profileIds: string[]) => {
-      const session = sessionsStore.sessions.get(sid);
-      if (session) {
-        session.title = session.title || `${mode} session`;
-      }
-    },
-
-    sendMessageToSession: (sid: string, msg: string) => {
-      const panel = chatPanelRef.value;
-      if (!panel) return;
-
-      if (opts.injectUserMessage) {
-        const state = panel.sessionStates?.get(sid);
-        if (state) {
-          state.turnCounter++;
-          state.isProcessing = true;
-          state.isThinking = true;
-          state.currentAssistantMsgId = null;
-          state.messages.push({
-            id: `msg-${Date.now()}-feed`,
-            role: 'user',
-            content: msg,
-            turnId: state.turnCounter,
-            timestamp: Date.now(),
-          });
-        }
-      }
-
-      const handle = {
-        appendTextDelta: panel.appendTextDelta,
-        appendThinkingDelta: (_s: string, _t: string) => { /* no-op */ },
-        addToolUse: panel.addToolUse,
-        markDone: panel.markDone,
-        showError: panel.showError,
-        setThinking: panel.setThinking,
-        setRealSessionId: panel.setRealSessionId!,
-      };
-      const state = panel.sessionStates?.get(sid);
-      sendMessageToEngine(sid, msg, handle, {
-        workingDir: ui.workspacePath || '.',
-        mode: 'orchestrator',
-        systemPrompt: opts.sendSystemPrompt?.() ?? ORCHESTRATOR_SYSTEM_PROMPT,
-        autoCommit: opts.sendAutoCommit,
-        resumeSessionId: state?.realClaudeSessionId || undefined,
-      });
-    },
-
-    delegateToChild: async (
-      parentSessionId: string,
-      task: string,
-      context: string,
-      specialistProfileId: string,
-      _contextProfileIds: string[],
-      agentName?: string,
-      teamId?: string,
-      teammates?: string[],
-      workingDir?: string,
-    ) => {
-      const panel = chatPanelRef.value;
-      if (!panel) return '';
-      const resolvedDir = workingDir || ui.workspacePath || '.';
-      const childSid = await sessionsStore.createChildSession(parentSessionId, resolvedDir, 'agent', task);
-
-      if (agentName) {
-        const childSession = sessionsStore.sessions.get(childSid);
-        if (childSession) {
-          childSession.title = agentName.charAt(0).toUpperCase() + agentName.slice(1);
-        }
-      }
-      fleetStore.rebuildFromSessions();
-
-      // Build system prompt: specialist identity + orchestrator context + team coordination
-      const promptParts: string[] = [];
-
-      const role = specialistProfileId.replace('specialist-', '');
-      const specialistPrompt = SPECIALIST_PROMPTS[role];
-      if (specialistPrompt) {
-        promptParts.push(specialistPrompt);
-      }
-
-      if (context) {
-        const truncated = context.length > 4000
-          ? context.substring(0, 4000) + '\n...(truncated)'
-          : context;
-        promptParts.push(`## Context from orchestrator\n${truncated}`);
-      }
-
-      if (teammates && teammates.length > 0 && agentName) {
-        promptParts.push(
-          `Your agent name is "${agentName}". ` +
-          `You are on a team with: ${teammates.join(', ')}. ` +
-          `Use send_message(to, content) and check_inbox() to coordinate.`,
-        );
-      }
-
-      const toolList = SPECIALIST_TOOLS[role];
-      if (toolList) {
-        promptParts.push(`\nYou have access to these tools: ${toolList}. Use only these tools.`);
-      }
-
-      // Prepend technology profile guidelines for implementer/tester roles
-      const autoProfiles = orchestrator.getAutoProfiles();
-      if (autoProfiles.length > 0) {
-        promptParts.unshift(buildTechPromptPrefix(autoProfiles));
-      }
-
-      const systemPrompt = promptParts.join('\n\n');
-
-      const handle = {
-        appendTextDelta: panel.appendTextDelta,
-        appendThinkingDelta: (_s: string, _t: string) => { /* no-op */ },
-        addToolUse: panel.addToolUse,
-        markDone: (s: string) => {
-          // Set delegation status BEFORE panel.markDone so the first persist
-          // already writes Completed (not Pending) to the DB.
-          const mgr = getSessionManager();
-          mgr.setDelegationStatus(s, DelegationStatus.Completed);
-          const childState = panel.sessionStates?.get(s);
-          const lastMsg = childState?.messages
-            ? [...childState.messages].reverse().find((m: { role: string }) => m.role === 'assistant')
-            : null;
-          const result = lastMsg?.content ?? '';
-          mgr.setDelegationResult(s, result);
-          panel.markDone(s);
-          sessionsStore.syncFromEngine(s);
-          sessionsStore.persistSession(s);
-          orchestrator.onDelegateFinished(s, result);
-        },
-        showError: panel.showError,
-        setThinking: panel.setThinking,
-        setRealSessionId: panel.setRealSessionId!,
-        onFileEdited,
-      };
-
-      sendMessageToEngine(childSid, task, handle, {
-        workingDir: resolvedDir,
-        mode: 'agent',
-        systemPrompt,
-        agentName,
-        teamId,
-        specialistRole: role,
-      });
-
-      return childSid;
-    },
-
-    cancelChild: (sessionId: string) => {
-      cancelProcess(sessionId);
-    },
-
-    sessionFinalOutput: (sid: string) => {
-      const state = chatPanelRef.value?.sessionStates?.get(sid);
-      if (!state) return '';
-      const lastAssistant = [...state.messages].reverse().find((m: { role: string }) => m.role === 'assistant');
-      return lastAssistant?.content ?? '';
-    },
-  };
-}
-
-async function onOrchestratorStart(goal: string) {
-  showOrchestratorDialog.value = false;
-  ui.setRightPanelMode('graph');
-  orchestrator.setChatPanel(buildChatPanelAPI({
-    newChatHook: (sid) => {
-      if (sid) {
-        if (graphCleanup) graphCleanup();
-        graphCleanup = startLiveGraph(sid);
-      }
-    },
-  }));
-  orchestrator.setWorkspace(ui.workspacePath || '.');
-
-  // Detect technology profiles from workspace
-  const workspace = ui.workspacePath || '.';
-  const detectedProfiles = await detectTechnologies(workspace);
-  orchestrator.setAutoProfiles(detectedProfiles);
-
-  startOrchestration(goal);
-}
-
-async function onOrchestrateStarted(sessionId: string, fixMode = false) {
-  ui.setRightPanelMode('graph');
-  if (graphCleanup) graphCleanup();
-  graphCleanup = startLiveGraph(sessionId);
-  orchestrator.setPipelineType(fixMode ? 'fix' : 'create');
-  orchestrator.setChatPanel(buildChatPanelAPI({
-    sendSystemPrompt: () => orchestrator.getSystemPrompt(),
-    sendAutoCommit: ui.autoCommitEnabled,
-    injectUserMessage: true,
-  }));
-  orchestrator.setWorkspace(ui.workspacePath || '.');
-
-  // Detect technology profiles from workspace
-  const workspace = ui.workspacePath || '.';
-  const detectedProfiles = await detectTechnologies(workspace);
-  orchestrator.setAutoProfiles(detectedProfiles);
-
-  await orchestrator.attachToSession(sessionId, ui.autoCommitEnabled);
-}
-
 // Clean up graph subscriptions when orchestration ends
 orchestrator.on('completed', () => {
   if (graphCleanup) {
@@ -927,8 +697,10 @@ onMounted(async () => {
   // Pipeline phase and internal call visibility
   const CALL_LABELS: Record<string, string> = {
     extractVerdict: 'Extracting verdict',
-    splitPlan: 'Splitting plan',
+    splitPlan: 'Splitting plan into increments',
+    splitIncrements: 'Splitting plan into increments',
     extractTestResult: 'Extracting test results',
+    verifyIncrement: 'Verifying increment',
   };
   onEpicPhaseChanged = ({ phase }) => {
     ui.pipelineActivity = phase === 'completed' || phase === 'failed' || phase === 'cancelled'

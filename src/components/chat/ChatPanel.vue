@@ -21,8 +21,8 @@
       v-show="activeMessages.length > 0 || isProcessing"
     >
       <div class="max-w-[860px] mx-auto py-8 px-6 space-y-5">
-        <SectionTip tipId="pipeline-modes" title="Pipeline Modes" icon="⚡">
-          <strong>Normal</strong>: single agent chat. <strong>Orchestrate</strong>: spawns architect → implementer → tester → reviewer pipeline. <strong>Fixer</strong>: spawns a bug-fixing pipeline.
+        <SectionTip tipId="pipeline-modes" title="Chat" icon="⚡">
+          Single agent chat. Use Kanban epics for orchestrated multi-agent pipelines.
         </SectionTip>
         <template v-for="item in groupedMessages" :key="item.id">
           <!-- AskUserQuestion → QuestionWidget -->
@@ -76,20 +76,6 @@
         <ModeSelector v-model="currentMode" />
         <ModelSelector v-model="ui.currentModel" />
         <ProfileSelector v-model="selectedProfiles" />
-        <div class="flex items-center rounded border border-[var(--border-subtle)] overflow-hidden">
-          <button
-            v-for="pm in pipelineModes"
-            :key="pm.value"
-            class="text-[10px] px-2 py-0.5 transition-colors cursor-pointer border-r border-[var(--border-subtle)] last:border-r-0"
-            :class="pipelineMode === pm.value
-              ? pm.activeClass
-              : 'text-[var(--text-muted)] bg-[var(--bg-surface)] hover:text-[var(--text-secondary)]'"
-            :title="pm.title"
-            @click="pipelineMode = pipelineMode === pm.value ? 'normal' : pm.value"
-          >
-            {{ pm.label }}
-          </button>
-        </div>
       </template>
     </InputBar>
     <div v-else class="py-3 text-center text-[11px] text-[var(--text-muted)] border-t border-[var(--border-subtle)]">
@@ -124,7 +110,6 @@ import { useUiStore } from '../../stores/ui';
 import { useProjectsStore } from '../../stores/projects';
 import { ClaudeProcess } from '../../engine/ClaudeProcess';
 import { sendMessageToEngine, sendToolResultToEngine, cancelProcess, type ChatPanelHandle } from '../../composables/useEngine';
-import { Orchestrator, ORCHESTRATOR_SYSTEM_PROMPT, ORCHESTRATOR_FIX_PROMPT } from '../../engine/Orchestrator';
 import type { AgentStatus, AttachedContext, AttachedImage, MessageRecord } from '../../engine/types';
 import { engineBus } from '../../engine/EventBus';
 import { useOrchestrator } from '../../composables/useOrchestrator';
@@ -174,8 +159,6 @@ const emit = defineEmits<{
   'agent-activity-changed': [sessionId: string, activity: string];
   'file-edited': [sessionId: string, filePath: string, toolName: string, toolInput?: Record<string, any>];
   'file-clicked': [filePath: string];
-  'orchestrate-requested': [goal: string];
-  'orchestrate-started': [sessionId: string, fixMode: boolean];
 }>();
 
 // ── Stores ───────────────────────────────────────────────────────────────
@@ -189,28 +172,7 @@ const { autoProfiles } = useOrchestrator();
 // ── Selector state ──────────────────────────────────────────────────────
 const currentMode = ref('agent');
 const selectedProfiles = ref<string[]>([]);
-type PipelineMode = 'normal' | 'orchestrate' | 'fixer';
-const pipelineMode = ref<PipelineMode>('normal');
-const pipelineModes = [
-  {
-    value: 'normal' as PipelineMode,
-    label: 'Normal',
-    title: 'Single agent mode',
-    activeClass: 'text-[var(--text-primary)] bg-[var(--bg-raised)]',
-  },
-  {
-    value: 'orchestrate' as PipelineMode,
-    label: 'Orchestrate',
-    title: 'Creation pipeline: architect → implement → test → review',
-    activeClass: 'text-[var(--accent-mauve)] bg-[color-mix(in_srgb,var(--accent-mauve)_15%,transparent)]',
-  },
-  {
-    value: 'fixer' as PipelineMode,
-    label: 'Fixer',
-    title: 'Fix pipeline: diagnose → debug → fix → test → review',
-    activeClass: 'text-[var(--accent-peach)] bg-[color-mix(in_srgb,var(--accent-peach)_15%,transparent)]',
-  },
-];
+// Pipeline mode removed — orchestration is only available via Kanban epics
 
 // ── State ────────────────────────────────────────────────────────────────
 
@@ -246,7 +208,7 @@ const isLoadingHistory = computed((): boolean => {
 const isAutoSpawned = computed((): boolean => {
   if (!activeSessionId.value) return false;
   const session = sessionsStore.sessions.get(activeSessionId.value);
-  return !!session?.epicId && !!session?.parentSessionId;
+  return !!session?.epicId;
 });
 
 function setLoadingHistory(sessionId: string, loading: boolean) {
@@ -449,20 +411,11 @@ function setRealSessionId(sessionId: string, realId: string) {
 }
 
 async function onSend(text: string, _contexts?: AttachedContext[], _images?: AttachedImage[]) {
-  const currentPipeline = pipelineMode.value;
-  const isOrchestrate = currentPipeline === 'orchestrate' || currentPipeline === 'fixer';
-  const effectiveMode = isOrchestrate ? 'orchestrator' : currentMode.value;
-  if (isOrchestrate) {
-    pipelineMode.value = 'normal';
-  }
+  const effectiveMode = currentMode.value;
 
   let sid = activeSessionId.value;
   if (!sid) {
     sid = await newChat();
-  }
-
-  if (isOrchestrate) {
-    emit('orchestrate-started', sid, currentPipeline === 'fixer');
   }
 
   const state = getOrCreateState(sid);
@@ -515,17 +468,10 @@ async function onSend(text: string, _contexts?: AttachedContext[], _images?: Att
   scrollToBottom();
 
   // Update fleet status
-  updateFleetStatus(sid, 'working', isOrchestrate ? 'Orchestrating...' : 'Sending message...');
+  updateFleetStatus(sid, 'working', 'Sending message...');
 
   let engineMessage = text;
   let systemPrompt: string | undefined;
-
-  if (isOrchestrate) {
-    const isFixer = currentPipeline === 'fixer';
-    const pipelineType = isFixer ? 'fix' : 'create';
-    engineMessage = Orchestrator.buildInitialMessage(text, { pipelineType });
-    systemPrompt = isFixer ? ORCHESTRATOR_FIX_PROMPT : ORCHESTRATOR_SYSTEM_PROMPT;
-  }
 
   // When a project is active, inject repo context so the agent only checks configured repos
   if (!systemPrompt && ui.activeProjectId) {

@@ -7,7 +7,7 @@
 <p align="center">A fleet manager for Claude agents. Goals in, working code out.</p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.1.0-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-v0.2.0-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="Platform" />
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-see%20LICENSE.md-green" alt="License" /></a>
 </p>
@@ -16,7 +16,7 @@
 
 Most AI coding tools give you one agent and one conversation. Angy gives you a **command center**.
 
-You define high-level goals called **Epics**. An autonomous scheduler picks them up, spawns an orchestrator per epic, and that orchestrator breaks the work into parallel specialist agents — architects, implementers, reviewers — each running inside a dedicated git branch. When they're done, you approve. Work merges. The scheduler picks the next thing.
+You define high-level goals called **Epics**. An autonomous scheduler picks them up, spawns a pipeline per epic, and that pipeline breaks the work into specialist agents — architects, builders, testers, counterparts — each running inside a dedicated git branch. When they're done, you approve. Work merges. The scheduler picks the next thing.
 
 No micromanaging. No copy-pasting context. Just goals in, working code out.
 
@@ -51,33 +51,67 @@ A background engine that **continuously prioritizes and dispatches work**:
 
 Set it and forget it. Or tune the weights and let it reflect your team's priorities.
 
-### Multi-Agent Orchestration
-Each epic gets its own **Orchestrator** — a Claude session restricted to four tools: `delegate`, `validate`, `done`, and `fail`. No file access. Its only job is to decompose the goal and hand work to specialists.
+### Incremental Build Pipeline
+
+The core of Angy is the **HybridPipelineRunner** — a TypeScript state machine that drives multi-agent builds the way a human developer would: incrementally, with verification at every step.
+
+Instead of trying to build an entire application in one shot (the approach every other AI coding tool takes), Angy splits the work into sequential increments — scaffold, data layer, API, frontend shell, features — and verifies each one compiles and works before starting the next.
 
 ```
-Orchestrator (depth 0)
-├── delegate → architect-1    analyze codebase, produce a plan
-├── delegate → implementer-1  write the code
-│   └── spawn_orchestrator    complex sub-task? recurse.
-│       ├── delegate → implementer-2
-│       └── delegate → reviewer-1
-├── validate → run tests, linter, build
-└── done → epic moves to Review, branch merges automatically
+Phase 1: Plan
+  Architect designs the solution
+  Counterpart adversarially verifies the plan
+  Challenge loop until approved (architect rewrites the full plan each cycle)
+
+Phase 2: Incremental Build
+  Splitter breaks the plan into 4-8 sequential increments
+  For each increment:
+    Builder implements it
+    Tester verifies it (compile check / smoke test)
+    Fix loop if verification fails (max 3 cycles)
+
+Phase 3: Integration Review
+  Persistent counterpart reviews the full codebase
+  Fresh builder fixes any issues
+  Loop until counterpart approves
+
+Phase 4: Final Testing
+  Tester runs full end-to-end verification
+  Builder fixes any failures
+  Counterpart does final review
+  Loop until all pass
 ```
 
-Delegations run **in parallel**. The orchestrator aggregates results and keeps going. Recursion goes up to 3 levels deep by default.
+**Why incremental?** When you build 50 files at once and then test, errors compound — a wrong field name in the data model cascades into broken APIs and a broken frontend. With incremental builds, you catch the data model mistake before anyone builds on top of it. The blast radius of any error is one increment deep.
+
+### Pipeline Types
+
+| Pipeline | Purpose |
+|----------|---------|
+| **Create** | Full incremental build pipeline (architect → incremental build → review → test) |
+| **Fix** | Targeted bug fixing (diagnose → debug → fix → test → review) |
+| **Investigate** | Read-only codebase analysis and reporting |
+| **Plan** | Read-only architectural planning |
 
 ### Git-Native Workflow
-Every epic gets its own `epic/{id}` branch per target repository. When the orchestrator calls `done`, the branch is squash-merged into master. The Review column is a human gate before anything lands — you approve, it merges; you reject (with feedback), it goes back to Todo for another attempt.
+Every epic gets its own `epic/{id}` branch per target repository. When the pipeline completes, the branch is squash-merged into master. The Review column is a human gate before anything lands — you approve, it merges; you reject (with feedback), it goes back to Todo for another attempt.
 
 ### Agent Fleet
 - **Agent fleet** — spawn, rename, favorite, and remove agents; each has an independent session
-- **Parallel delegation** — the orchestrator fans out to multiple specialist agents simultaneously and aggregates their results
-- **Agent messaging** — agents on the same team coordinate via a shared inbox
-- **Four interaction modes** — `agent` (full tool access), `ask` (read-only), `plan` (plan mode), `orchestrator` (goal delegation)
+- **Pipeline sessions** — epic agents are visually grouped in the sidebar with green accent bars and pipeline badges
+- **Parallel delegation** — within an increment, work fans out to specialist agents simultaneously
 - **Streaming responses** — real-time token streaming with thinking blocks and tool call visualization
 - **Image support** — attach images to messages
 - **File checkpointing** — rewind file changes to any prior checkpoint in a session
+
+### Specialist Roles
+
+| Role | Access | Purpose |
+|------|--------|---------|
+| **Architect** | Read, Glob, Grep | Analyzes codebases, designs solutions, produces structured plans |
+| **Builder** | Bash, Read, Edit, Write, Glob, Grep | Implements code per the plan, self-verifies before finishing |
+| **Counterpart** | Bash, Read, Edit, Write, Glob, Grep | Adversarial reviewer — independently verifies claims, finds flaws, fixes bugs |
+| **Tester** | Bash, Read, Edit, Write, Glob, Grep | Builds projects, runs tests, performs smoke tests and e2e verification |
 
 ### Live Observability
 Every agent session has its own chat panel, Monaco code editor, and Xterm.js terminal. Watch the fleet work in real time or come back to the Review column when things are done.
@@ -92,10 +126,14 @@ Every agent session has its own chat panel, Monaco code editor, and Xterm.js ter
 
 1. **Create an epic** — write a title, description, and acceptance criteria on the Kanban board.
 2. **Move it to Todo** — the scheduler picks it up on the next tick (default: every 30s).
-3. **Scheduler scores and dispatches** — selects the highest-priority unblocked epic, checks repo locks, and spawns an orchestrator.
-4. **Orchestrator runs** — Claude decomposes the goal into parallel delegations, validates with shell commands, and calls `done`.
-5. **Branch merges** — the epic branch is squash-merged into master.
-6. **Review gate** — the epic lands in the Review column. Approve to close it, or reject with feedback to send it back to Todo.
+3. **Scheduler scores and dispatches** — selects the highest-priority unblocked epic, checks repo locks, and spawns the pipeline.
+4. **Architect plans** — designs the full solution. A persistent counterpart adversarially verifies the plan, challenging contradictions and gaps. The architect rewrites the complete plan each cycle until approved.
+5. **Splitter breaks the plan into increments** — 4-8 sequential, independently-verifiable steps (e.g., scaffold → data layer → API → frontend shell → features).
+6. **Incremental build** — each increment is built by a fresh builder agent, then verified by a tester (compile check, smoke test). If verification fails, a fix loop runs before moving on.
+7. **Integration review** — the persistent counterpart reviews the full implementation against the original plan and acceptance criteria. A fresh builder fixes any issues.
+8. **Final testing** — a tester runs full end-to-end verification including adversarial inputs. Builder fixes failures. Counterpart does final approval.
+9. **Branch merges** — the epic branch is squash-merged into master.
+10. **Review gate** — the epic lands in the Review column. Approve to close it, or reject with feedback to send it back to Todo.
 
 ## Installation
 
@@ -137,27 +175,29 @@ The production build type-checks, bundles the frontend, and packages a native de
 All settings are configurable via the **Settings UI** inside the app.
 
 - **Scheduler** — concurrency limits (max parallel epics), daily API cost budgets, and priority scoring weights (priority hint, age, complexity, dependency depth, rejection penalty)
-- **Orchestrator depth** — maximum levels of sub-orchestrator recursion (default: 3)
 - **Profiles** — custom system prompts and tool sets per agent profile
 
 ## Project Structure
 
 ```
-src/engine/       Core orchestration engine
-                  Orchestrator, Scheduler, BranchManager, ClaudeProcess
+src/engine/       Core pipeline engine
+                  HybridPipelineRunner, Orchestrator, Scheduler,
+                  BranchManager, ClaudeProcess, ProcessManager
 src/components/   Vue 3 UI components
-                  Kanban board, chat, terminal, Monaco editor
+                  Kanban board, chat, fleet panel, terminal, Monaco editor
 src/composables/  Vue composables
 src/stores/       Pinia state management
 src-tauri/        Tauri / Rust backend
-resources/mcp/    MCP server (Python)
+resources/mcp/    MCP server (Python) for LLM-driven orchestration fallback
 ```
 
 ## Architecture
 
-Angy wraps the `claude` CLI using Tauri's shell plugin. Each chat session spawns a new `claude` process with `--input-format stream-json` / `--output-format stream-json`, writes a JSON message envelope to stdin, and streams structured JSON events back on stdout.
+Angy wraps the `claude` CLI using Tauri's shell plugin. Each agent session spawns a new `claude` process with `--input-format stream-json` / `--output-format stream-json`, writes a JSON message envelope to stdin, and streams structured JSON events back on stdout.
 
-The **Orchestrator** coordinates multi-agent workflows via an MCP server (`c3p2-orchestrator`) bundled with the app. The orchestrator Claude instance is restricted to four MCP tools — `delegate`, `validate`, `done`, and `fail` — and has no direct file access. Specialist agents (architect, implementer, reviewer, tester) run as normal agent sessions with full tool access.
+The **HybridPipelineRunner** is a coded TypeScript state machine that drives the multi-agent pipeline programmatically — no LLM decides what to do next. It uses Claude CLI's `--json-schema` for structured extraction of verdicts, increment plans, and test results. Specialist agents (architect, builder, counterpart, tester) run as normal agent sessions with full tool access.
+
+The pipeline's key innovation is **incremental building with verification gates**: instead of building everything at once and testing at the end, it splits the architect's plan into sequential increments and verifies each one before starting the next. This dramatically reduces error compounding and makes fix loops small and focused.
 
 ## Tech stack
 
@@ -176,12 +216,11 @@ The **Orchestrator** coordinates multi-agent workflows via an MCP server (`c3p2-
 
 - **Claude CLI not found** — ensure the `claude` binary is installed and on your PATH. Run `claude --version` to verify.
 - **Git not installed** — git is required for branch management. Install it via Xcode Command Line Tools (`xcode-select --install`) or [git-scm.com](https://git-scm.com).
-- **MCP server issues** — the bundled MCP server (`resources/mcp/`) requires Python. Check that Python 3 is available and dependencies are installed.
 - **Platform support** — Angy is currently macOS-focused. Linux and Windows support is not yet available.
 
 ## Status
 
-**v0.1.0** — early, active development. macOS-only for now. Expect breaking changes.
+**v0.2.0** — active development. macOS-only for now. Expect breaking changes.
 
 ---
 

@@ -555,7 +555,7 @@ export class Orchestrator {
   private autoCommit = false;
   private gitAvailable = false;
   private epicOptions: OrchestratorOptions | null = null;
-  private _pipelineType: EpicPipelineType = 'create';
+  private _pipelineType: EpicPipelineType = 'hybrid';
   private childTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
   private childOutputs: Array<{ role: string; agentName: string; output: string }> = [];
   private orchestrationLog: Array<{ timestamp: number; event: string; details: string }> = [];
@@ -596,7 +596,7 @@ export class Orchestrator {
 
   private isPersistentRole(role: string): boolean {
     if (this._pipelineType === 'hybrid') return role === 'counterpart';
-    return this._pipelineType === 'conversational' && role === 'builder';
+    return false;
   }
 
   private logEvent(event: string, details: string = '') {
@@ -829,7 +829,7 @@ export class Orchestrator {
     epicContext?: string;
   }): string {
     const opts = options || {};
-    const pipelineType: EpicPipelineType = opts.pipelineType || (opts.fixMode ? 'fix' : 'create');
+    const pipelineType: EpicPipelineType = opts.pipelineType || (opts.fixMode ? 'fix' : 'hybrid');
     const isReadOnly = pipelineType === 'investigate' || pipelineType === 'plan';
 
     const extraTools: string[] = [];
@@ -866,11 +866,6 @@ export class Orchestrator {
         break;
       case 'plan':
         message += `Start by calling delegate(role="architect", task="...") to analyze the codebase and design the solution described above.\n`;
-        break;
-      case 'conversational':
-        message += `Start by calling delegate(role="builder", task="...") to explore and analyze the codebase. ` +
-          `After receiving the analysis, forward it to a counterpart for independent verification. ` +
-          `The builder session persists — when you delegate to builder again, it keeps all prior context.\n`;
         break;
       case 'hybrid':
         message += `Start by calling delegate(role="architect", task="...") to analyze the codebase and design a structured solution plan with module boundaries, conventions, and integration contracts. ` +
@@ -1758,9 +1753,6 @@ export class Orchestrator {
         break;
       case 'plan':
         prompt = ORCHESTRATOR_PLAN_PROMPT;
-        break;
-      case 'conversational':
-        prompt = ORCHESTRATOR_CONVERSATIONAL_PROMPT;
         break;
       case 'hybrid':
         prompt = ORCHESTRATOR_HYBRID_PROMPT;

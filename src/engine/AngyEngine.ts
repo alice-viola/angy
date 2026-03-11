@@ -636,7 +636,7 @@ export class AngyEngine {
       complexity: opts?.complexity ?? 'medium',
       model: opts?.model ?? '',
       targetRepoIds: opts?.targetRepoIds ?? [],
-      pipelineType: opts?.pipelineType ?? 'create',
+      pipelineType: opts?.pipelineType ?? 'hybrid',
       useGitBranch: false,
       dependsOn: opts?.dependsOn ?? [],
       rejectionCount: 0,

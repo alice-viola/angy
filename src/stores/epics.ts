@@ -123,7 +123,7 @@ export const useEpicStore = defineStore('epics', () => {
       complexity: opts?.complexity ?? 'medium',
       model: '',
       targetRepoIds: opts?.targetRepoIds ?? [],
-      pipelineType: 'create',
+      pipelineType: 'hybrid',
       useGitBranch: false,
       dependsOn: [],
       rejectionCount: 0,
