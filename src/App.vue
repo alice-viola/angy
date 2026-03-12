@@ -549,6 +549,7 @@ let onSessionCreatedBus: (e: { sessionId: string }) => void;
 let onAgentStatusBus: (e: { agentId: string; status: string; activity: string }) => void;
 let onEpicRequestStart: (e: { epicId: string }) => void;
 let onEpicRequestStop: (e: { epicId: string; targetColumn?: EpicColumn }) => void;
+let onEpicRequestSuspend: (e: { epicId: string }) => void;
 let onEpicStoreSync: () => Promise<void>;
 let onAgentFileEdited: (e: { sessionId: string; filePath: string; toolName: string; toolInput?: Record<string, any> }) => void;
 let onEpicPhaseChanged: (e: { epicId: string; phase: string }) => void;
@@ -680,6 +681,19 @@ onMounted(async () => {
   };
   engineBus.on('epic:requestStop', onEpicRequestStop);
 
+  onEpicRequestSuspend = async ({ epicId }) => {
+    console.log(`[App] epic:requestSuspend received for: ${epicId}`);
+    try {
+      await engine.suspendEpicOrchestration(epicId);
+      await epicStore.loadAll();
+      ui.addNotification('info', 'Epic suspended', 'The epic has been suspended and can be resumed later.', epicId);
+    } catch (err) {
+      console.error(`[App] Failed to suspend epic ${epicId}:`, err);
+      ui.addNotification('error', 'Failed to suspend epic', err instanceof Error ? err.message : String(err), epicId);
+    }
+  };
+  engineBus.on('epic:requestSuspend', onEpicRequestSuspend);
+
   // Sync Pinia store when the engine finishes writing epic lifecycle changes.
   // The engine emits epic:storeSyncNeeded AFTER its DB writes complete —
   // no timing hacks needed.
@@ -697,10 +711,10 @@ onMounted(async () => {
   // Pipeline phase and internal call visibility
   const CALL_LABELS: Record<string, string> = {
     extractVerdict: 'Extracting verdict',
-    splitPlan: 'Splitting plan into increments',
-    splitIncrements: 'Splitting plan into increments',
+    extractTodos: 'Extracting todos from plan',
     extractTestResult: 'Extracting test results',
-    verifyIncrement: 'Verifying increment',
+    verifyTodo: 'Verifying todo',
+    generateFixTodos: 'Generating fix-todos',
   };
   onEpicPhaseChanged = ({ phase }) => {
     ui.pipelineActivity = phase === 'completed' || phase === 'failed' || phase === 'cancelled'
@@ -767,6 +781,7 @@ onUnmounted(() => {
   engineBus.off('agent:statusChanged', onAgentStatusBus);
   engineBus.off('epic:requestStart', onEpicRequestStart);
   engineBus.off('epic:requestStop', onEpicRequestStop);
+  engineBus.off('epic:requestSuspend', onEpicRequestSuspend);
   engineBus.off('epic:storeSyncNeeded', onEpicStoreSync);
   engineBus.off('agent:fileEdited', onAgentFileEdited);
   engineBus.off('epic:phaseChanged', onEpicPhaseChanged);

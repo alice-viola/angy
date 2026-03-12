@@ -45,11 +45,28 @@
         <span class="inline-block w-1.5 h-1.5 rounded-full bg-[var(--accent-blue)] animate-pulse" />
         running
         <button
-          class="ml-0.5 p-0.5 rounded text-red-400 hover:bg-red-500/20 transition-colors"
+          class="ml-0.5 p-0.5 rounded text-amber-400 hover:bg-amber-500/20 transition-colors"
+          title="Suspend epic"
+          @click.stop="suspendEpic"
+        >
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><rect x="4" y="3" width="3" height="10" rx="0.5" /><rect x="9" y="3" width="3" height="10" rx="0.5" /></svg>
+        </button>
+        <button
+          class="p-0.5 rounded text-red-400 hover:bg-red-500/20 transition-colors"
           title="Stop epic"
           @click.stop="stopEpic"
         >
           <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><rect x="3" y="3" width="10" height="10" rx="1" /></svg>
+        </button>
+      </span>
+      <span v-else-if="epic.suspendedAt && (epic.column === 'todo' || epic.column === 'backlog')" class="flex items-center gap-0.5 text-[10px] text-amber-400">
+        suspended
+        <button
+          class="ml-0.5 p-0.5 rounded text-amber-400 hover:bg-amber-500/20 transition-colors"
+          title="Resume epic"
+          @click.stop="resumeEpic"
+        >
+          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z" /></svg>
         </button>
       </span>
       <span v-else-if="epic.column === 'review'" class="flex items-center gap-0.5 text-[10px] text-[var(--accent-yellow)]">
@@ -226,6 +243,14 @@ function onDoubleClick() {
 
 function stopEpic() {
   engineBus.emit('epic:requestStop', { epicId: props.epic.id });
+}
+
+function suspendEpic() {
+  engineBus.emit('epic:requestSuspend', { epicId: props.epic.id });
+}
+
+function resumeEpic() {
+  engineBus.emit('epic:requestStart', { epicId: props.epic.id });
 }
 
 const columnOrder: EpicColumn[] = ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done'];

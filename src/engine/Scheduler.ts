@@ -45,6 +45,7 @@ export class Scheduler {
   private projectRepo: ProjectRepository | null = null;
   private db: Database | null = null;
   private pool: OrchestratorPool | null = null;
+  private epicsPendingResume = new Set<string>();
 
   private static instance: Scheduler | null = null;
 
@@ -86,22 +87,26 @@ export class Scheduler {
     await this.refreshCache();
 
     // Recover epics stuck in 'in-progress' (crash recovery)
+    // Instead of just moving to 'todo', attempt to resume from persisted pipeline state
     const allEpics = this.getAllEpics();
     const staleEpics = allEpics.filter(
       (e: Epic) => e.column === 'in-progress' && (!this.pool || !this.pool.isEpicActive(e.id)),
     );
     if (staleEpics.length > 0) {
-      console.log(`[Scheduler] Recovering ${staleEpics.length} stale in-progress epics`);
+      console.log(`[Scheduler] Recovering ${staleEpics.length} stale in-progress epics (will attempt resume)`);
     }
     for (const epic of staleEpics) {
+      // Move to 'todo' first so the scheduler can re-pick them up with tryResume=true
       await this.doMoveEpic(epic.id, 'todo');
+      // Mark for resume so next tick will use resumeOrSpawnRoot
+      this.epicsPendingResume.add(epic.id);
       await this.logAction({
         type: 'recovered',
         epicId: epic.id,
         timestamp: new Date().toISOString(),
-        details: `Recovered stale in-progress epic on startup: ${epic.title}`,
+        details: `Recovered stale in-progress epic on startup (will attempt resume): ${epic.title}`,
       });
-      console.log(`[Scheduler] Recovered stale epic: ${epic.title}`);
+      console.log(`[Scheduler] Recovered stale epic (pending resume): ${epic.title}`);
     }
 
     if (this.config.enabled) {
@@ -323,15 +328,16 @@ export class Scheduler {
           if (this.pool.isEpicActive(epic.id)) continue;
           if (!epic.startedAt || now - new Date(epic.startedAt).getTime() <= GRACE_MS) continue;
 
-          console.log(`[Scheduler] Health check: recovering orphaned epic ${epic.id} ("${epic.title}")`);
+          console.log(`[Scheduler] Health check: recovering orphaned epic ${epic.id} ("${epic.title}") — will attempt resume`);
           this.releaseRepos(epic.id);
           await this.doMoveEpic(epic.id, 'todo');
+          this.epicsPendingResume.add(epic.id);
 
           const action: SchedulerAction = {
             type: 'recovered',
             epicId: epic.id,
             timestamp: new Date().toISOString(),
-            details: `Recovered orphaned in-progress epic during tick: ${epic.title}`,
+            details: `Recovered orphaned in-progress epic during tick (pending resume): ${epic.title}`,
           };
           await this.logAction(action);
           actions.push(action);
@@ -385,16 +391,21 @@ export class Scheduler {
           }
         }
 
-        console.log(`[Scheduler] Starting epic: ${epic.id} ("${epic.title}") score=${score.toFixed(3)}`);
-        await this.executeStart(epic, budgetRemaining);
+        const tryResume = this.epicsPendingResume.has(epic.id) || !!epic.suspendedAt;
+        if (this.epicsPendingResume.has(epic.id)) {
+          this.epicsPendingResume.delete(epic.id);
+        }
+
+        console.log(`[Scheduler] ${tryResume ? 'Resuming' : 'Starting'} epic: ${epic.id} ("${epic.title}") score=${score.toFixed(3)}`);
+        await this.executeStart(epic, budgetRemaining, tryResume);
         await this.doUpdateEpic(epic.id, { computedScore: score });
         slotsAvailable--;
 
         actions.push({
-          type: 'start',
+          type: tryResume ? 'recovered' : 'start',
           epicId: epic.id,
           timestamp: new Date().toISOString(),
-          details: `Score: ${score.toFixed(3)}`,
+          details: tryResume ? `Resumed (score: ${score.toFixed(3)})` : `Score: ${score.toFixed(3)}`,
         });
       }
     } catch (err) {
@@ -416,18 +427,21 @@ export class Scheduler {
 
   // ── Epic Lifecycle ────────────────────────────────────────────────────
 
-  async executeStart(epic: Epic, budgetRemaining: number | null = null): Promise<void> {
-    console.log(`[Scheduler] executeStart: epic=${epic.id} ("${epic.title}") pool=${!!this.pool}`);
+  async executeStart(epic: Epic, budgetRemaining: number | null = null, tryResume = false): Promise<void> {
+    console.log(`[Scheduler] executeStart: epic=${epic.id} ("${epic.title}") pool=${!!this.pool} tryResume=${tryResume}`);
 
     await this.refreshCache();
     await this.doMoveEpic(epic.id, 'in-progress');
+    if (epic.suspendedAt) {
+      await this.doUpdateEpic(epic.id, { suspendedAt: null });
+    }
     this.acquireRepos(epic);
 
     await this.logAction({
       type: 'start',
       epicId: epic.id,
       timestamp: new Date().toISOString(),
-      details: `Started epic: ${epic.title}`,
+      details: tryResume ? `Resumed epic: ${epic.title}` : `Started epic: ${epic.title}`,
     });
 
     if (this.pool) {
@@ -451,14 +465,19 @@ export class Scheduler {
       };
 
       try {
-        console.log(`[Scheduler] Calling pool.spawnRoot for epic: ${epic.id}`);
-        const sessionId = await this.pool.spawnRoot(epic.id, options, epic, repos);
-        console.log(`[Scheduler] Orchestrator spawned for epic ${epic.id}, session: ${sessionId}`);
-        // Store the root session ID on the epic so we can navigate back to it
+        let sessionId: string;
+        if (tryResume) {
+          console.log(`[Scheduler] Attempting resume for epic: ${epic.id}`);
+          sessionId = await this.pool.resumeOrSpawnRoot(epic.id, options, epic, repos);
+        } else {
+          console.log(`[Scheduler] Calling pool.spawnRoot for epic: ${epic.id}`);
+          sessionId = await this.pool.spawnRoot(epic.id, options, epic, repos);
+        }
+        console.log(`[Scheduler] Orchestrator ${tryResume ? 'resumed/spawned' : 'spawned'} for epic ${epic.id}, session: ${sessionId}`);
         await this.doUpdateEpic(epic.id, { rootSessionId: sessionId });
         engineBus.emit('scheduler:info', {
           epicId: epic.id,
-          title: 'Epic started',
+          title: tryResume ? 'Epic resumed' : 'Epic started',
           message: `"${epic.title}" is now in progress`,
         });
       } catch (err) {

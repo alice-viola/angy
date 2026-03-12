@@ -1,7 +1,7 @@
 import SqlDatabase from '@tauri-apps/plugin-sql';
 import { mkdir } from '@tauri-apps/plugin-fs';
 import { appDataDir } from '@tauri-apps/api/path';
-import { DelegationStatus, type SessionInfo, type MessageRecord, type CheckpointRecord } from './types';
+import { DelegationStatus, type SessionInfo, type MessageRecord, type CheckpointRecord, type PipelineSnapshot } from './types';
 import type { Project, ProjectRepo, Epic, EpicColumn, EpicBranch, SchedulerConfig, SchedulerAction } from './KosTypes';
 
 export class Database {
@@ -191,6 +191,9 @@ export class Database {
     try {
       await this.db.execute(`ALTER TABLE epics ADD COLUMN pipeline_type TEXT DEFAULT 'hybrid'`);
     } catch { /* column already exists */ }
+    try {
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN suspended_at TEXT DEFAULT NULL`);
+    } catch { /* column already exists */ }
 
     await this.db.execute(`
       CREATE TABLE IF NOT EXISTS epic_branches (
@@ -244,6 +247,30 @@ export class Database {
         input_tokens INTEGER DEFAULT 0,
         output_tokens INTEGER DEFAULT 0,
         timestamp TEXT NOT NULL
+      )
+    `);
+
+    await this.db.execute(`
+      CREATE TABLE IF NOT EXISTS pipeline_state (
+        epic_id TEXT PRIMARY KEY,
+        phase TEXT NOT NULL,
+        sub_phase TEXT DEFAULT '',
+        goal TEXT NOT NULL,
+        acceptance_criteria TEXT NOT NULL,
+        architect_context TEXT DEFAULT '',
+        design_plan TEXT DEFAULT '',
+        todo_queue TEXT DEFAULT '[]',
+        finalize_cycle INTEGER DEFAULT 0,
+        replans_remaining INTEGER DEFAULT 3,
+        architect_claude_session_id TEXT DEFAULT '',
+        counterpart_claude_session_id TEXT DEFAULT '',
+        child_outputs TEXT DEFAULT '[]',
+        complexity TEXT NOT NULL,
+        model TEXT DEFAULT '',
+        workspace TEXT NOT NULL,
+        auto_profiles TEXT DEFAULT '[]',
+        updated_at TEXT NOT NULL,
+        created_at TEXT NOT NULL
       )
     `);
   }
@@ -654,8 +681,8 @@ export class Database {
        (id, project_id, title, description, acceptance_criteria, "column", priority_hint,
         complexity, model, depends_on, target_repos, pipeline_type, use_git_branch, rejection_count, rejection_feedback,
         last_attempt_files, last_validation_results, last_architect_plan,
-        computed_score, root_session_id, cost_total, created_at, updated_at, started_at, completed_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)`,
+        computed_score, root_session_id, cost_total, created_at, updated_at, started_at, completed_at, suspended_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
       [
         epic.id,
         epic.projectId,
@@ -682,6 +709,7 @@ export class Database {
         epic.updatedAt,
         epic.startedAt,
         epic.completedAt,
+        epic.suspendedAt,
       ],
     );
   }
@@ -895,6 +923,111 @@ export class Database {
     return rows[0]?.total ?? 0;
   }
 
+  // ── Pipeline State (crash recovery) ─────────────────────────────────
+
+  async savePipelineState(state: PipelineSnapshot): Promise<void> {
+    if (!this.db) return;
+
+    await this.db.execute(
+      `INSERT OR REPLACE INTO pipeline_state
+       (epic_id, phase, sub_phase, goal, acceptance_criteria, architect_context,
+        design_plan, todo_queue, finalize_cycle, replans_remaining,
+        architect_claude_session_id, counterpart_claude_session_id,
+        child_outputs, complexity, model, workspace, auto_profiles,
+        updated_at, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)`,
+      [
+        state.epicId,
+        state.phase,
+        state.subPhase,
+        state.goal,
+        state.acceptanceCriteria,
+        state.architectContext,
+        state.designPlan,
+        JSON.stringify(state.todoQueue),
+        state.finalizeCycle,
+        state.replansRemaining,
+        state.architectClaudeSessionId ?? '',
+        state.counterpartClaudeSessionId ?? '',
+        JSON.stringify(state.childOutputs),
+        state.complexity,
+        state.model,
+        state.workspace,
+        state.autoProfiles,
+        state.updatedAt,
+        state.createdAt,
+      ],
+    );
+  }
+
+  async loadPipelineState(epicId: string): Promise<PipelineSnapshot | null> {
+    if (!this.db) return null;
+
+    const rows = await this.db.select<any[]>(
+      'SELECT * FROM pipeline_state WHERE epic_id = $1 LIMIT 1',
+      [epicId],
+    );
+
+    if (rows.length === 0) return null;
+    const r = rows[0];
+    return {
+      epicId: r.epic_id,
+      phase: r.phase,
+      subPhase: r.sub_phase || '',
+      goal: r.goal,
+      acceptanceCriteria: r.acceptance_criteria,
+      architectContext: r.architect_context || '',
+      designPlan: r.design_plan || '',
+      todoQueue: JSON.parse(r.todo_queue || '[]'),
+      finalizeCycle: r.finalize_cycle ?? 0,
+      replansRemaining: r.replans_remaining ?? 3,
+      architectClaudeSessionId: r.architect_claude_session_id || null,
+      counterpartClaudeSessionId: r.counterpart_claude_session_id || null,
+      childOutputs: JSON.parse(r.child_outputs || '[]'),
+      complexity: r.complexity,
+      model: r.model || '',
+      workspace: r.workspace,
+      autoProfiles: r.auto_profiles || '[]',
+      updatedAt: r.updated_at,
+      createdAt: r.created_at,
+    };
+  }
+
+  async deletePipelineState(epicId: string): Promise<void> {
+    if (!this.db) return;
+    await this.db.execute('DELETE FROM pipeline_state WHERE epic_id = $1', [epicId]);
+  }
+
+  async listRecoverablePipelines(): Promise<PipelineSnapshot[]> {
+    if (!this.db) return [];
+
+    const rows = await this.db.select<any[]>(
+      `SELECT * FROM pipeline_state WHERE phase NOT IN ('completed', 'failed', 'cancelled') ORDER BY updated_at DESC`,
+    );
+
+    return rows.map((r) => ({
+      epicId: r.epic_id,
+      phase: r.phase,
+      subPhase: r.sub_phase || '',
+      goal: r.goal,
+      acceptanceCriteria: r.acceptance_criteria,
+      architectContext: r.architect_context || '',
+      designPlan: r.design_plan || '',
+      todoQueue: JSON.parse(r.todo_queue || '[]'),
+      finalizeCycle: r.finalize_cycle ?? 0,
+      replansRemaining: r.replans_remaining ?? 3,
+      architectClaudeSessionId: r.architect_claude_session_id || null,
+      counterpartClaudeSessionId: r.counterpart_claude_session_id || null,
+      childOutputs: JSON.parse(r.child_outputs || '[]'),
+      complexity: r.complexity,
+      model: r.model || '',
+      workspace: r.workspace,
+      autoProfiles: r.auto_profiles || '[]',
+      updatedAt: r.updated_at,
+      createdAt: r.created_at,
+    }));
+  }
+
   // ── Helpers ───────────────────────────────────────────────────────────
 
   private rowToEpic(r: any): Epic {
@@ -924,6 +1057,7 @@ export class Database {
       updatedAt: r.updated_at,
       startedAt: r.started_at || null,
       completedAt: r.completed_at || null,
+      suspendedAt: r.suspended_at || null,
     };
   }
 

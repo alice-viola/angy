@@ -164,14 +164,18 @@ export type EngineEvents = {
   'scheduler:info': { epicId?: string; title: string; message: string };
   'epic:requestStart': { epicId: string };
   'epic:requestStop': { epicId: string; targetColumn?: EpicColumn };
+  'epic:requestSuspend': { epicId: string };
   'epic:updated': { epicId: string; epic: Epic };
   'orchestrator:autoProfilesDetected': { orchestratorId: string; profileIds: string[]; profileNames: string[]; profileIcons: string[] };
   'epic:storeSyncNeeded': void;
   'pipeline:internalCall': {
     epicId: string;
-    callType: 'extractVerdict' | 'splitPlan' | 'splitIncrements' | 'extractTestResult' | 'verifyIncrement';
+    callType: 'extractVerdict' | 'extractTodos' | 'extractTestResult' | 'verifyTodo' | 'generateFixTodos';
     status: 'started' | 'completed';
   };
+  'pipeline:stateCheckpointed': { epicId: string; phase: PipelinePhase; todosDone: number; todosTotal: number };
+  'pipeline:resuming': { epicId: string; phase: PipelinePhase; todosDone: number; todosTotal: number };
+  'pipeline:claudeHealthCheck': { status: 'healthy' | 'unhealthy' | 'waiting'; attempt: number };
   // Headless agent streaming — emitted by HeadlessHandle so ChatPanel can show live updates
   'agent:textDelta': { sessionId: string; text: string };
   'agent:toolUse': { sessionId: string; toolName: string; summary: string; toolInput?: Record<string, any> };
@@ -209,6 +213,56 @@ export interface ProcessOptions {
   autoCommit?: boolean;
   epicEnabled?: boolean;
   specialistRole?: string;
+}
+
+// ── Pipeline Recovery (persisted state for crash recovery) ────────────────
+
+export type PipelinePhase =
+  | 'planning'
+  | 'verifying plan'
+  | 'designing UI'
+  | 'extracting todos'
+  | 'implementing'
+  | 'finalizing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
+
+export interface PersistedTodoState {
+  todo: {
+    id: string;
+    title: string;
+    scope: 'scaffold' | 'backend' | 'frontend';
+    requirements: string;
+    files: string[];
+    testCriteria: string;
+    dependsOn: string[];
+  };
+  status: 'pending' | 'in_progress' | 'done' | 'failed';
+  builderOutput?: string;
+  attempts: number;
+}
+
+export interface PipelineSnapshot {
+  epicId: string;
+  phase: PipelinePhase;
+  subPhase: string;
+  goal: string;
+  acceptanceCriteria: string;
+  architectContext: string;
+  designPlan: string;
+  todoQueue: PersistedTodoState[];
+  finalizeCycle: number;
+  replansRemaining: number;
+  architectClaudeSessionId: string | null;
+  counterpartClaudeSessionId: string | null;
+  childOutputs: Array<{ role: string; agentName: string; output: string }>;
+  complexity: string;
+  model: string;
+  workspace: string;
+  autoProfiles: string;
+  updatedAt: string;
+  createdAt: string;
 }
 
 // ── Attached Context / Images ─────────────────────────────────────────────

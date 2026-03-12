@@ -36,6 +36,8 @@ import {
 } from './repositories';
 import { detectTechnologies, buildTechPromptPrefix } from './TechDetector';
 import { HybridPipelineRunner } from './HybridPipelineRunner';
+import { PipelineStateStore } from './PipelineStateStore';
+import { ClaudeHealthMonitor } from './ClaudeHealthMonitor';
 
 // ── Singleton ────────────────────────────────────────────────────────────
 
@@ -57,6 +59,10 @@ export class AngyEngine {
   readonly epics: EpicRepository;
   readonly projects: ProjectRepository;
 
+  // ── Recovery services ──────────────────────────────────────────────
+  readonly pipelineStateStore: PipelineStateStore;
+  readonly healthMonitor: ClaudeHealthMonitor;
+
   // ── Epic orchestrators ─────────────────────────────────────────────
   private epicOrchestrators = new Map<string, Orchestrator>();
   private subOrchestrators = new Map<string, Orchestrator>();
@@ -73,6 +79,8 @@ export class AngyEngine {
     this.scheduler = Scheduler.getInstance();
     this.epics = new DatabaseEpicRepository(this.db);
     this.projects = new DatabaseProjectRepository(this.db);
+    this.pipelineStateStore = new PipelineStateStore(this.db);
+    this.healthMonitor = new ClaudeHealthMonitor();
   }
 
   static getInstance(): AngyEngine {
@@ -111,6 +119,9 @@ export class AngyEngine {
     this.pool.setOrchestratorFactory(
       (epicId, options, epic, repos) => this.spawnEpicOrchestrator(epicId, options, epic, repos),
     );
+    this.pool.setResumeFactory(
+      (epicId, epic, repos) => this.resumeHybridPipeline(epicId, epic, repos),
+    );
 
     // 4. Wire process manager → orchestrator lookup
     this.processes.setOrchestratorLookup(
@@ -131,12 +142,11 @@ export class AngyEngine {
 
   async shutdown(): Promise<void> {
     await this.scheduler.stop();
-    // Cancel all sub-orchestrators
+    this.healthMonitor.cancel();
     for (const subOrch of this.subOrchestrators.values()) {
       subOrch.cancel();
     }
     this.subOrchestrators.clear();
-    // Cancel all running processes
     for (const orch of this.epicOrchestrators.values()) {
       orch.cancel();
     }
@@ -574,6 +584,48 @@ export class AngyEngine {
     console.log(`[AngyEngine] Cancelled epic orchestration: ${epicId}, killed ${sessionIds.length} session(s)`);
   }
 
+  /**
+   * Suspend an epic's orchestration — gracefully stop while preserving checkpoint
+   * so it can be resumed later. Unlike cancel, does NOT restore repos to default branch.
+   */
+  async suspendEpicOrchestration(epicId: string): Promise<void> {
+    // 1. Kill all running processes for this epic (root + children)
+    const sessionIds = this.pool.getSessionsForEpic(epicId);
+    for (const sid of sessionIds) {
+      this.processes.cancelProcess(sid);
+      const subOrch = this.subOrchestrators.get(sid);
+      if (subOrch) {
+        subOrch.cancel();
+        this.subOrchestrators.delete(sid);
+      }
+    }
+
+    // 2. Cancel orchestrator or hybrid runner (forces a final checkpoint)
+    const orch = this.epicOrchestrators.get(epicId);
+    if (orch) {
+      orch.cancel();
+      this.epicOrchestrators.delete(epicId);
+    }
+    const runner = this.hybridRunners.get(epicId);
+    if (runner) {
+      runner.cancel();
+      this.hybridRunners.delete(epicId);
+    }
+
+    // 3. Do NOT restore repos — keep the working branch intact for resume
+
+    // 4. Release repo locks and clean up pool tracking
+    this.scheduler.releaseRepos(epicId);
+    await this.pool.removeEpic(epicId);
+
+    // 5. Set suspendedAt and move epic to todo
+    const now = new Date().toISOString();
+    await this.epics.updateEpic(epicId, { suspendedAt: now, column: 'todo' as EpicColumn });
+    this.emitEpicUpdated(epicId);
+
+    console.log(`[AngyEngine] Suspended epic orchestration: ${epicId}, killed ${sessionIds.length} session(s)`);
+  }
+
   activeEpicCount(): number {
     return this.epicOrchestrators.size;
   }
@@ -651,6 +703,7 @@ export class AngyEngine {
       updatedAt: now,
       startedAt: null,
       completedAt: null,
+      suspendedAt: null,
     };
     await this.epics.saveEpic(epic);
     return epic;
@@ -715,6 +768,8 @@ export class AngyEngine {
       epicId,
       autoProfiles: detectedProfiles,
       complexity: epic.complexity,
+      stateStore: this.pipelineStateStore,
+      healthMonitor: this.healthMonitor,
     });
 
     // Create a root session for the pipeline
@@ -781,6 +836,108 @@ export class AngyEngine {
     // Run in background (don't await — let it run asynchronously)
     runner.run(goal, epic.acceptanceCriteria).catch(err => {
       console.error(`[AngyEngine] Hybrid pipeline crashed for ${epicId}:`, err);
+      this.hybridRunners.delete(epicId);
+      engineBus.emit('epic:failed', { epicId, reason: err?.message || String(err) });
+    });
+
+    return rootSid;
+  }
+
+  // ── Pipeline recovery (resume from crash) ────────────────────────
+
+  /**
+   * Attempt to resume a hybrid pipeline for an epic from its persisted snapshot.
+   * Returns the root session ID if resume succeeded, null if no snapshot found.
+   */
+  async resumeHybridPipeline(
+    epicId: string,
+    epic: Epic,
+    _repos: ProjectRepo[],
+  ): Promise<string | null> {
+    const snapshot = await this.pipelineStateStore.load(epicId);
+    if (!snapshot || !this.pipelineStateStore.isResumable(snapshot)) {
+      console.log(`[AngyEngine] No resumable snapshot for epic ${epicId}`);
+      return null;
+    }
+
+    const doneTodos = snapshot.todoQueue.filter(t => t.status === 'done').length;
+    const totalTodos = snapshot.todoQueue.length;
+    console.log(`[AngyEngine] Resuming hybrid pipeline for epic ${epicId}: phase=${snapshot.phase}, todos=${doneTodos}/${totalTodos}`);
+
+    const handle = new HeadlessHandle(this.db, this.sessions.manager);
+    handle.onPersistSession = (sid) => {
+      this.sessions.persistSession(sid);
+    };
+
+    const workspace = snapshot.workspace;
+    const detectedProfiles = await detectTechnologies(workspace);
+
+    const runner = new HybridPipelineRunner({
+      handle,
+      processes: this.processes,
+      sessions: this.sessions,
+      workspace,
+      model: snapshot.model || epic.model || undefined,
+      epicId,
+      autoProfiles: detectedProfiles,
+      complexity: epic.complexity,
+      stateStore: this.pipelineStateStore,
+      healthMonitor: this.healthMonitor,
+    });
+
+    const rootSid = await this.sessions.createSession(workspace, 'orchestrator');
+    const rootInfo = this.sessions.getSession(rootSid);
+    if (rootInfo) {
+      rootInfo.epicId = epicId;
+      rootInfo.title = `Hybrid (resumed): ${epic.title}`;
+    }
+    await this.sessions.persistSession(rootSid);
+    runner.setRootSessionId(rootSid);
+    engineBus.emit('session:created', { sessionId: rootSid });
+
+    runner.on('phaseChanged', (e) => {
+      engineBus.emit('epic:phaseChanged', { epicId, phase: e.phase });
+    });
+    runner.on('delegationStarted', (e) => {
+      engineBus.emit('orchestrator:delegationStarted', {
+        role: e.role,
+        task: e.task,
+        parentSessionId: e.parentSessionId,
+      });
+    });
+    runner.on('completed', (e) => {
+      this.hybridRunners.delete(epicId);
+      engineBus.emit('epic:completed', { epicId, summary: e.summary });
+    });
+    runner.on('failed', (e) => {
+      this.hybridRunners.delete(epicId);
+      engineBus.emit('epic:failed', { epicId, reason: e.reason });
+    });
+    runner.on('artifactsCollected', async (e) => {
+      try {
+        const fileSet = new Set<string>();
+        for (const child of e.childOutputs) {
+          const matches = child.output.match(/(?:^|\s)((?:src|lib|app|test|tests)\/[\w/.-]+\.\w+)/gm);
+          if (matches) {
+            for (const m of matches) fileSet.add(m.trim());
+          }
+        }
+        const architectOutput = e.childOutputs.find(c => c.role === 'architect');
+        await this.epics.updateEpic(epicId, {
+          lastAttemptFiles: Array.from(fileSet).slice(0, 50),
+          lastValidationResults: [],
+          lastArchitectPlan: architectOutput?.output || '',
+        });
+        this.emitEpicUpdated(epicId);
+      } catch (err) {
+        console.error(`[AngyEngine] Failed to persist hybrid artifacts for epic ${epicId}:`, err);
+      }
+    });
+
+    this.hybridRunners.set(epicId, runner);
+
+    runner.resume(snapshot).catch(err => {
+      console.error(`[AngyEngine] Hybrid pipeline resume crashed for ${epicId}:`, err);
       this.hybridRunners.delete(epicId);
       engineBus.emit('epic:failed', { epicId, reason: err?.message || String(err) });
     });

@@ -18,6 +18,16 @@ export type OrchestratorFactory = (
   repos: ProjectRepo[],
 ) => Promise<string>
 
+/**
+ * Resume factory: tries to resume a pipeline from persisted state.
+ * Returns the root session ID if resume succeeded, null if no snapshot found.
+ */
+export type ResumeFactory = (
+  epicId: string,
+  epic: Epic,
+  repos: ProjectRepo[],
+) => Promise<string | null>
+
 export class OrchestratorPool {
   private epicOrchestrators = new Map<string, string>()          // epicId → root sessionId
   private sessionOrchestrators = new Map<string, {               // sessionId → metadata
@@ -30,6 +40,7 @@ export class OrchestratorPool {
   private branchManager: BranchManager
   private chatPanel: OrchestratorChatPanelAPI | null = null
   private orchestratorFactory: OrchestratorFactory | null = null
+  private resumeFactory: ResumeFactory | null = null
   private maxDepth = DEFAULT_MAX_DEPTH
 
   private constructor(branchManager: BranchManager) {
@@ -58,6 +69,11 @@ export class OrchestratorPool {
   setOrchestratorFactory(factory: OrchestratorFactory): void {
     this.orchestratorFactory = factory
     console.log('[OrchestratorPool] Orchestrator factory set')
+  }
+
+  setResumeFactory(factory: ResumeFactory): void {
+    this.resumeFactory = factory
+    console.log('[OrchestratorPool] Resume factory set')
   }
 
   setMaxDepth(depth: number): void {
@@ -157,6 +173,42 @@ export class OrchestratorPool {
 
     console.log(`[OrchestratorPool] Epic ${epicId} registered with session: ${sessionId}`)
     return sessionId
+  }
+
+  // ── resumeRoot ───────────────────────────────────────────────────────
+
+  /**
+   * Attempt to resume a pipeline for an epic from persisted state.
+   * Falls back to spawnRoot if no snapshot is available.
+   */
+  async resumeOrSpawnRoot(
+    epicId: string,
+    options: OrchestratorOptions,
+    epic: Epic,
+    repos: ProjectRepo[],
+  ): Promise<string> {
+    if (this.epicOrchestrators.has(epicId)) {
+      throw new Error(`Epic ${epicId} already has an active orchestrator`)
+    }
+
+    // Try resume first (only for hybrid pipelines, not read-only)
+    const isReadOnly = epic.pipelineType === 'investigate' || epic.pipelineType === 'plan'
+    if (this.resumeFactory && epic.pipelineType === 'hybrid' && !isReadOnly) {
+      try {
+        const sessionId = await this.resumeFactory(epicId, epic, repos)
+        if (sessionId) {
+          this.epicOrchestrators.set(epicId, sessionId)
+          this.sessionOrchestrators.set(sessionId, { epicId, depth: 0 })
+          this.epicProjects.set(epicId, options.projectId)
+          console.log(`[OrchestratorPool] Epic ${epicId} RESUMED with session: ${sessionId}`)
+          return sessionId
+        }
+      } catch (err) {
+        console.warn(`[OrchestratorPool] Resume failed for ${epicId}, falling back to fresh start:`, err)
+      }
+    }
+
+    return this.spawnRoot(epicId, options, epic, repos)
   }
 
   // ── registerSubOrchestrator ───────────────────────────────────────────

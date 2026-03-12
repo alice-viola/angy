@@ -298,11 +298,30 @@
           Open Workspace
         </button>
         <button
+          class="text-xs py-1.5 px-3 rounded border border-amber-500/50
+                 text-amber-400 font-medium hover:bg-amber-500/10 transition-colors"
+          @click="suspendEpic"
+        >
+          Suspend
+        </button>
+        <button
           class="text-xs py-1.5 px-3 rounded border border-red-500/50
                  text-red-400 font-medium hover:bg-red-500/10 transition-colors"
           @click="stopEpic"
         >
           Stop
+        </button>
+      </div>
+
+      <!-- Suspended banner -->
+      <div v-if="epic.suspendedAt && (epic.column === 'todo' || epic.column === 'backlog')" class="flex items-center gap-2 pt-2 px-3 py-2 rounded bg-amber-500/10 border border-amber-500/20">
+        <span class="text-xs text-amber-400 flex-1">This epic was suspended.</span>
+        <button
+          class="text-xs py-1 px-3 rounded bg-amber-500/20 text-amber-300 font-medium
+                 hover:bg-amber-500/30 transition-colors"
+          @click="resumeEpic"
+        >
+          Resume
         </button>
       </div>
 
@@ -516,6 +535,15 @@ async function remove() {
 function stopEpic() {
   engineBus.emit('epic:requestStop', { epicId: props.epicId });
   loadDraft();
+}
+
+function suspendEpic() {
+  engineBus.emit('epic:requestSuspend', { epicId: props.epicId });
+  loadDraft();
+}
+
+function resumeEpic() {
+  engineBus.emit('epic:requestStart', { epicId: props.epicId });
 }
 
 const rejectionFeedback = ref('');

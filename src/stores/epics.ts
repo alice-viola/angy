@@ -138,6 +138,7 @@ export const useEpicStore = defineStore('epics', () => {
       updatedAt: now,
       startedAt: null,
       completedAt: null,
+      suspendedAt: null,
     };
 
     const db = getDatabase();

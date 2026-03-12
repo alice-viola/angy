@@ -73,6 +73,7 @@ export interface Epic {
   updatedAt: string;
   startedAt: string | null;
   completedAt: string | null;
+  suspendedAt: string | null;
 }
 
 // ── Epic Branch & Repo Lock ─────────────────────────────────────────────────
