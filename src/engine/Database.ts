@@ -194,6 +194,9 @@ export class Database {
     try {
       await this.db.execute(`ALTER TABLE epics ADD COLUMN suspended_at TEXT DEFAULT NULL`);
     } catch { /* column already exists */ }
+    try {
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN run_after TEXT DEFAULT NULL`);
+    } catch { /* column already exists */ }
 
     await this.db.execute(`
       CREATE TABLE IF NOT EXISTS epic_branches (
@@ -681,8 +684,8 @@ export class Database {
        (id, project_id, title, description, acceptance_criteria, "column", priority_hint,
         complexity, model, depends_on, target_repos, pipeline_type, use_git_branch, rejection_count, rejection_feedback,
         last_attempt_files, last_validation_results, last_architect_plan,
-        computed_score, root_session_id, cost_total, created_at, updated_at, started_at, completed_at, suspended_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26)`,
+        computed_score, root_session_id, cost_total, created_at, updated_at, started_at, completed_at, suspended_at, run_after)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
       [
         epic.id,
         epic.projectId,
@@ -710,6 +713,7 @@ export class Database {
         epic.startedAt,
         epic.completedAt,
         epic.suspendedAt,
+        epic.runAfter ?? null,
       ],
     );
   }
@@ -1058,6 +1062,7 @@ export class Database {
       startedAt: r.started_at || null,
       completedAt: r.completed_at || null,
       suspendedAt: r.suspended_at || null,
+      runAfter: r.run_after || null,
     };
   }
 

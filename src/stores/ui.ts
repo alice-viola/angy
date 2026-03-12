@@ -35,6 +35,7 @@ export const useUiStore = defineStore('ui', () => {
   const repoSwitchOnly = ref(false);
   const kanbanFilterText = ref('');
   const pipelineActivity = ref<string | null>(null);
+  const pipelineTodoProgress = ref<{ current: number; total: number } | null>(null);
 
   // Diff view state (git diff shown in Monaco DiffSplitView)
   const diffView = ref<{
@@ -177,7 +178,7 @@ export const useUiStore = defineStore('ui', () => {
     workspacePath, currentFile, currentBranch, currentModel, isProcessing,
     inlinePreviewFile, effectsPanelVisible, editorChatVisible, rightPanelMode, diffView,
     missionControlFilter, autoCommitEnabled, kanbanProjectIds, notifications, repoSwitchOnly,
-    managerSizes, editorSizes, kanbanFilterText, pipelineActivity,
+    managerSizes, editorSizes, kanbanFilterText, pipelineActivity, pipelineTodoProgress,
     switchToMode, toggleViewMode, toggleTerminal, dismissInlinePreview,
     toggleEffectsPanel, toggleEditorChat, toggleRightPanelMode, setRightPanelMode,
     showDiffView, closeDiffView,

@@ -691,6 +691,7 @@ export class AngyEngine {
       pipelineType: opts?.pipelineType ?? 'hybrid',
       useGitBranch: false,
       dependsOn: opts?.dependsOn ?? [],
+      runAfter: null,
       rejectionCount: 0,
       rejectionFeedback: '',
       lastAttemptFiles: [],

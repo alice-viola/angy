@@ -554,6 +554,7 @@ let onEpicStoreSync: () => Promise<void>;
 let onAgentFileEdited: (e: { sessionId: string; filePath: string; toolName: string; toolInput?: Record<string, any> }) => void;
 let onEpicPhaseChanged: (e: { epicId: string; phase: string }) => void;
 let onPipelineInternalCall: (e: { epicId: string; callType: string; status: string }) => void;
+let onPipelineTodoProgress: (e: { epicId: string; current: number; total: number }) => void;
 
 // ── Global keyboard event: Cmd+N new chat ───────────────────────────────
 
@@ -717,17 +718,21 @@ onMounted(async () => {
     generateFixTodos: 'Generating fix-todos',
   };
   onEpicPhaseChanged = ({ phase }) => {
-    ui.pipelineActivity = phase === 'completed' || phase === 'failed' || phase === 'cancelled'
-      ? null
-      : phase;
+    const isTerminal = phase === 'completed' || phase === 'failed' || phase === 'cancelled';
+    ui.pipelineActivity = isTerminal ? null : phase;
+    if (isTerminal) ui.pipelineTodoProgress = null;
   };
   onPipelineInternalCall = ({ callType, status }) => {
     ui.pipelineActivity = status === 'started'
       ? (CALL_LABELS[callType] || callType)
       : null;
   };
+  onPipelineTodoProgress = ({ current, total }) => {
+    ui.pipelineTodoProgress = { current, total };
+  };
   engineBus.on('epic:phaseChanged', onEpicPhaseChanged);
   engineBus.on('pipeline:internalCall', onPipelineInternalCall);
+  engineBus.on('pipeline:todoProgress', onPipelineTodoProgress);
 
   // Initialize Pinia stores from engine's database (DB is already open via engine)
   const db = getDatabase();
@@ -786,6 +791,7 @@ onUnmounted(() => {
   engineBus.off('agent:fileEdited', onAgentFileEdited);
   engineBus.off('epic:phaseChanged', onEpicPhaseChanged);
   engineBus.off('pipeline:internalCall', onPipelineInternalCall);
+  engineBus.off('pipeline:todoProgress', onPipelineTodoProgress);
 
   if (graphCleanup) {
     graphCleanup();

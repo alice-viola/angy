@@ -170,9 +170,10 @@ export type EngineEvents = {
   'epic:storeSyncNeeded': void;
   'pipeline:internalCall': {
     epicId: string;
-    callType: 'extractVerdict' | 'extractTodos' | 'extractTestResult' | 'verifyTodo' | 'generateFixTodos';
+    callType: 'extractVerdict' | 'extractTodos' | 'extractTestResult' | 'verifyTodo' | 'verifyBatch' | 'generateFixTodos';
     status: 'started' | 'completed';
   };
+  'pipeline:todoProgress': { epicId: string; current: number; total: number; scope: string; title: string };
   'pipeline:stateCheckpointed': { epicId: string; phase: PipelinePhase; todosDone: number; todosTotal: number };
   'pipeline:resuming': { epicId: string; phase: PipelinePhase; todosDone: number; todosTotal: number };
   'pipeline:claudeHealthCheck': { status: 'healthy' | 'unhealthy' | 'waiting'; attempt: number };

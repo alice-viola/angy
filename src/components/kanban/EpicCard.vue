@@ -74,6 +74,18 @@
         review
       </span>
 
+      <!-- Chain indicator -->
+      <span
+        v-if="epic.runAfter"
+        class="flex items-center gap-0.5 text-[10px] text-[var(--accent-mauve)]"
+        :title="`Runs after: ${runAfterTitle}`"
+      >
+        <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 12h15" />
+        </svg>
+        chain
+      </span>
+
       <!-- Agent count -->
       <span v-if="agentCount > 0" class="flex items-center gap-0.5 text-[10px] text-[var(--text-secondary)]">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -170,6 +182,9 @@ const epicStore = useEpicStore();
 const sessionsStore = useSessionsStore();
 
 const branchName = computed(() => epicStore.epicBranchName(props.epic.id));
+const runAfterTitle = computed(() =>
+  props.epic.runAfter ? (epicStore.epicById(props.epic.runAfter)?.title ?? '…') : '',
+);
 const { loading: prLoading, error: prError, createPR } = useCreatePR();
 
 const hasBranch = computed(() => !!branchName.value);

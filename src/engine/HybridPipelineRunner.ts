@@ -172,6 +172,8 @@ export class HybridPipelineRunner {
   private activeProcesses = new Set<string>();
   private counterpartSessionId: string | null = null;
   private architectSessionId: string | null = null;
+  private testerSessions = new Map<string, string>();
+  private builderSessions = new Map<string, { sessionId: string; startedAt: number }>();
   private _goal = '';
   private _acceptanceCriteria = '';
   private todoQueue: TodoState[] = [];
@@ -181,6 +183,7 @@ export class HybridPipelineRunner {
   private replansRemaining = 3;
 
   static readonly AGENT_TIMEOUT_MS = 120 * 60 * 1000;
+  static readonly BUILDER_SESSION_MAX_MS = 25 * 60 * 1000;
 
   constructor(opts: HybridPipelineOptions) {
     this.handle = opts.handle;
@@ -459,6 +462,7 @@ export class HybridPipelineRunner {
     this.setPhase('implementing');
     const pendingCount = this.todoQueue.filter(e => e.status === 'pending').length;
     this.log(`Phase 2: Executing todos (${pendingCount} pending)`);
+    this.emitTodoProgress();
     await this.executeTodoLoop();
   }
 
@@ -542,77 +546,165 @@ export class HybridPipelineRunner {
   }
 
   // ── Todo execution loop ─────────────────────────────────────────────
+  //
+  // Batches consecutive same-scope todos and verifies them together.
+  // Within a batch: build all → verify once → fix/re-verify cycle (reusing tester session).
+  // This avoids spawning a tester after every single builder.
 
   private async executeTodoLoop(): Promise<void> {
+    let scopeBatch: TodoState[] = [];
+    let batchScope: string | null = null;
+
     while (true) {
       if (this._cancelled) return;
 
       const entry = this.nextReadyTodo();
+
+      // If we have a batch and (no more todos OR next todo is a different scope), verify the batch
+      if (scopeBatch.length > 0 && (!entry || entry.todo.scope !== batchScope)) {
+        const passed = await this.verifyScopeBatch(scopeBatch, batchScope!);
+        if (this._cancelled) return;
+
+        if (!passed) {
+          // Batch failed even after fix attempts — replan or accept failure
+          await this.handleBatchFailure(scopeBatch);
+          if (this._cancelled) return;
+        }
+
+        scopeBatch = [];
+        batchScope = null;
+        continue; // re-check: replan may have added new todos
+      }
+
       if (!entry) break;
 
       entry.status = 'in_progress';
       const todo = entry.todo;
-      const totalPending = this.todoQueue.filter(e => e.status === 'pending').length;
-      const totalDone = this.todoQueue.filter(e => e.status === 'done').length;
+      batchScope = todo.scope;
 
-      this.setPhase(`todo ${totalDone + 1}: ${todo.title} [${todo.scope}] (${totalPending} remaining)`);
-      this.log(`Todo: ${todo.title} [${todo.scope}]`);
+      const done = this.todoQueue.filter(e => e.status === 'done').length;
+      this.emitTodoProgress(todo.scope, todo.title);
+      this.setPhase(`building ${done + 1}/${this.todoQueue.length}: ${todo.title} [${todo.scope}]`);
+      this.log(`Building: ${todo.title} [${todo.scope}]`);
       await this.checkpointState('implementing');
 
-      const builderRole = `builder-${todo.scope}`;
-      const testerRole = `tester-${todo.scope}`;
-
-      let builderOutput = await this.healthCheckedDelegate(builderRole, this.todoTask(todo));
+      const builderOutput = await this.delegateBuilder(todo.scope, this.todoTask(todo));
       if (this._cancelled) return;
 
-      this.setPhase(`verifying: ${todo.title}`);
-      let verifyResult = await this.verifyTodo(todo, testerRole);
-      if (this._cancelled) return;
+      // Mark as done (tentatively) so intra-scope dependencies resolve
+      entry.status = 'done';
+      entry.builderOutput = builderOutput;
+      scopeBatch.push(entry);
+      this.emitTodoProgress(todo.scope, todo.title);
+      await this.checkpointState('implementing');
+    }
+  }
 
-      while (!verifyResult.passed && entry.attempts < 3) {
-        entry.attempts++;
-        this.log(`Todo "${todo.title}" verification failed (attempt ${entry.attempts}/3), fixing`);
-        this.setPhase(`fixing: ${todo.title} (attempt ${entry.attempts})`);
+  /**
+   * Verify a batch of todos from the same scope in a single tester session.
+   * On failure, runs a fix → re-verify cycle up to 3 times, reusing the tester session.
+   * Returns true if the batch passed verification.
+   */
+  private async verifyScopeBatch(batch: TodoState[], scope: string): Promise<boolean> {
+    const MAX_FIX_ROUNDS = 3;
 
-        const fixIssues = (verifyResult.errors || []).join('\n') || 'Verification failed.';
-        builderOutput = await this.healthCheckedDelegate(builderRole, this.fixTask(
-          `Todo "${todo.title}" failed verification.\n\n## Errors\n${fixIssues}\n\n## Test criteria\n${todo.testCriteria}\n\n## Files involved\n${todo.files.join('\n')}`,
-        ));
-        if (this._cancelled) return;
+    const todoCriteria = batch.map(e =>
+      `### ${e.todo.title}\n**Test criteria:** ${e.todo.testCriteria}\n**Files:** ${e.todo.files.join(', ')}`,
+    ).join('\n\n');
 
-        this.setPhase(`re-verifying: ${todo.title} (attempt ${entry.attempts})`);
-        verifyResult = await this.verifyTodo(todo, testerRole);
-        if (this._cancelled) return;
-      }
+    this.setPhase(`verifying ${batch.length} ${scope} todo(s)`);
+    this.log(`Batch-verifying ${batch.length} ${scope} todos`);
+
+    const verifyTask =
+      `Verify that the following ${scope} todos all work correctly. Run the verification for each one — do not run the full test suite or do a comprehensive review.\n\n${todoCriteria}\n\nReport whether verification passed or failed, with specific errors if any.`;
+
+    this.emitInternalCall('verifyBatch', 'started');
+    const testerOutput = await this.delegateTester(scope, verifyTask);
+    if (this._cancelled) return false;
+
+    let verifyResult = await this.structuredCall<VerifyResult>(
+      VERIFY_SCHEMA,
+      `Extract whether this batch verification passed or failed:\n\n${testerOutput}`,
+    );
+    this.emitInternalCall('verifyBatch', 'completed');
+
+    if (verifyResult.passed) {
+      this.log(`Batch verification passed for ${batch.length} ${scope} todos`);
+      return true;
+    }
+
+    // Fix cycle: fix with a builder, re-verify with the same tester session
+    for (let round = 1; round <= MAX_FIX_ROUNDS; round++) {
+      if (this._cancelled) return false;
+
+      const fixIssues = (verifyResult.errors || []).join('\n') || 'Verification failed.';
+      const batchFiles = [...new Set(batch.flatMap(e => e.todo.files))];
+
+      this.log(`Batch verification failed for ${scope} (round ${round}/${MAX_FIX_ROUNDS}), fixing`);
+      this.setPhase(`fixing ${scope} (round ${round}/${MAX_FIX_ROUNDS})`);
+
+      await this.delegateBuilder(scope, this.fixTask(
+        `Batch verification for ${scope} todos failed.\n\n## Errors\n${fixIssues}\n\n## Files involved\n${batchFiles.join('\n')}`,
+      ));
+      if (this._cancelled) return false;
+
+      // Re-verify: reuse the same tester session (it has context of what failed)
+      this.setPhase(`re-verifying ${scope} (round ${round}/${MAX_FIX_ROUNDS})`);
+      this.emitInternalCall('verifyBatch', 'started');
+      const reVerifyOutput = await this.delegateTester(scope,
+        `The builder has attempted to fix the issues you found. Please re-verify the same ${scope} todos:\n\n${todoCriteria}\n\nReport whether verification now passes or still fails, with specific errors if any.`,
+      );
+      if (this._cancelled) return false;
+
+      verifyResult = await this.structuredCall<VerifyResult>(
+        VERIFY_SCHEMA,
+        `Extract whether this re-verification passed or failed:\n\n${reVerifyOutput}`,
+      );
+      this.emitInternalCall('verifyBatch', 'completed');
 
       if (verifyResult.passed) {
-        entry.status = 'done';
-        entry.builderOutput = builderOutput;
-        this.log(`Todo "${todo.title}" completed`);
-        await this.checkpointState('implementing');
-      } else if (this.replansRemaining > 0) {
-        this.replansRemaining--;
-        entry.status = 'failed';
-        this.log(`Todo "${todo.title}" failed after ${entry.attempts} attempts, re-planning (${this.replansRemaining} replans left)`);
-
-        const remainingTodos = this.todoQueue.filter(e => e.status === 'pending').map(e => e.todo);
-        const replanProse = await this.healthCheckedArchitect(this.replanTask(todo, verifyResult.errors || [], remainingTodos));
-        if (this._cancelled) return;
-
-        const revisedTodos = await this.extractTodos(replanProse);
-        this.validateTodos(revisedTodos);
-        this.log(`Re-plan produced ${revisedTodos.length} revised todos`);
-
-        this.todoQueue = this.todoQueue.filter(e => e.status !== 'pending');
-        for (const t of revisedTodos) {
-          this.todoQueue.push({ todo: t, status: 'pending', attempts: 0 });
-        }
-        await this.checkpointState('implementing');
-      } else {
-        entry.status = 'failed';
-        this.log(`Todo "${todo.title}" failed and max replans exhausted, continuing`);
-        await this.checkpointState('implementing');
+        this.log(`Batch re-verification passed for ${scope} on round ${round}`);
+        return true;
       }
+    }
+
+    // Exhausted fix rounds — discard this tester session so next verify starts fresh
+    this.resetTesterSession(scope);
+    this.log(`Batch verification failed for ${scope} after ${MAX_FIX_ROUNDS} fix rounds`);
+    return false;
+  }
+
+  /**
+   * Handle a failed scope batch: replan or mark as failed.
+   */
+  private async handleBatchFailure(batch: TodoState[]): Promise<void> {
+    if (this.replansRemaining > 0) {
+      this.replansRemaining--;
+      for (const entry of batch) entry.status = 'failed';
+
+      const failedTitles = batch.map(e => e.todo.title).join(', ');
+      this.resetBuilderSession(batch[0].todo.scope);
+      this.log(`Batch [${failedTitles}] failed, re-planning (${this.replansRemaining} replans left)`);
+
+      const remainingTodos = this.todoQueue.filter(e => e.status === 'pending').map(e => e.todo);
+      const replanProse = await this.healthCheckedArchitect(
+        this.replanTask(batch[0].todo, ['Batch verification failed for multiple todos'], remainingTodos),
+      );
+      if (this._cancelled) return;
+
+      const revisedTodos = await this.extractTodos(replanProse);
+      this.validateTodos(revisedTodos);
+      this.log(`Re-plan produced ${revisedTodos.length} revised todos`);
+
+      this.todoQueue = this.todoQueue.filter(e => e.status !== 'pending');
+      for (const t of revisedTodos) {
+        this.todoQueue.push({ todo: t, status: 'pending', attempts: 0 });
+      }
+      await this.checkpointState('implementing');
+    } else {
+      for (const entry of batch) entry.status = 'failed';
+      this.log(`Batch failed and max replans exhausted, continuing`);
+      await this.checkpointState('implementing');
     }
   }
 
@@ -912,9 +1004,140 @@ export class HybridPipelineRunner {
     });
   }
 
+  /**
+   * Delegate to a tester by scope. First call per scope spawns a new session;
+   * subsequent calls reuse the same session so the tester retains full context
+   * of what it already verified and what failed.
+   */
+  private async delegateTester(scope: string, task: string): Promise<string> {
+    const role = `tester-${scope}`;
+    const existingSid = this.testerSessions.get(scope);
+
+    if (!existingSid) {
+      if (this.healthMonitor) await this.healthMonitor.waitForHealthy();
+      const { sessionId, result } = await this.delegateAgentReturningSid(role, task);
+      this.testerSessions.set(scope, sessionId);
+      return result;
+    }
+
+    if (this.healthMonitor) await this.healthMonitor.waitForHealthy();
+
+    const sid = existingSid;
+    const agentName = `${role} (persistent)`;
+    this.events.emit('delegationStarted', {
+      role,
+      task: task.substring(0, 200),
+      parentSessionId: this.rootSessionId,
+    });
+
+    this.handle.resetForReuse(sid);
+    await this.handle.prepareForSend(sid, task);
+
+    return new Promise<string>((resolve, reject) => {
+      this.activeProcesses.add(sid);
+
+      const timeout = setTimeout(() => {
+        if (this.pendingResolvers.has(sid)) {
+          this.processes.cancelProcess(sid);
+          this.pendingResolvers.delete(sid);
+          this.activeProcesses.delete(sid);
+          reject(new Error(`${role} timed out after ${HybridPipelineRunner.AGENT_TIMEOUT_MS / 1000}s`));
+        }
+      }, HybridPipelineRunner.AGENT_TIMEOUT_MS);
+
+      this.pendingResolvers.set(sid, (result) => {
+        clearTimeout(timeout);
+        this.childOutputs.push({ role, agentName, output: result });
+        resolve(result);
+      });
+
+      this.processes.sendMessage(sid, task, this.handle, {
+        workingDir: this.workspace,
+        mode: 'agent',
+        model: this.model,
+        resumeSessionId: this.handle.getRealSessionId(sid) || undefined,
+      });
+    });
+  }
+
+  /** Discard a persistent tester session so the next verify spawns a fresh one. */
+  private resetTesterSession(scope: string): void {
+    this.testerSessions.delete(scope);
+  }
+
+  /**
+   * Delegate to a builder by scope, reusing the session across todos of the same scope.
+   * The session is reset if it was first used more than BUILDER_SESSION_MAX_MS ago,
+   * preventing stale context and bloated history from slowing down later turns.
+   */
+  private async delegateBuilder(scope: string, task: string): Promise<string> {
+    const role = `builder-${scope}`;
+    const existing = this.builderSessions.get(scope);
+
+    const isExpired = existing
+      ? (Date.now() - existing.startedAt) > HybridPipelineRunner.BUILDER_SESSION_MAX_MS
+      : false;
+
+    if (isExpired) {
+      this.log(`Builder-${scope} session expired (>${HybridPipelineRunner.BUILDER_SESSION_MAX_MS / 60000}min), starting fresh`);
+      this.builderSessions.delete(scope);
+    }
+
+    if (!this.builderSessions.has(scope)) {
+      if (this.healthMonitor) await this.healthMonitor.waitForHealthy();
+      const { sessionId, result } = await this.delegateAgentReturningSid(role, task);
+      this.builderSessions.set(scope, { sessionId, startedAt: Date.now() });
+      return result;
+    }
+
+    if (this.healthMonitor) await this.healthMonitor.waitForHealthy();
+
+    const { sessionId: sid } = this.builderSessions.get(scope)!;
+    const agentName = `${role} (persistent)`;
+    this.events.emit('delegationStarted', {
+      role,
+      task: task.substring(0, 200),
+      parentSessionId: this.rootSessionId,
+    });
+
+    this.handle.resetForReuse(sid);
+    await this.handle.prepareForSend(sid, task);
+
+    return new Promise<string>((resolve, reject) => {
+      this.activeProcesses.add(sid);
+
+      const timeout = setTimeout(() => {
+        if (this.pendingResolvers.has(sid)) {
+          this.processes.cancelProcess(sid);
+          this.pendingResolvers.delete(sid);
+          this.activeProcesses.delete(sid);
+          reject(new Error(`${role} timed out after ${HybridPipelineRunner.AGENT_TIMEOUT_MS / 1000}s`));
+        }
+      }, HybridPipelineRunner.AGENT_TIMEOUT_MS);
+
+      this.pendingResolvers.set(sid, (result) => {
+        clearTimeout(timeout);
+        this.childOutputs.push({ role, agentName, output: result });
+        resolve(result);
+      });
+
+      this.processes.sendMessage(sid, task, this.handle, {
+        workingDir: this.workspace,
+        mode: 'agent',
+        model: this.model,
+        resumeSessionId: this.handle.getRealSessionId(sid) || undefined,
+      });
+    });
+  }
+
+  /** Discard a persistent builder session (e.g. after re-planning). */
+  private resetBuilderSession(scope: string): void {
+    this.builderSessions.delete(scope);
+  }
+
   // ── Structured extraction calls ─────────────────────────────────────
 
-  private emitInternalCall(callType: 'extractVerdict' | 'extractTodos' | 'extractTestResult' | 'verifyTodo' | 'generateFixTodos', status: 'started' | 'completed'): void {
+  private emitInternalCall(callType: 'extractVerdict' | 'extractTodos' | 'extractTestResult' | 'verifyTodo' | 'verifyBatch' | 'generateFixTodos', status: 'started' | 'completed'): void {
     engineBus.emit('pipeline:internalCall', { epicId: this.epicId, callType, status });
   }
 
@@ -969,52 +1192,25 @@ ${approvedPlan}`,
     return result;
   }
 
-  private async verifyTodo(
-    todo: PipelineTodo,
-    testerRole: string,
-  ): Promise<VerifyResult> {
-    this.emitInternalCall('verifyTodo', 'started');
-
-    const testerOutput = await this.delegateAgent(testerRole,
-      `Verify this todo works. Run ONLY the verification described below — do not run the full test suite or do a comprehensive review. This is a quick smoke test.
-
-## Todo: ${todo.title} [${todo.scope}]
-${todo.requirements}
-
-## Verification to perform
-${todo.testCriteria}
-
-## Files changed
-${todo.files.join('\n')}
-
-Report whether verification passed or failed, with specific errors if any.`,
-    );
-
-    const result = await this.structuredCall<VerifyResult>(
-      VERIFY_SCHEMA,
-      `Extract whether this verification passed or failed:\n\n${testerOutput}`,
-    );
-
-    this.emitInternalCall('verifyTodo', 'completed');
-    return result;
-  }
-
   private async generateFixTodos(issues: string, source: 'counterpart' | 'test'): Promise<PipelineTodo[]> {
     this.emitInternalCall('generateFixTodos', 'started');
     const result = await this.structuredCall<TodoList>(
       TODO_SCHEMA,
-      `Convert these ${source} issues into actionable fix-todos. Each todo should fix a specific issue with the right scope (scaffold/backend/frontend).
+      `Convert these ${source} issues into fix-todos, grouped by scope.
 
-For each fix-todo, include:
-- id: "fix-" prefix + short identifier (e.g. "fix-auth-validation", "fix-api-response")
-- title: what the fix does
-- scope: which layer the fix belongs to
-- requirements: specific instructions to fix the issue
-- files: which files need to be modified
-- testCriteria: how to verify the fix worked
-- dependsOn: [] (fix-todos typically have no dependencies)
+# Rules — READ CAREFULLY
 
-Group related issues into the same todo when they affect the same files. Keep separate when they affect different scopes.
+1. Produce AT MOST ONE todo per scope. Allowed scopes: scaffold, backend, frontend.
+2. ALL issues that belong to the same scope MUST be merged into a single todo — never split a scope into multiple todos.
+3. You will produce 1, 2, or 3 todos maximum (one per affected scope). No more.
+4. For each scope-level todo:
+   - id: "fix-<scope>" (e.g. "fix-backend", "fix-frontend", "fix-scaffold")
+   - title: one-line summary of ALL fixes in that scope
+   - scope: the scope name
+   - requirements: a COMPLETE, detailed list of every change needed in this scope — one sub-section per issue, with full file paths, what to change, and why. The builder will ONLY see this field; be exhaustive.
+   - files: union of all files touched by issues in this scope
+   - testCriteria: how to verify ALL fixes in this scope passed (compile + smoke check)
+   - dependsOn: []
 
 # Issues to fix
 
@@ -1446,6 +1642,18 @@ If no explicit acceptance criteria section exists, derive testable requirements 
   private setPhase(phase: string): void {
     this._currentPhase = phase;
     this.events.emit('phaseChanged', { phase });
+  }
+
+  private emitTodoProgress(scope = '', title = ''): void {
+    const done = this.todoQueue.filter(e => e.status === 'done').length;
+    const total = this.todoQueue.length;
+    engineBus.emit('pipeline:todoProgress', {
+      epicId: this.epicId,
+      current: done,
+      total,
+      scope,
+      title,
+    });
   }
 
   private log(message: string): void {

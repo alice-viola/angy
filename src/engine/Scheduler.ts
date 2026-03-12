@@ -281,6 +281,15 @@ export class Scheduler {
   // ── Dependency Checking ───────────────────────────────────────────────
 
   isBlocked(epic: Epic, allEpics: Epic[]): boolean {
+    // runAfter: unblocks only when the predecessor reaches 'review' or 'done'
+    if (epic.runAfter) {
+      const predecessor = allEpics.find(e => e.id === epic.runAfter);
+      if (predecessor && predecessor.column !== 'review' && predecessor.column !== 'done') {
+        return true;
+      }
+      // predecessor deleted or already at review/done → not blocked by runAfter
+    }
+
     if (epic.dependsOn.length === 0) return false;
 
     const visited = new Set<string>();

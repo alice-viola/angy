@@ -126,6 +126,7 @@ export const useEpicStore = defineStore('epics', () => {
       pipelineType: 'hybrid',
       useGitBranch: false,
       dependsOn: [],
+      runAfter: null,
       rejectionCount: 0,
       rejectionFeedback: '',
       lastAttemptFiles: [],
@@ -204,6 +205,20 @@ export const useEpicStore = defineStore('epics', () => {
           if (!visited.has(dep)) stack.push(dep);
         }
       }
+    }
+    return false;
+  }
+
+  function wouldCreateRunAfterCycle(epicId: string, runAfterId: string): boolean {
+    // Follow the runAfter chain from runAfterId; if we hit epicId it's a cycle
+    let current: string | null = runAfterId;
+    const visited = new Set<string>();
+    while (current) {
+      if (current === epicId) return true;
+      if (visited.has(current)) break;
+      visited.add(current);
+      const ep = epics.value.find(e => e.id === current);
+      current = ep?.runAfter ?? null;
     }
     return false;
   }
@@ -290,6 +305,7 @@ export const useEpicStore = defineStore('epics', () => {
     deleteEpic,
     addDependency,
     removeDependency,
+    wouldCreateRunAfterCycle,
     incrementRejection,
     initialize,
   };

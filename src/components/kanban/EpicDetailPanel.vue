@@ -224,6 +224,44 @@
             </select>
           </div>
 
+          <!-- Run after -->
+          <div>
+            <label class="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Run after</label>
+            <div class="mt-1">
+              <div
+                v-if="draft.runAfter"
+                class="flex items-center justify-between px-2 py-1 rounded text-sm bg-[var(--bg-raised)]"
+              >
+                <span class="flex items-center gap-1.5 text-[var(--text-secondary)] truncate">
+                  <svg class="w-3 h-3 shrink-0 text-[var(--accent-mauve)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 12h15" />
+                  </svg>
+                  {{ runAfterTitle(draft.runAfter) }}
+                </span>
+                <button
+                  class="text-[var(--text-muted)] hover:text-red-400 transition-colors ml-2 shrink-0"
+                  title="Remove"
+                  @click="clearRunAfter"
+                >
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <select
+                v-else-if="availableRunAfter.length > 0"
+                class="w-full text-xs px-2 py-1 rounded border border-dashed border-[var(--border-subtle)]
+                       bg-[var(--bg-base)] text-[var(--text-muted)]
+                       focus:outline-none focus:border-[var(--accent-mauve)] transition-colors"
+                @change="setRunAfter(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+              >
+                <option value="">Run after...</option>
+                <option v-for="e in availableRunAfter" :key="e.id" :value="e.id">{{ e.title }}</option>
+              </select>
+              <p v-else-if="availableRunAfter.length === 0 && !draft.runAfter" class="text-[11px] text-[var(--text-muted)] italic">No other epics in project</p>
+            </div>
+          </div>
+
           <!-- Dependencies -->
           <div>
             <label class="text-[11px] font-medium text-[var(--text-muted)] uppercase tracking-wider">Dependencies</label>
@@ -449,6 +487,7 @@ const draft = ref({
   pipelineType: 'hybrid' as EpicPipelineType,
   useGitBranch: false,
   dependsOn: [] as string[],
+  runAfter: null as string | null,
 });
 
 watch(() => props.epicId, loadDraft, { immediate: true });
@@ -477,6 +516,7 @@ function loadDraft() {
     pipelineType: e.pipelineType || 'hybrid',
     useGitBranch: e.useGitBranch ?? true,
     dependsOn: [...e.dependsOn],
+    runAfter: e.runAfter ?? null,
   };
 }
 
@@ -500,6 +540,27 @@ function removeDep(id: string) {
   draft.value.dependsOn = draft.value.dependsOn.filter((d) => d !== id);
 }
 
+const availableRunAfter = computed(() => {
+  if (!epic.value) return [];
+  return epicStore.epicsByProject(epic.value.projectId)
+    .filter(e =>
+      e.id !== props.epicId &&
+      !epicStore.wouldCreateRunAfterCycle(props.epicId, e.id),
+    );
+});
+
+function runAfterTitle(id: string) {
+  return epicStore.epicById(id)?.title ?? id.slice(0, 12);
+}
+
+function setRunAfter(id: string) {
+  draft.value.runAfter = id || null;
+}
+
+function clearRunAfter() {
+  draft.value.runAfter = null;
+}
+
 async function save() {
   const d = draft.value;
   if (d.column !== epic.value?.column) {
@@ -521,6 +582,7 @@ async function save() {
     pipelineType: d.pipelineType,
     useGitBranch: d.useGitBranch,
     dependsOn: d.dependsOn,
+    runAfter: d.runAfter,
   });
   if (props.isNew) {
     emit('created');
