@@ -14,11 +14,11 @@
     <!-- Keyboard hints -->
     <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-[11px] text-[var(--text-muted)] mb-5">
       <div class="flex items-center gap-2">
-        <kbd class="px-1.5 py-0.5 rounded bg-[var(--bg-raised)] text-[var(--text-faint)] text-[10px] font-mono border border-[var(--border-subtle)]">⌘N</kbd>
+        <kbd class="px-1.5 py-0.5 rounded bg-[var(--bg-raised)] text-[var(--text-faint)] text-[10px] font-mono border border-[var(--border-subtle)]">{{ modKey }}N</kbd>
         <span>New agent</span>
       </div>
       <div class="flex items-center gap-2">
-        <kbd class="px-1.5 py-0.5 rounded bg-[var(--bg-raised)] text-[var(--text-faint)] text-[10px] font-mono border border-[var(--border-subtle)]">⌘E</kbd>
+        <kbd class="px-1.5 py-0.5 rounded bg-[var(--bg-raised)] text-[var(--text-faint)] text-[10px] font-mono border border-[var(--border-subtle)]">{{ modKey }}E</kbd>
         <span>Toggle editor</span>
       </div>
       <div class="flex items-center gap-2">
@@ -39,5 +39,10 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import SectionTip from '@/components/common/SectionTip.vue';
+import { getModKey } from '@/engine/platform';
+
+const modKey = ref('⌘');
+getModKey().then(k => { modKey.value = k; });
 </script>

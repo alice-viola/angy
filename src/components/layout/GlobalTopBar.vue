@@ -62,7 +62,7 @@
         :class="ui.viewMode === 'manager'
           ? 'bg-[color-mix(in_srgb,var(--accent-mauve)_15%,transparent)] text-[var(--accent-mauve)] hover:bg-[color-mix(in_srgb,var(--accent-mauve)_25%,transparent)]'
           : 'bg-[color-mix(in_srgb,var(--accent-teal)_15%,transparent)] text-[var(--accent-teal)] hover:bg-[color-mix(in_srgb,var(--accent-teal)_25%,transparent)]'"
-        :title="ui.viewMode === 'manager' ? 'Switch to Editor (⌘E)' : 'Switch to Manager (⌘E)'"
+        :title="ui.viewMode === 'manager' ? `Switch to Editor (${modKey}E)` : `Switch to Manager (${modKey}E)`"
       >
         <svg v-if="ui.viewMode === 'manager'" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.3">
           <rect x="1" y="1" width="10" height="10" rx="1.5" />
@@ -81,7 +81,7 @@
       <button
         @click="openSettings"
         class="w-7 h-7 flex items-center justify-center rounded-md text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-raised)] transition-colors"
-        title="Settings (⌘,)"
+        :title="`Settings (${modKey},)`"
       >
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -94,12 +94,16 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { getModKey } from '@/engine/platform';
 import { useUiStore } from '../../stores/ui';
 import { useProjectsStore } from '../../stores/projects';
 import { useEpicStore } from '../../stores/epics';
 import { Scheduler } from '../../engine/Scheduler';
 
 const ui = useUiStore();
+
+const modKey = ref('⌘');
+getModKey().then(k => { modKey.value = k; });
 const projectsStore = useProjectsStore();
 const epicStore = useEpicStore();
 

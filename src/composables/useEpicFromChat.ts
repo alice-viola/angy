@@ -1,6 +1,7 @@
 import { Command } from '@tauri-apps/plugin-shell';
-import { homeDir } from '@tauri-apps/api/path';
+import { homeDir, tempDir, join } from '@tauri-apps/api/path';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { getPlatformInfo } from '@/engine/platform';
 import { useEpicStore } from '../stores/epics';
 import { getDatabase } from '../stores/sessions';
 import type { PriorityHint, ComplexityEstimate } from '../engine/KosTypes';
@@ -64,19 +65,26 @@ Return ONLY a valid JSON object with these exact fields (no markdown, no code fe
   "complexity": "<one of: trivial, small, medium, large, epic>"
 }`;
 
-  const promptFile = `/tmp/angy-epic-${Date.now()}.txt`;
+  const tmp = await tempDir();
+  const promptFile = await join(tmp, `angy-epic-${Date.now()}.txt`);
   await writeTextFile(promptFile, prompt);
 
   const home = (await homeDir()).replace(/\/+$/, '');
+  const { os } = await getPlatformInfo();
+  const pathParts = [
+    `${home}/.local/bin`,
+    `${home}/.nix-profile/bin`,
+  ];
+  if (os === 'macos') pathParts.push('/opt/homebrew/bin');
+  pathParts.push(
+    '/snap/bin',
+    '/usr/local/bin',
+    '/usr/bin',
+    '/bin',
+  );
   const env = {
     HOME: home,
-    PATH: [
-      `${home}/.local/bin`,
-      '/opt/homebrew/bin',
-      '/usr/local/bin',
-      '/usr/bin',
-      '/bin',
-    ].join(':'),
+    PATH: pathParts.join(':'),
   };
 
   const command = Command.create('exec-sh', [

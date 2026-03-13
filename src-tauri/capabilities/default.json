@@ -46,8 +46,12 @@
         { "path": "**" },
         { "path": "$HOME/.claude/**" },
         { "path": "$HOME/.local/bin/**" },
-        { "path": "/opt/homebrew/bin/**" },
-        { "path": "/usr/local/bin/**" }
+        { "path": "$HOME/.nix-profile/bin/**" },
+        { "path": "$HOME/.config/**" },
+        { "path": "/usr/local/bin/**" },
+        { "path": "/usr/bin/**" },
+        { "path": "/usr/sbin/**" },
+        { "path": "/snap/bin/**" }
       ]
     },
     "dialog:default",

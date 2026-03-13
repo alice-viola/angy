@@ -1,5 +1,6 @@
 import { readTextFile, writeTextFile, readDir, mkdir, remove } from '@tauri-apps/plugin-fs';
-import { homeDir, join } from '@tauri-apps/api/path';
+import { join } from '@tauri-apps/api/path';
+import { getAngyConfigDir } from '@/engine/platform';
 import mitt from 'mitt';
 import { SPECIALIST_PROMPTS } from './Orchestrator';
 import { detectTechnologies, type TechProfile } from './TechDetector';
@@ -26,8 +27,7 @@ export class ProfileManager {
   off = this.events.off.bind(this.events);
 
   async init() {
-    const home = await homeDir();
-    this.profilesDir = await join(home, '.angy', 'profiles');
+    this.profilesDir = await join(await getAngyConfigDir(), 'profiles');
     try {
       await mkdir(this.profilesDir, { recursive: true });
     } catch {}

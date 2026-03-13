@@ -1,5 +1,6 @@
 import { Command, type Child } from '@tauri-apps/plugin-shell';
 import { homeDir } from '@tauri-apps/api/path';
+import { getPlatformInfo } from '@/engine/platform';
 import { exists, writeTextFile, mkdir } from '@tauri-apps/plugin-fs';
 import { join, appDataDir } from '@tauri-apps/api/path';
 import mitt from 'mitt';
@@ -172,10 +173,13 @@ export class ClaudeProcess {
 
   private async resolveClaudeBinary(): Promise<string> {
     const home = (await homeDir()).replace(/\/+$/, '');
+    const { os } = await getPlatformInfo();
     const candidates = [
       `${home}/.local/bin/claude`,
-      '/opt/homebrew/bin/claude',
+      `${home}/.nix-profile/bin/claude`,
+      '/snap/bin/claude',
       '/usr/local/bin/claude',
+      ...(os === 'macos' ? ['/opt/homebrew/bin/claude'] : []),
     ];
     for (const candidate of candidates) {
       try {
@@ -189,6 +193,7 @@ export class ClaudeProcess {
 
   private async buildEnhancedPath(): Promise<string> {
     const home = (await homeDir()).replace(/\/+$/, '');
+    const { os } = await getPlatformInfo();
     const extraPaths: string[] = [];
 
     // Check for NVM node versions (like the C++ version)
@@ -204,10 +209,13 @@ export class ClaudeProcess {
       }
     } catch { /* nvm not installed */ }
 
+    extraPaths.push(`${home}/.local/bin`);
+    extraPaths.push(`${home}/.nix-profile/bin`);
+    if (os === 'macos') {
+      extraPaths.push('/opt/homebrew/bin', '/opt/homebrew/sbin');
+    }
     extraPaths.push(
-      `${home}/.local/bin`,
-      '/opt/homebrew/bin',
-      '/opt/homebrew/sbin',
+      '/snap/bin',
       '/usr/local/bin',
       '/usr/bin',
       '/bin',

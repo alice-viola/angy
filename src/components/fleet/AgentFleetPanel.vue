@@ -39,14 +39,18 @@
 
       <!-- Empty state -->
       <div v-if="visibleAgents.length === 0" class="flex items-center justify-center h-full">
-        <span class="text-xs text-[var(--text-faint)]">No agents yet. Press ⌘N or click + to start your first AI agent conversation.</span>
+        <span class="text-xs text-[var(--text-faint)]">No agents yet. Press {{ modKey }}N or click + to start your first AI agent conversation.</span>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
+import { getModKey } from '@/engine/platform';
+
+const modKey = ref('⌘');
+getModKey().then(k => { modKey.value = k; });
 import AgentCard from './AgentCard.vue';
 import FleetHeader from './FleetHeader.vue';
 import SectionTip from '../common/SectionTip.vue';

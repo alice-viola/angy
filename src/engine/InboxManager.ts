@@ -1,3 +1,5 @@
+import { getAngyConfigDir } from '@/engine/platform';
+
 // ── Peer Messaging System ────────────────────────────────────────────────────
 // Port of the inbox JSONL system from orchestrator_server.py.
 // Uses Tauri fs plugin with atomic rename for file safety.
@@ -25,10 +27,9 @@ export class InboxManager {
     content: string,
   ): Promise<void> {
     const { readTextFile, writeTextFile, rename, mkdir } = await import('@tauri-apps/plugin-fs');
-    const { homeDir, join } = await import('@tauri-apps/api/path');
+    const { join } = await import('@tauri-apps/api/path');
 
-    const home = await homeDir();
-    const inboxDir = await join(home, '.angy', 'inboxes', teamId);
+    const inboxDir = await join(await getAngyConfigDir(), 'inboxes', teamId);
     const inboxFile = await join(inboxDir, `${toAgent}.jsonl`);
     const tmpFile = await join(inboxDir, `${toAgent}.tmp.${Date.now()}`);
 
@@ -61,11 +62,11 @@ export class InboxManager {
     agentName: string,
   ): Promise<InboxMessage[]> {
     const { readTextFile, rename } = await import('@tauri-apps/plugin-fs');
-    const { homeDir, join } = await import('@tauri-apps/api/path');
+    const { join } = await import('@tauri-apps/api/path');
 
-    const home = await homeDir();
-    const inboxFile = await join(home, '.angy', 'inboxes', teamId, `${agentName}.jsonl`);
-    const readFile = await join(home, '.angy', 'inboxes', teamId, `${agentName}.read`);
+    const configDir = await getAngyConfigDir();
+    const inboxFile = await join(configDir, 'inboxes', teamId, `${agentName}.jsonl`);
+    const readFile = await join(configDir, 'inboxes', teamId, `${agentName}.read`);
 
     let content = '';
     try { content = await readTextFile(inboxFile); } catch { return []; }
@@ -94,9 +95,8 @@ export class InboxManager {
     if (!teamId) return;
     try {
       const { remove } = await import('@tauri-apps/plugin-fs');
-      const { homeDir, join } = await import('@tauri-apps/api/path');
-      const home = await homeDir();
-      await remove(await join(home, '.angy', 'inboxes', teamId), { recursive: true });
+      const { join } = await import('@tauri-apps/api/path');
+      await remove(await join(await getAngyConfigDir(), 'inboxes', teamId), { recursive: true });
     } catch { /* ok */ }
   }
 }

@@ -1,5 +1,6 @@
 import mitt from 'mitt';
 import { Command } from '@tauri-apps/plugin-shell';
+import { getAngyConfigDir } from '@/engine/platform';
 import type { OrchestratorOptions, EpicPipelineType } from './KosTypes';
 import type { TechProfile } from './TechDetector';
 
@@ -689,7 +690,7 @@ export class Orchestrator {
       const { homeDir, join, resolveResource } = await import('@tauri-apps/api/path');
 
       const home = await homeDir();
-      const mcpDir = await join(home, '.angy', 'mcp');
+      const mcpDir = await join(await getAngyConfigDir(), 'mcp');
       const targetPath = await join(mcpDir, 'orchestrator_server.py');
       const claudeConfigPath = await join(home, '.claude.json');
 
@@ -807,9 +808,8 @@ export class Orchestrator {
 
     try {
       const { mkdir } = await import('@tauri-apps/plugin-fs');
-      const { homeDir, join } = await import('@tauri-apps/api/path');
-      const home = await homeDir();
-      await mkdir(await join(home, '.angy', 'inboxes', this.teamId), { recursive: true });
+      const { join } = await import('@tauri-apps/api/path');
+      await mkdir(await join(await getAngyConfigDir(), 'inboxes', this.teamId), { recursive: true });
     } catch (e) {
       console.warn('[Orchestrator] Failed to create inbox directory:', e);
     }
@@ -870,9 +870,8 @@ export class Orchestrator {
 
     try {
       const { mkdir } = await import('@tauri-apps/plugin-fs');
-      const { homeDir, join } = await import('@tauri-apps/api/path');
-      const home = await homeDir();
-      await mkdir(await join(home, '.angy', 'inboxes', this.teamId), { recursive: true });
+      const { join } = await import('@tauri-apps/api/path');
+      await mkdir(await join(await getAngyConfigDir(), 'inboxes', this.teamId), { recursive: true });
     } catch (e) {
       console.warn('[Orchestrator] Failed to create inbox directory:', e);
     }
@@ -989,9 +988,8 @@ export class Orchestrator {
 
     try {
       const { mkdir } = await import('@tauri-apps/plugin-fs');
-      const { homeDir, join } = await import('@tauri-apps/api/path');
-      const home = await homeDir();
-      await mkdir(await join(home, '.angy', 'inboxes', this.teamId), { recursive: true });
+      const { join } = await import('@tauri-apps/api/path');
+      await mkdir(await join(await getAngyConfigDir(), 'inboxes', this.teamId), { recursive: true });
     } catch (e) {
       console.warn('[Orchestrator] Failed to create inbox directory:', e);
     }
@@ -1737,9 +1735,8 @@ export class Orchestrator {
     if (!this.teamId) return;
     try {
       const { remove } = await import('@tauri-apps/plugin-fs');
-      const { homeDir, join } = await import('@tauri-apps/api/path');
-      const home = await homeDir();
-      await remove(await join(home, '.angy', 'inboxes', this.teamId), { recursive: true });
+      const { join } = await import('@tauri-apps/api/path');
+      await remove(await join(await getAngyConfigDir(), 'inboxes', this.teamId), { recursive: true });
     } catch { /* ok */ }
     this.teamId = '';
     this.pendingChildren.clear();
