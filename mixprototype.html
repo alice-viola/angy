@@ -1,0 +1,1388 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Angy — Mixed Prototype</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="mix-styles.css">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        base: '#0f1117',
+        surface: '#1c1f2a',
+        window: '#161922',
+        raised: '#252836',
+        'raised-hover': '#2d3145',
+        ember: { 400: '#fb923c', 500: '#f59e0b', 600: '#ea580c', DEFAULT: '#f59e0b' },
+        cyan: { 400: '#22d3ee', 500: '#06b6d4', DEFAULT: '#06b6d4' },
+        teal: { 400: '#2dd4bf', 500: '#14b8a6', DEFAULT: '#10b981' },
+        rose: { 400: '#FF6B8A', 500: '#EF4466' },
+        txt: { primary: '#e2e8f0', secondary: '#94a3b8', muted: '#64748b', faint: '#475569' },
+        border: { subtle: 'rgba(255,255,255,0.04)', standard: 'rgba(255,255,255,0.08)' },
+      },
+      fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+    }
+  }
+}
+</script>
+</head>
+<body class="h-full overflow-hidden flex">
+
+<!-- ═══════════════ LEFT RAIL (from 3849) ═══════════════ -->
+<nav class="w-14 flex-shrink-0 bg-base border-r border-border-standard flex flex-col items-center py-3 gap-1 z-50">
+  <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-ember-500 to-ember-600 flex items-center justify-center mb-4 cursor-pointer" title="Angy">
+    <svg class="w-4 h-4 text-base" fill="currentColor" viewBox="0 0 20 20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z"/></svg>
+  </div>
+  <button onclick="switchView('projects')" class="rail-btn active w-10 h-10 rounded-lg flex items-center justify-center" data-view="projects" title="Projects">
+    <svg class="w-5 h-5 text-txt-muted" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zm9.75-9.75A2.25 2.25 0 0115.75 3.75H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z"/></svg>
+  </button>
+  <button onclick="switchView('kanban')" class="rail-btn w-10 h-10 rounded-lg flex items-center justify-center" data-view="kanban" title="Board">
+    <svg class="w-5 h-5 text-txt-muted" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z"/></svg>
+  </button>
+  <button onclick="switchView('agents')" class="rail-btn w-10 h-10 rounded-lg flex items-center justify-center" data-view="agents" title="Agents">
+    <svg class="w-5 h-5 text-txt-muted" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/></svg>
+  </button>
+  <button onclick="switchView('code')" class="rail-btn w-10 h-10 rounded-lg flex items-center justify-center" data-view="code" title="Code">
+    <svg class="w-5 h-5 text-txt-muted" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
+  </button>
+  <div class="flex-1"></div>
+  <button class="rail-btn w-10 h-10 rounded-lg flex items-center justify-center" title="Command Palette (⌘K)">
+    <svg class="w-5 h-5 text-txt-muted" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+  </button>
+  <button class="rail-btn w-10 h-10 rounded-lg flex items-center justify-center" title="Settings">
+    <svg class="w-5 h-5 text-txt-muted" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.24-.438.613-.431.992a6.759 6.759 0 010 .255c-.007.378.138.75.43.99l1.005.828c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.941-1.11.941h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.99l-1.004-.828a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.644-.869l.214-1.281z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+  </button>
+</nav>
+
+<!-- ═══════════════ MAIN AREA ═══════════════ -->
+<div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+<!-- ═══════════════ VIEW: PROJECTS (mix: 3848 cards + 3849 actions) ═══════════════ -->
+<div id="view-projects" class="view active flex-col flex-1 overflow-hidden">
+  <header class="h-12 flex-shrink-0 bg-window/50 border-b border-border-subtle flex items-center px-5 gap-4">
+    <span class="text-sm font-semibold text-txt-primary">Projects</span>
+    <span class="text-xs text-txt-muted">5 projects</span>
+    <div class="flex-1"></div>
+    <!-- Search bar (from 3848) -->
+    <div class="flex items-center gap-2 h-7 px-3 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:border-ember-500/30 transition-all cursor-pointer max-w-xs w-64">
+      <svg class="w-3.5 h-3.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+      <span class="text-[11px] text-txt-faint">Search epics, agents, files…</span>
+      <div class="ml-auto flex items-center gap-1"><span class="cmd-key">⌘</span><span class="cmd-key">K</span></div>
+    </div>
+  </header>
+
+  <div class="flex-1 overflow-y-auto p-8">
+    <!-- Greeting -->
+    <div class="mb-8 anim-fade-in">
+      <h1 class="text-2xl font-bold text-txt-primary mb-1">Good afternoon</h1>
+      <p class="text-sm text-txt-secondary">5 projects · 12 active agents · 3 epics in progress</p>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4 max-w-5xl">
+
+      <!-- Active project: PMS-Test-1 -->
+      <div class="card-lift bg-surface rounded-2xl border border-teal/20 anim-shimmer p-5 cursor-pointer group anim-fade-in relative overflow-hidden" style="animation-delay:0.05s">
+        <div class="accent-stripe bg-ember-500"></div>
+        <div class="pl-3">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-ember-500/10 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18M3 9h18"/></svg>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-2 h-2 rounded-full bg-teal anim-breathe"></div>
+              <span class="text-[10px] text-teal font-medium uppercase tracking-wider">active</span>
+            </div>
+          </div>
+          <h3 class="text-base font-semibold text-txt-primary mb-1 group-hover:text-ember-400 transition-colors">PMS-Test-1</h3>
+          <p class="text-xs text-txt-muted mb-4 line-clamp-2">First test, basic two pages</p>
+          <div class="flex items-center gap-4 text-xs text-txt-muted">
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+              1 repo
+            </span>
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+              10 epics
+            </span>
+            <span class="flex items-center gap-1.5 text-teal">
+              <div class="w-1.5 h-1.5 rounded-full bg-teal"></div>
+              1 active
+            </span>
+          </div>
+          <div class="mt-4 pt-3 border-t border-white/[0.04] flex items-center gap-2">
+            <div class="flex -space-x-1.5">
+              <div class="w-5 h-5 rounded-md bg-ember-500/30 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-ember-400">B</span></div>
+              <div class="w-5 h-5 rounded-md bg-teal/30 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-teal">T</span></div>
+              <div class="w-5 h-5 rounded-md bg-amber-400/30 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-amber-400">B</span></div>
+            </div>
+            <div class="flex items-end gap-[2px] h-3.5">
+              <div class="wave-bar" style="height:5px;width:2px"></div>
+              <div class="wave-bar" style="height:10px;width:2px"></div>
+              <div class="wave-bar" style="height:7px;width:2px"></div>
+            </div>
+            <span class="text-[10px] text-txt-muted truncate">Builder working on auth middleware…</span>
+          </div>
+          <div class="mt-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Board</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Agents</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Code</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-ember/10 hover:bg-ember/20 text-ember transition-colors ml-auto">Run</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active project: Angy -->
+      <div class="card-lift bg-surface rounded-2xl border border-teal/20 anim-shimmer p-5 cursor-pointer group anim-fade-in relative overflow-hidden" style="animation-delay:0.1s">
+        <div class="accent-stripe bg-cyan-400"></div>
+        <div class="pl-3">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-cyan-400/10 flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <div class="w-2 h-2 rounded-full bg-teal anim-breathe"></div>
+              <span class="text-[10px] text-teal font-medium uppercase tracking-wider">active</span>
+            </div>
+          </div>
+          <h3 class="text-base font-semibold text-txt-primary mb-1 group-hover:text-cyan-400 transition-colors">Angy</h3>
+          <p class="text-xs text-txt-muted mb-4 line-clamp-2">This project itself</p>
+          <div class="flex items-center gap-4 text-xs text-txt-muted">
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+              1 repo
+            </span>
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+              4 epics
+            </span>
+            <span class="flex items-center gap-1.5 text-teal">
+              <div class="w-1.5 h-1.5 rounded-full bg-teal"></div>
+              1 active
+            </span>
+          </div>
+          <div class="mt-4 pt-3 border-t border-white/[0.04] flex items-center gap-2">
+            <div class="flex -space-x-1.5">
+              <div class="w-5 h-5 rounded-md bg-rose-400/30 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-rose-400">A</span></div>
+              <div class="w-5 h-5 rounded-md bg-ember-500/30 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-ember-400">T</span></div>
+            </div>
+            <div class="flex items-end gap-[2px] h-3.5">
+              <div class="wave-bar" style="height:8px;width:2px"></div>
+              <div class="wave-bar" style="height:5px;width:2px"></div>
+              <div class="wave-bar" style="height:11px;width:2px"></div>
+            </div>
+            <span class="text-[10px] text-txt-muted truncate">Tester-5 running integration tests…</span>
+          </div>
+          <div class="mt-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Board</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Agents</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Code</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-ember/10 hover:bg-ember/20 text-ember transition-colors ml-auto">Run</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Idle project: Smartpricing -->
+      <div class="card-lift bg-surface rounded-2xl border border-border-subtle p-5 cursor-pointer group anim-fade-in relative overflow-hidden hover:border-ember-500/20 transition-all" style="animation-delay:0.15s">
+        <div class="accent-stripe bg-txt-faint"></div>
+        <div class="pl-3">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-white/[0.04] flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7A99" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <span class="text-[10px] text-txt-faint font-medium uppercase tracking-wider">idle</span>
+          </div>
+          <h3 class="text-base font-semibold text-txt-primary mb-1 group-hover:text-ember-400 transition-colors">Smartpricing</h3>
+          <p class="text-xs text-txt-muted mb-4 line-clamp-2">Smartpricing frontend and backend</p>
+          <div class="flex items-center gap-4 text-xs text-txt-muted">
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+              1 repo
+            </span>
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+              1 epic
+            </span>
+          </div>
+          <div class="mt-4 pt-3 border-t border-white/[0.04] flex items-center gap-2">
+            <span class="text-[10px] text-txt-faint">No active agents</span>
+          </div>
+          <div class="mt-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Board</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Agents</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Code</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Idle: BigTestProject3 -->
+      <div class="card-lift bg-surface rounded-2xl border border-border-subtle p-5 cursor-pointer group anim-fade-in relative overflow-hidden hover:border-ember-500/20 transition-all" style="animation-delay:0.2s">
+        <div class="accent-stripe bg-txt-faint"></div>
+        <div class="pl-3">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-white/[0.04] flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7A99" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            </div>
+            <span class="text-[10px] text-txt-faint font-medium uppercase tracking-wider">idle</span>
+          </div>
+          <h3 class="text-base font-semibold text-txt-primary mb-1 group-hover:text-ember-400 transition-colors">BigTestProject3</h3>
+          <p class="text-xs text-txt-muted mb-4 line-clamp-2">BigTestProject3-TodoPipeline</p>
+          <div class="flex items-center gap-4 text-xs text-txt-muted">
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+              1 repo
+            </span>
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+              1 epic
+            </span>
+          </div>
+          <div class="mt-4 pt-3 border-t border-white/[0.04] flex items-center gap-2">
+            <span class="text-[10px] text-txt-faint">No active agents</span>
+          </div>
+          <div class="mt-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Board</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Agents</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Code</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Idle: Smartchat -->
+      <div class="card-lift bg-surface rounded-2xl border border-border-subtle p-5 cursor-pointer group anim-fade-in relative overflow-hidden hover:border-ember-500/20 transition-all" style="animation-delay:0.25s">
+        <div class="accent-stripe bg-txt-faint"></div>
+        <div class="pl-3">
+          <div class="flex items-center justify-between mb-3">
+            <div class="w-10 h-10 rounded-xl bg-white/[0.04] flex items-center justify-center">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7A99" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            </div>
+            <span class="text-[10px] text-txt-faint font-medium uppercase tracking-wider">idle</span>
+          </div>
+          <h3 class="text-base font-semibold text-txt-primary mb-1 group-hover:text-ember-400 transition-colors">Smartchat</h3>
+          <p class="text-xs text-txt-muted mb-4 line-clamp-2">Smartchat product</p>
+          <div class="flex items-center gap-4 text-xs text-txt-muted">
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/></svg>
+              5 repos
+            </span>
+            <span class="flex items-center gap-1.5">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+              2 epics
+            </span>
+          </div>
+          <div class="mt-4 pt-3 border-t border-white/[0.04] flex items-center gap-2">
+            <span class="text-[10px] text-txt-faint">No active agents</span>
+          </div>
+          <div class="mt-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Board</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Agents</button>
+            <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors">Code</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- New project ghost card -->
+      <div class="card-lift border-2 border-dashed border-border-standard rounded-2xl p-5 cursor-pointer flex flex-col items-center justify-center gap-3 hover:border-ember-500/30 transition-all anim-fade-in min-h-[200px]" style="animation-delay:0.3s">
+        <div class="w-10 h-10 rounded-xl bg-white/[0.04] flex items-center justify-center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6B7A99" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </div>
+        <span class="text-sm text-txt-faint">New Project</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ VIEW: KANBAN (cross-project board) ═══════════════ -->
+<div id="view-kanban" class="view flex-col flex-1 overflow-hidden">
+  <header class="flex-shrink-0 bg-window/50 border-b border-border-subtle">
+    <!-- Top row: title + actions -->
+    <div class="h-12 flex items-center px-5 gap-3">
+      <span class="text-sm font-semibold text-txt-primary">Board</span>
+      <span class="text-xs text-txt-muted">14 epics across 2 active projects</span>
+      <div class="flex-1"></div>
+      <div class="flex items-center bg-raised rounded-lg px-3 py-1.5 gap-2 w-48">
+        <svg class="w-3.5 h-3.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+        <span class="text-xs text-txt-faint">Filter epics...</span>
+      </div>
+      <button class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-ember-500 to-ember-600 text-xs font-medium text-base hover:brightness-110 transition">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+        Add Epic
+      </button>
+      <button class="text-xs text-txt-muted hover:text-txt-secondary transition-colors px-2 py-1.5">Schedule Now</button>
+    </div>
+    <!-- Project filter chips row -->
+    <div class="h-9 flex items-center px-5 gap-2 border-t border-border-subtle relative">
+      <span class="text-[10px] text-txt-faint uppercase tracking-wider mr-1">Projects:</span>
+      <!-- Pinned active chips -->
+      <button class="proj-chip on flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full bg-ember-500/15 text-ember-400 border border-ember-500/25 font-medium transition-colors">
+        <span class="w-1.5 h-1.5 rounded-full bg-ember-500"></span>PMS-Test-1<span class="ml-0.5 hover:text-ember-400/80">&times;</span>
+      </button>
+      <button class="proj-chip on flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full bg-cyan-400/15 text-cyan-400 border border-cyan-400/25 font-medium transition-colors">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>Angy<span class="ml-0.5 hover:text-cyan-400/80">&times;</span>
+      </button>
+      <!-- Pinned inactive chip -->
+      <button class="proj-chip flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full text-txt-faint border border-border-standard hover:border-txt-faint hover:text-txt-muted transition-colors">
+        <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>Smartpricing
+      </button>
+      <!-- Overflow: +N more button -->
+      <button onclick="togglePicker('board-popover', event)" class="proj-chip popover-trigger flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full bg-raised hover:bg-raised-hover text-txt-secondary border border-border-standard transition-colors">
+        +47 more
+        <svg class="w-2.5 h-2.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 12 12"><path d="M3 5l3 3 3-3"/></svg>
+      </button>
+      <div class="flex-1"></div>
+      <!-- Preset dropdown -->
+      <div class="flex items-center gap-1 px-2 py-0.5 rounded-md bg-raised hover:bg-raised-hover cursor-pointer transition-colors">
+        <span class="text-[10px] text-txt-secondary">Show: Active projects</span>
+        <svg class="w-2.5 h-2.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 12 12"><path d="M3 5l3 3 3-3"/></svg>
+      </div>
+
+      <!-- ── Project picker popover ── -->
+      <div id="board-popover" class="proj-popover hidden fixed w-72 bg-surface border border-border-standard rounded-xl shadow-2xl shadow-black/40 z-[100] overflow-hidden anim-fade-in">
+        <!-- Search -->
+        <div class="px-3 pt-3 pb-2">
+          <div class="flex items-center gap-2 h-7 px-2.5 rounded-lg bg-white/[0.04] border border-white/[0.06] focus-within:border-ember-500/30 transition-colors">
+            <svg class="w-3 h-3 text-txt-faint flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+            <input type="text" placeholder="Search projects…" class="bg-transparent text-[11px] text-txt-primary outline-none w-full placeholder:text-txt-faint">
+          </div>
+        </div>
+        <!-- Presets -->
+        <div class="px-3 pb-2 flex gap-1.5">
+          <button class="text-[10px] px-2 py-0.5 rounded-full bg-ember-500/15 text-ember-400 font-medium">Active</button>
+          <button class="text-[10px] px-2 py-0.5 rounded-full text-txt-faint hover:text-txt-muted hover:bg-raised transition-colors">My projects</button>
+          <button class="text-[10px] px-2 py-0.5 rounded-full text-txt-faint hover:text-txt-muted hover:bg-raised transition-colors">All</button>
+          <button class="text-[10px] px-2 py-0.5 rounded-full text-txt-faint hover:text-txt-muted hover:bg-raised transition-colors">None</button>
+        </div>
+        <!-- Active group -->
+        <div class="border-t border-border-subtle">
+          <div class="px-3 py-1.5"><span class="text-[9px] uppercase tracking-widest text-txt-faint">Active &middot; 2</span></div>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" checked class="pop-check accent-ember-500">
+            <span class="w-1.5 h-1.5 rounded-full bg-ember-500"></span>
+            <span class="text-[11px] text-txt-primary flex-1">PMS-Test-1</span>
+            <span class="text-[9px] text-teal">2 agents</span>
+          </label>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" checked class="pop-check accent-cyan-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+            <span class="text-[11px] text-txt-primary flex-1">Angy</span>
+            <span class="text-[9px] text-teal">6 agents</span>
+          </label>
+        </div>
+        <!-- Idle group -->
+        <div class="border-t border-border-subtle">
+          <div class="px-3 py-1.5"><span class="text-[9px] uppercase tracking-widest text-txt-faint">Idle &middot; 48</span></div>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" class="pop-check">
+            <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+            <span class="text-[11px] text-txt-secondary flex-1">Smartpricing</span>
+          </label>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" class="pop-check">
+            <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+            <span class="text-[11px] text-txt-secondary flex-1">BigTestProject3</span>
+          </label>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" class="pop-check">
+            <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+            <span class="text-[11px] text-txt-secondary flex-1">Smartchat</span>
+          </label>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" class="pop-check">
+            <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+            <span class="text-[11px] text-txt-secondary flex-1">ClientPortal-v2</span>
+          </label>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" class="pop-check">
+            <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+            <span class="text-[11px] text-txt-secondary flex-1">InvoiceEngine</span>
+          </label>
+          <div class="px-3 py-1.5 text-[10px] text-txt-faint cursor-pointer hover:text-txt-muted transition-colors">… 43 more</div>
+        </div>
+        <!-- Footer -->
+        <div class="border-t border-border-subtle px-3 py-2 flex items-center justify-between">
+          <span class="text-[10px] text-txt-faint">2 of 50 selected</span>
+          <button class="text-[10px] px-2.5 py-1 rounded-md bg-ember-500/15 text-ember-400 hover:bg-ember-500/25 transition-colors font-medium">Apply</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex-1 overflow-x-auto overflow-y-hidden">
+    <div class="flex gap-3 h-full min-w-max p-4">
+
+      <!-- ── IDEA ── -->
+      <div class="flex flex-col min-w-[220px] w-[220px] flex-shrink-0">
+        <div class="flex items-center gap-2 mb-3 px-1">
+          <div class="w-2 h-2 rounded-full bg-purple-400/80"></div>
+          <span class="text-xs font-semibold text-txt-faint uppercase tracking-wider">Idea</span>
+          <span class="text-[10px] text-txt-faint ml-auto">1</span>
+        </div>
+        <div class="flex-1 flex flex-col gap-2 overflow-y-auto pr-1">
+          <div class="bg-surface rounded-xl p-3 cursor-pointer hover:border-purple-500/20 border border-border-subtle transition-all relative group">
+            <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-purple-400/50"></div>
+            <div class="pl-2.5">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] text-txt-faint font-mono">E-BP</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-ember-500"></span>
+                <span class="text-[10px] text-txt-faint">Angy</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-ember-500/10 text-ember-400 ml-auto">medium</span>
+              </div>
+              <p class="text-xs text-txt-primary font-medium leading-snug">Bullet proof</p>
+            </div>
+          </div>
+
+          <button class="w-full text-[11px] text-txt-faint hover:text-txt-muted hover:bg-raised/50 rounded-lg py-2 transition-colors flex items-center justify-center gap-1">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
+            Add Idea
+          </button>
+        </div>
+      </div>
+
+      <!-- ── UPCOMING ── -->
+      <div class="flex flex-col min-w-[250px] w-[250px] flex-shrink-0">
+        <div class="flex items-center gap-2 mb-3 px-1">
+          <div class="w-2 h-2 rounded-full bg-blue-400/80"></div>
+          <span class="text-xs font-semibold text-txt-faint uppercase tracking-wider">Upcoming</span>
+          <span class="text-[10px] text-txt-faint ml-auto">4</span>
+        </div>
+        <div class="flex-1 flex flex-col gap-2 overflow-y-auto pr-1">
+          <div class="bg-surface rounded-xl p-3 cursor-pointer hover:border-ember-500/20 border border-border-subtle transition-all relative group">
+            <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-cyan-400/40"></div>
+            <div class="pl-2.5">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] text-txt-faint font-mono">E-9</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span class="text-[10px] text-txt-faint">PMS-Test-1</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-ember-500/10 text-ember-400 ml-auto">medium</span>
+              </div>
+              <p class="text-xs text-txt-primary font-medium leading-snug">BE and Marketplace</p>
+            </div>
+          </div>
+
+          <div class="bg-surface rounded-xl p-3 cursor-pointer hover:border-ember-500/20 border border-border-subtle transition-all relative group">
+            <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-cyan-400/40"></div>
+            <div class="pl-2.5">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] text-txt-faint font-mono">E-8</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span class="text-[10px] text-txt-faint">PMS-Test-1</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-ember-500/10 text-ember-400 ml-auto">medium</span>
+              </div>
+              <p class="text-xs text-txt-primary font-medium leading-snug">Companies Properties</p>
+            </div>
+          </div>
+
+          <div class="bg-surface rounded-xl p-3 cursor-pointer hover:border-ember-500/20 border border-border-subtle transition-all relative group">
+            <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-cyan-400/40"></div>
+            <div class="pl-2.5">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] text-txt-faint font-mono">E-7</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span class="text-[10px] text-txt-faint">PMS-Test-1</span>
+              </div>
+              <p class="text-xs text-txt-primary font-medium leading-snug">Owners and DAC7</p>
+            </div>
+          </div>
+
+          <div class="bg-surface rounded-xl p-3 cursor-pointer hover:border-ember-500/20 border border-border-subtle transition-all relative group">
+            <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-cyan-400/40"></div>
+            <div class="pl-2.5">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] text-txt-faint font-mono">E-6</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                <span class="text-[10px] text-txt-faint">PMS-Test-1</span>
+              </div>
+              <p class="text-xs text-txt-primary font-medium leading-snug">Dashboard full blueprints</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── ACTIVE (wider, highlighted) ── -->
+      <div class="flex flex-col min-w-[340px] w-[340px] flex-shrink-0">
+        <div class="flex items-center gap-2 mb-3 px-1">
+          <div class="w-2 h-2 rounded-full bg-ember-500 anim-breathe"></div>
+          <span class="text-xs font-semibold text-ember-400 uppercase tracking-wider">Active</span>
+          <span class="text-[10px] text-ember-400/60 ml-auto">2</span>
+        </div>
+        <div class="flex-1 flex flex-col gap-3 overflow-y-auto pr-1">
+
+          <!-- ★ Expanded active card: Linux Platform Support -->
+          <div class="bg-surface rounded-xl p-4 cursor-pointer border border-teal/25 transition-all relative group anim-shimmer" style="box-shadow:0 0 24px -6px rgba(16,185,129,0.10)">
+            <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-ember-500"></div>
+            <div class="pl-3">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] text-txt-faint font-mono">E-LP</span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-ember-500"></span>
+                  <span class="text-[10px] text-txt-faint">Angy</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 font-medium">high</span>
+                </div>
+                <!-- Progress ring -->
+                <svg width="28" height="28" viewBox="0 0 28 28">
+                  <circle cx="14" cy="14" r="11" fill="none" stroke="rgba(245,158,11,0.1)" stroke-width="2.5"/>
+                  <circle cx="14" cy="14" r="11" fill="none" stroke="#10b981" stroke-width="2.5" stroke-dasharray="69" stroke-dashoffset="28" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <p class="text-sm text-txt-primary font-semibold leading-snug mb-1.5">Linux Platform Support for Angy</p>
+              <p class="text-[11px] text-txt-muted leading-relaxed mb-3">Port Tauri shell commands and platform detection to support Linux builds</p>
+              <!-- Agent activity strip -->
+              <div class="flex items-center gap-2 pt-2.5 border-t border-border-subtle">
+                <div class="flex -space-x-1.5">
+                  <div class="w-5 h-5 rounded-md bg-gradient-to-br from-ember-500/40 to-ember-600/40 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-ember-400">A</span></div>
+                  <div class="w-5 h-5 rounded-md bg-gradient-to-br from-teal/40 to-emerald-500/40 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-teal">B</span></div>
+                  <div class="w-5 h-5 rounded-md bg-gradient-to-br from-amber-400/40 to-amber-600/40 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-amber-400">T</span></div>
+                  <div class="w-5 h-5 rounded-md bg-gradient-to-br from-purple-400/40 to-purple-600/40 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-purple-400">C</span></div>
+                </div>
+                <div class="flex items-end gap-[3px] h-4">
+                  <div class="wave-bar wave-bar-teal" style="height:8px;width:2px"></div>
+                  <div class="wave-bar wave-bar-teal" style="height:12px;width:2px"></div>
+                  <div class="wave-bar wave-bar-teal" style="height:6px;width:2px"></div>
+                  <div class="wave-bar wave-bar-teal" style="height:10px;width:2px"></div>
+                </div>
+                <span class="text-[10px] text-teal truncate ml-0.5">4 agents running</span>
+                <span class="text-[10px] text-txt-faint ml-auto">$1.23</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ★ Expanded active card: Legal Folios -->
+          <div class="bg-surface rounded-xl p-4 cursor-pointer border border-teal/20 transition-all relative group" style="box-shadow:0 0 20px -6px rgba(16,185,129,0.08)">
+            <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-cyan-400"></div>
+            <div class="pl-3">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <span class="text-[10px] text-txt-faint font-mono">E-5</span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                  <span class="text-[10px] text-txt-faint">PMS-Test-1</span>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-ember-500/10 text-ember-400">medium</span>
+                </div>
+                <svg width="28" height="28" viewBox="0 0 28 28">
+                  <circle cx="14" cy="14" r="11" fill="none" stroke="rgba(245,158,11,0.1)" stroke-width="2.5"/>
+                  <circle cx="14" cy="14" r="11" fill="none" stroke="#f59e0b" stroke-width="2.5" stroke-dasharray="69" stroke-dashoffset="42" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <p class="text-sm text-txt-primary font-semibold leading-snug mb-3">Legal Folios and Payments</p>
+              <div class="flex items-center gap-2 pt-2.5 border-t border-border-subtle">
+                <div class="flex -space-x-1.5">
+                  <div class="w-5 h-5 rounded-md bg-gradient-to-br from-ember-500/40 to-ember-600/40 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-ember-400">B</span></div>
+                  <div class="w-5 h-5 rounded-md bg-gradient-to-br from-amber-400/40 to-amber-600/40 border border-base flex items-center justify-center"><span class="text-[8px] font-bold text-amber-400">B</span></div>
+                </div>
+                <div class="flex items-end gap-[3px] h-4">
+                  <div class="wave-bar wave-bar-teal" style="height:6px;width:2px"></div>
+                  <div class="wave-bar wave-bar-teal" style="height:10px;width:2px"></div>
+                  <div class="wave-bar wave-bar-teal" style="height:4px;width:2px"></div>
+                </div>
+                <span class="text-[10px] text-teal truncate ml-0.5">2 agents running</span>
+                <span class="text-[10px] text-txt-faint ml-auto">$0.87</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── REVIEW ── -->
+      <div class="flex flex-col min-w-[270px] w-[270px] flex-shrink-0">
+        <div class="flex items-center gap-2 mb-3 px-1">
+          <div class="w-2 h-2 rounded-full bg-orange-400 anim-breathe"></div>
+          <span class="text-xs font-semibold text-orange-400 uppercase tracking-wider">Review</span>
+          <span class="text-[10px] text-orange-400/60 ml-auto">1</span>
+        </div>
+        <div class="flex-1 flex flex-col gap-2 overflow-y-auto pr-1">
+          <!-- Medium detail review card -->
+          <div class="bg-surface rounded-xl p-3.5 cursor-pointer border border-orange-400/20 transition-all relative group" style="box-shadow:0 0 16px -6px rgba(251,146,60,0.10)">
+            <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-orange-400"></div>
+            <div class="pl-2.5">
+              <div class="flex items-center gap-2 mb-1.5">
+                <span class="text-[10px] text-txt-faint font-mono">E-RM</span>
+                <span class="w-1.5 h-1.5 rounded-full bg-ember-500"></span>
+                <span class="text-[10px] text-txt-faint">Angy</span>
+                <span class="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 ml-auto">review</span>
+              </div>
+              <p class="text-xs text-txt-primary font-medium leading-snug mb-2">Remove MCP call from hybrid pipeline</p>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-orange-400 flex items-center gap-1">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                  needs review
+                </span>
+                <span class="text-[10px] text-txt-faint">6 changes</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DONE (compact single-line items) ── -->
+      <div class="flex flex-col min-w-[220px] w-[220px] flex-shrink-0 opacity-70">
+        <div class="flex items-center gap-2 mb-3 px-1">
+          <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+          <span class="text-xs font-semibold text-txt-faint uppercase tracking-wider">Done</span>
+          <span class="text-[10px] text-txt-faint ml-auto">6</span>
+        </div>
+        <div class="flex-1 flex flex-col gap-1.5 overflow-y-auto pr-1">
+          <div class="rounded-lg px-3 py-2 bg-white/[0.02] border border-white/[0.03] flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] transition-colors">
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="#10b981" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0"></span>
+            <span class="text-[11px] text-txt-secondary truncate">Rewrite Chat</span>
+            <span class="text-[10px] text-txt-faint ml-auto flex-shrink-0">7</span>
+          </div>
+          <div class="rounded-lg px-3 py-2 bg-white/[0.02] border border-white/[0.03] flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] transition-colors">
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="#10b981" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0"></span>
+            <span class="text-[11px] text-txt-secondary truncate">Payments and Quotations</span>
+            <span class="text-[10px] text-txt-faint ml-auto flex-shrink-0">6</span>
+          </div>
+          <div class="rounded-lg px-3 py-2 bg-white/[0.02] border border-white/[0.03] flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] transition-colors">
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="#10b981" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0"></span>
+            <span class="text-[11px] text-txt-secondary truncate">Chat Interface</span>
+            <span class="text-[10px] text-txt-faint ml-auto flex-shrink-0">10</span>
+          </div>
+          <div class="rounded-lg px-3 py-2 bg-white/[0.02] border border-white/[0.03] flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] transition-colors">
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="#10b981" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+            <span class="w-1.5 h-1.5 rounded-full bg-ember-500 flex-shrink-0"></span>
+            <span class="text-[11px] text-txt-secondary truncate">Design</span>
+            <span class="text-[10px] text-txt-faint ml-auto flex-shrink-0">9</span>
+          </div>
+          <div class="rounded-lg px-3 py-2 bg-white/[0.02] border border-white/[0.03] flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] transition-colors">
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="#10b981" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0"></span>
+            <span class="text-[11px] text-txt-secondary truncate">Scaffold and Dashboard</span>
+            <span class="text-[10px] text-txt-faint ml-auto flex-shrink-0">9</span>
+          </div>
+          <div class="rounded-lg px-3 py-2 bg-white/[0.02] border border-white/[0.03] flex items-center gap-2 cursor-pointer hover:bg-white/[0.04] transition-colors">
+            <svg class="w-3 h-3 flex-shrink-0" fill="none" stroke="#10b981" stroke-width="2.5" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 flex-shrink-0"></span>
+            <span class="text-[11px] text-txt-secondary truncate">Epic 2</span>
+            <span class="text-[10px] text-txt-faint ml-auto flex-shrink-0">9</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── DISCARDED ── -->
+      <div class="flex flex-col min-w-[180px] w-[180px] flex-shrink-0 opacity-50">
+        <div class="flex items-center gap-2 mb-3 px-1">
+          <div class="w-2 h-2 rounded-full bg-red-400/60"></div>
+          <span class="text-xs font-semibold text-txt-faint uppercase tracking-wider">Discarded</span>
+          <span class="text-[10px] text-txt-faint ml-auto">0</span>
+        </div>
+        <div class="flex-1 flex items-center justify-center">
+          <p class="text-[11px] text-txt-faint/40 text-center px-4">Abandoned or failed epics</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ VIEW: AGENTS (cross-project fleet) ═══════════════ -->
+<div id="view-agents" class="view flex-col flex-1 overflow-hidden">
+  <!-- Top bar with project filter chips -->
+  <header class="flex-shrink-0 bg-window/50 border-b border-border-subtle">
+    <div class="h-12 flex items-center px-5 gap-3">
+      <span class="text-sm font-semibold text-txt-primary">Agents</span>
+      <span class="text-xs text-txt-muted">8 running across 2 projects</span>
+      <div class="flex-1"></div>
+      <span class="text-[10px] text-teal flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-teal anim-breathe"></span>Scheduler On</span>
+      <button class="text-xs text-txt-muted hover:text-txt-primary transition-colors px-2 py-1 rounded-md hover:bg-raised">+ New Agent</button>
+      <button class="text-xs text-txt-muted hover:text-txt-primary transition-colors px-2 py-1 rounded-md hover:bg-raised">Mission Control</button>
+    </div>
+    <!-- Project filter chips (shared state with Board) -->
+    <div class="h-9 flex items-center px-5 gap-2 border-t border-border-subtle relative">
+      <span class="text-[10px] text-txt-faint uppercase tracking-wider mr-1">Projects:</span>
+      <button class="proj-chip on flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full bg-ember-500/15 text-ember-400 border border-ember-500/25 font-medium transition-colors">
+        <span class="w-1.5 h-1.5 rounded-full bg-ember-500"></span>PMS-Test-1<span class="text-ember-400/50 ml-0.5">2</span><span class="ml-0.5 hover:text-ember-400/80">&times;</span>
+      </button>
+      <button class="proj-chip on flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full bg-cyan-400/15 text-cyan-400 border border-cyan-400/25 font-medium transition-colors">
+        <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>Angy<span class="text-cyan-400/50 ml-0.5">6</span><span class="ml-0.5 hover:text-cyan-400/80">&times;</span>
+      </button>
+      <button class="proj-chip flex items-center gap-1.5 text-[10px] px-2 py-0.5 rounded-full text-txt-faint border border-border-standard hover:border-txt-faint hover:text-txt-muted transition-colors">
+        <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>Smartpricing
+      </button>
+      <button onclick="togglePicker('agents-popover', event)" class="proj-chip popover-trigger flex items-center gap-1 text-[10px] px-2.5 py-0.5 rounded-full bg-raised hover:bg-raised-hover text-txt-secondary border border-border-standard transition-colors">
+        +47 more
+        <svg class="w-2.5 h-2.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 12 12"><path d="M3 5l3 3 3-3"/></svg>
+      </button>
+      <div class="flex-1"></div>
+      <div class="flex items-center gap-1 px-2 py-0.5 rounded-md bg-raised hover:bg-raised-hover cursor-pointer transition-colors">
+        <span class="text-[10px] text-txt-secondary">Show: Active projects</span>
+        <svg class="w-2.5 h-2.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 12 12"><path d="M3 5l3 3 3-3"/></svg>
+      </div>
+
+      <!-- ── Project picker popover (agents) ── -->
+      <div id="agents-popover" class="proj-popover hidden fixed w-72 bg-surface border border-border-standard rounded-xl shadow-2xl shadow-black/40 z-[100] overflow-hidden anim-fade-in">
+        <div class="px-3 pt-3 pb-2">
+          <div class="flex items-center gap-2 h-7 px-2.5 rounded-lg bg-white/[0.04] border border-white/[0.06] focus-within:border-ember-500/30 transition-colors">
+            <svg class="w-3 h-3 text-txt-faint flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+            <input type="text" placeholder="Search projects…" class="bg-transparent text-[11px] text-txt-primary outline-none w-full placeholder:text-txt-faint">
+          </div>
+        </div>
+        <div class="px-3 pb-2 flex gap-1.5">
+          <button class="text-[10px] px-2 py-0.5 rounded-full bg-ember-500/15 text-ember-400 font-medium">Active</button>
+          <button class="text-[10px] px-2 py-0.5 rounded-full text-txt-faint hover:text-txt-muted hover:bg-raised transition-colors">My projects</button>
+          <button class="text-[10px] px-2 py-0.5 rounded-full text-txt-faint hover:text-txt-muted hover:bg-raised transition-colors">All</button>
+          <button class="text-[10px] px-2 py-0.5 rounded-full text-txt-faint hover:text-txt-muted hover:bg-raised transition-colors">None</button>
+        </div>
+        <div class="border-t border-border-subtle">
+          <div class="px-3 py-1.5"><span class="text-[9px] uppercase tracking-widest text-txt-faint">Active &middot; 2</span></div>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" checked class="pop-check accent-ember-500">
+            <span class="w-1.5 h-1.5 rounded-full bg-ember-500"></span>
+            <span class="text-[11px] text-txt-primary flex-1">PMS-Test-1</span>
+            <span class="text-[9px] text-teal">2 agents</span>
+          </label>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" checked class="pop-check accent-cyan-400">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+            <span class="text-[11px] text-txt-primary flex-1">Angy</span>
+            <span class="text-[9px] text-teal">6 agents</span>
+          </label>
+        </div>
+        <div class="border-t border-border-subtle">
+          <div class="px-3 py-1.5"><span class="text-[9px] uppercase tracking-widest text-txt-faint">Idle &middot; 48</span></div>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" class="pop-check">
+            <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+            <span class="text-[11px] text-txt-secondary flex-1">Smartpricing</span>
+          </label>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" class="pop-check">
+            <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+            <span class="text-[11px] text-txt-secondary flex-1">BigTestProject3</span>
+          </label>
+          <label class="pop-row flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-white/[0.03] transition-colors">
+            <input type="checkbox" class="pop-check">
+            <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+            <span class="text-[11px] text-txt-secondary flex-1">Smartchat</span>
+          </label>
+          <div class="px-3 py-1.5 text-[10px] text-txt-faint cursor-pointer hover:text-txt-muted transition-colors">… 43 more</div>
+        </div>
+        <div class="border-t border-border-subtle px-3 py-2 flex items-center justify-between">
+          <span class="text-[10px] text-txt-faint">2 of 50 selected</span>
+          <button class="text-[10px] px-2.5 py-1 rounded-md bg-ember-500/15 text-ember-400 hover:bg-ember-500/25 transition-colors font-medium">Apply</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="flex-1 flex overflow-hidden">
+    <!-- LEFT: Agent Fleet grouped by project -->
+    <div class="w-72 flex-shrink-0 border-r border-border-subtle flex flex-col bg-base">
+      <div class="px-3 py-2.5 border-b border-border-subtle flex items-center gap-2">
+        <span class="text-[11px] font-semibold text-txt-secondary uppercase tracking-wider">Fleet</span>
+        <div class="flex-1"></div>
+        <span class="text-[10px] text-teal">8 running</span>
+        <span class="text-[10px] text-txt-faint ml-1">· $2.41 today</span>
+      </div>
+      <div class="px-3 py-2 flex gap-1.5 border-b border-border-subtle">
+        <button class="text-[10px] px-2 py-0.5 rounded-full bg-ember-500/15 text-ember-400 font-medium">All</button>
+        <button class="text-[10px] px-2 py-0.5 rounded-full text-txt-faint hover:text-txt-muted hover:bg-raised transition-colors">Running</button>
+        <button class="text-[10px] px-2 py-0.5 rounded-full text-txt-faint hover:text-txt-muted hover:bg-raised transition-colors">Done</button>
+        <button class="text-[10px] px-2 py-0.5 rounded-full text-txt-faint hover:text-txt-muted hover:bg-raised transition-colors">Failed</button>
+      </div>
+      <div class="flex-1 overflow-y-auto">
+
+        <!-- ─── Project group: Angy ─── -->
+        <div class="px-3 py-2 flex items-center gap-2 cursor-pointer hover:bg-white/[0.02] transition-colors border-b border-border-subtle">
+          <svg class="w-2.5 h-2.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+          <span class="text-[11px] font-semibold text-txt-primary">Angy</span>
+          <span class="text-[10px] text-teal ml-auto">4 running</span>
+          <span class="text-[9px] text-txt-faint">$1.23</span>
+        </div>
+
+        <div class="agent-row flex items-start gap-2 px-3 py-2 cursor-pointer anim-slide-in">
+          <div class="mt-1 w-2 h-2 rounded-full bg-teal anim-breathe flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5">
+              <span class="text-xs font-medium text-txt-primary truncate">Architect-1</span>
+              <span class="text-[9px] px-1 py-0 rounded bg-cyan-500/15 text-cyan-400">Pipeline</span>
+            </div>
+            <p class="text-[10px] text-teal truncate mt-0.5">Planning Linux platform support…</p>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span class="text-[9px] text-txt-faint font-mono">15m</span>
+              <span class="text-[9px] text-txt-faint">$0.42</span>
+            </div>
+          </div>
+        </div>
+        <div class="agent-row flex items-start gap-2 px-3 py-2 cursor-pointer">
+          <div class="mt-1 w-2 h-2 rounded-full bg-teal anim-breathe flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5"><span class="text-xs font-medium text-txt-primary truncate">Builder-backend-3</span></div>
+            <p class="text-[10px] text-teal truncate mt-0.5">Running tests...</p>
+            <div class="flex items-center gap-2 mt-0.5"><span class="text-[9px] text-txt-faint font-mono">12m</span><span class="text-[9px] text-txt-faint">$0.38</span></div>
+          </div>
+        </div>
+        <div class="agent-row flex items-start gap-2 px-3 py-2 cursor-pointer">
+          <div class="mt-1 w-2 h-2 rounded-full bg-teal anim-breathe flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5"><span class="text-xs font-medium text-txt-primary truncate">Tester-backend-4</span></div>
+            <p class="text-[10px] text-teal truncate mt-0.5">Validating endpoints...</p>
+            <div class="flex items-center gap-2 mt-0.5"><span class="text-[9px] text-txt-faint font-mono">12m</span><span class="text-[9px] text-txt-faint">$0.25</span></div>
+          </div>
+        </div>
+        <div class="agent-row flex items-start gap-2 px-3 py-2 cursor-pointer">
+          <div class="mt-1 w-2 h-2 rounded-full bg-teal anim-breathe flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5"><span class="text-xs font-medium text-txt-primary truncate">Counterpart-2</span></div>
+            <p class="text-[10px] text-teal truncate mt-0.5">Reviewing changes...</p>
+            <div class="flex items-center gap-2 mt-0.5"><span class="text-[9px] text-txt-faint font-mono">11m</span><span class="text-[9px] text-txt-faint">$0.18</span></div>
+          </div>
+        </div>
+        <!-- Done agent for Angy -->
+        <div class="agent-row flex items-start gap-2 px-3 py-2 cursor-pointer">
+          <div class="mt-1 w-2 h-2 rounded-full bg-emerald-500/50 flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5"><span class="text-xs font-medium text-txt-secondary truncate">Tester-5</span><span class="text-[9px] text-emerald-400">done</span></div>
+            <div class="flex items-center gap-2 mt-0.5"><span class="text-[9px] text-txt-faint font-mono">25m ago</span><span class="text-[9px] text-txt-faint">$0.31</span></div>
+          </div>
+        </div>
+
+        <!-- ─── Project group: PMS-Test-1 ─── -->
+        <div class="px-3 py-2 flex items-center gap-2 cursor-pointer hover:bg-white/[0.02] transition-colors border-b border-border-subtle border-t border-t-border-subtle">
+          <svg class="w-2.5 h-2.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+          <span class="w-1.5 h-1.5 rounded-full bg-ember-500"></span>
+          <span class="text-[11px] font-semibold text-txt-primary">PMS-Test-1</span>
+          <span class="text-[10px] text-teal ml-auto">2 running</span>
+          <span class="text-[9px] text-txt-faint">$0.87</span>
+        </div>
+
+        <div class="agent-row flex items-start gap-2 px-3 py-2 cursor-pointer">
+          <div class="mt-1 w-2 h-2 rounded-full bg-teal anim-breathe flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5"><span class="text-xs font-medium text-txt-primary truncate">Builder-backend-1</span></div>
+            <p class="text-[10px] text-teal truncate mt-0.5">Implementing auth service…</p>
+            <div class="flex items-center gap-2 mt-0.5"><span class="text-[9px] text-txt-faint font-mono">8m</span><span class="text-[9px] text-txt-faint">$0.52</span></div>
+          </div>
+        </div>
+        <div class="agent-row flex items-start gap-2 px-3 py-2 cursor-pointer">
+          <div class="mt-1 w-2 h-2 rounded-full bg-teal anim-breathe flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5"><span class="text-xs font-medium text-txt-primary truncate">Builder-frontend-2</span></div>
+            <p class="text-[10px] text-teal truncate mt-0.5">Styling payment form…</p>
+            <div class="flex items-center gap-2 mt-0.5"><span class="text-[9px] text-txt-faint font-mono">6m</span><span class="text-[9px] text-txt-faint">$0.35</span></div>
+          </div>
+        </div>
+
+        <!-- ─── Orchestrators (cross-project) ─── -->
+        <div class="px-3 py-2 flex items-center gap-2 cursor-pointer hover:bg-white/[0.02] transition-colors border-y border-border-subtle">
+          <svg class="w-2.5 h-2.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"/></svg>
+          <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+          <span class="text-[11px] font-semibold text-txt-primary">Orchestrators</span>
+          <span class="text-[10px] text-teal ml-auto">2 active</span>
+        </div>
+        <div class="agent-row selected flex items-start gap-2 px-3 py-2 cursor-pointer border-l-2 border-purple-500/40">
+          <div class="mt-1 w-2 h-2 rounded-full bg-teal anim-breathe flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5"><span class="text-xs font-medium text-txt-primary truncate">Hybrid: Linux Plat...</span><span class="text-[9px] text-cyan-400/60">Angy</span><span class="text-[9px] text-txt-faint">4 agents</span></div>
+            <p class="text-[10px] text-teal truncate mt-0.5">Coordinating pipeline...</p>
+          </div>
+        </div>
+        <div class="agent-row flex items-start gap-2 px-3 py-2 cursor-pointer border-l-2 border-purple-500/40">
+          <div class="mt-1 w-2 h-2 rounded-full bg-teal anim-breathe flex-shrink-0"></div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1.5"><span class="text-xs font-medium text-txt-primary truncate">Hybrid: Removemc...</span><span class="text-[9px] text-cyan-400/60">Angy</span><span class="text-[9px] text-txt-faint">6 agents</span></div>
+            <p class="text-[10px] text-orange-400 truncate mt-0.5">In review</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: Orchestrator hierarchical conversation -->
+    <div class="flex-1 min-w-0 flex flex-col overflow-hidden bg-base">
+      <!-- Orchestrator header -->
+      <div class="px-5 py-3 border-b border-border-subtle flex items-center gap-3">
+        <div class="w-7 h-7 rounded-lg bg-gradient-to-br from-purple-500/30 to-purple-600/30 flex items-center justify-center">
+          <svg class="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold text-txt-primary">Hybrid: Linux Platform Support</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400">orchestrator</span>
+            <span class="text-[10px] px-1.5 py-0.5 rounded bg-teal/10 text-teal">running</span>
+          </div>
+          <div class="flex items-center gap-2 mt-0.5">
+            <span class="text-[10px] text-txt-muted">Angy</span>
+            <span class="text-txt-faint text-[10px]">›</span>
+            <span class="text-[10px] text-txt-muted">Linux Platform Support for Angy</span>
+            <span class="text-txt-faint text-[10px]">·</span>
+            <span class="text-[10px] text-txt-faint">4 sub-agents</span>
+          </div>
+        </div>
+        <div class="flex-1"></div>
+        <span class="text-[10px] text-txt-faint">$1.23 total</span>
+        <span class="text-[10px] text-txt-faint">·</span>
+        <span class="text-[10px] text-txt-faint">18m</span>
+        <button class="text-[10px] text-txt-faint hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-500/10">Stop All</button>
+      </div>
+
+      <!-- Scrollable hierarchical conversation -->
+      <div class="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+
+        <!-- ── Orchestrator message 1 ── -->
+        <div class="tree-node anim-fade-in">
+          <div class="flex items-center gap-2 mb-1.5">
+            <div class="w-5 h-5 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
+              <svg class="w-2.5 h-2.5 text-purple-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+            </div>
+            <span class="text-xs font-medium text-purple-400">Orchestrator</span>
+            <span class="text-[10px] text-txt-faint">18m ago</span>
+          </div>
+          <div class="ml-7 text-[13px] text-txt-primary leading-relaxed">
+            <p>Starting pipeline for <strong>Linux Platform Support</strong>. I'll coordinate architecture analysis, implementation, testing, and review.</p>
+          </div>
+        </div>
+
+        <!-- ── Spawned: Architect-1 (EXPANDED) ── -->
+        <details open class="tree-node tree-branch anim-fade-in" style="animation-delay:0.03s">
+          <summary class="tree-summary flex items-center gap-2.5 px-3 py-2 rounded-lg bg-surface border border-border-subtle hover:border-purple-500/20 cursor-pointer transition-colors">
+            <svg class="tree-chevron w-3 h-3 text-txt-faint flex-shrink-0 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="w-5 h-5 rounded-md bg-gradient-to-br from-ember-500/30 to-ember-600/30 flex items-center justify-center flex-shrink-0">
+              <span class="text-[8px] font-bold text-ember-400">A1</span>
+            </div>
+            <span class="text-xs font-medium text-txt-primary">Architect-1</span>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">done</span>
+            <span class="text-[9px] text-txt-faint font-mono">4m</span>
+            <span class="text-[9px] text-txt-faint">$0.12</span>
+            <span class="text-[9px] text-txt-faint ml-auto">Turn 3 · 5 tool calls</span>
+          </summary>
+          <div class="tree-children ml-4 pl-4 border-l-2 border-purple-500/15 mt-2 space-y-3 pb-1">
+            <!-- Sub-agent thinking -->
+            <div>
+              <details class="group">
+                <summary class="flex items-center gap-2 cursor-pointer text-[11px] text-txt-faint hover:text-txt-secondary transition-colors">
+                  <svg class="w-2.5 h-2.5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                  Thinking · 4.2s
+                </summary>
+                <div class="mt-1.5 p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] text-[11px] text-txt-secondary font-mono leading-relaxed">
+                  I need to analyze the platform-specific code in the Tauri backend. The key files are lib.rs and tauri.conf.json...
+                </div>
+              </details>
+            </div>
+            <!-- Sub-agent message -->
+            <div class="text-[12px] text-txt-primary leading-relaxed">
+              <p>I've analyzed the codebase. The key platform-specific areas are <code class="text-[11px] font-mono bg-raised px-1 py-0.5 rounded text-cyan-400">lib.rs</code>, <code class="text-[11px] font-mono bg-raised px-1 py-0.5 rounded text-cyan-400">tauri.conf.json</code>, and <code class="text-[11px] font-mono bg-raised px-1 py-0.5 rounded text-cyan-400">capabilities.json</code>. Plan: create <code class="text-[11px] font-mono bg-raised px-1 py-0.5 rounded text-cyan-400">platform.rs</code> for Linux detection and adapt the build pipeline.</p>
+            </div>
+            <!-- Sub-agent tool calls -->
+            <details class="group">
+              <summary class="flex items-center gap-2 cursor-pointer">
+                <div class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.03] border border-white/[0.04] group-hover:border-white/[0.08] transition-colors">
+                  <svg class="w-2.5 h-2.5 text-txt-faint transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                  <span class="text-[10px] text-txt-secondary">5 tool calls</span>
+                  <span class="text-[9px] text-txt-faint">· Read ×3, Grep ×2</span>
+                </div>
+              </summary>
+              <div class="mt-1.5 ml-1 space-y-1">
+                <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-white/[0.02]"><span class="text-[9px] font-mono text-ember-400">Read</span><span class="text-[9px] text-txt-secondary font-mono truncate">src-tauri/src/lib.rs</span></div>
+                <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-white/[0.02]"><span class="text-[9px] font-mono text-ember-400">Grep</span><span class="text-[9px] text-txt-secondary font-mono truncate">platform.*detection</span></div>
+                <div class="flex items-center gap-2 px-2 py-1 rounded-md bg-white/[0.02]"><span class="text-[9px] font-mono text-ember-400">Read</span><span class="text-[9px] text-txt-secondary font-mono truncate">src-tauri/tauri.conf.json</span></div>
+              </div>
+            </details>
+          </div>
+        </details>
+
+        <!-- ── Orchestrator decision ── -->
+        <div class="tree-node flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10 anim-fade-in" style="animation-delay:0.06s">
+          <svg class="w-3.5 h-3.5 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+          <span class="text-[11px] text-purple-300">Architecture approved. Spawning <strong class="text-purple-200">Builder-backend-3</strong> for implementation and <strong class="text-purple-200">Tester-backend-4</strong> for validation.</span>
+          <span class="text-[9px] text-txt-faint ml-auto flex-shrink-0">14m ago</span>
+        </div>
+
+        <!-- ── Spawned: Builder-backend-3 (EXPANDED, running) ── -->
+        <details open class="tree-node tree-branch anim-fade-in" style="animation-delay:0.09s">
+          <summary class="tree-summary flex items-center gap-2.5 px-3 py-2 rounded-lg bg-surface border border-teal/20 anim-shimmer hover:border-teal/30 cursor-pointer transition-colors">
+            <svg class="tree-chevron w-3 h-3 text-txt-faint flex-shrink-0 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="w-5 h-5 rounded-md bg-teal/20 flex items-center justify-center flex-shrink-0">
+              <span class="text-[8px] font-bold text-teal">B3</span>
+            </div>
+            <span class="text-xs font-medium text-txt-primary">Builder-backend-3</span>
+            <div class="w-1.5 h-1.5 rounded-full bg-teal anim-breathe"></div>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-teal/10 text-teal">running</span>
+            <span class="text-[9px] text-txt-faint font-mono">12m</span>
+            <span class="text-[9px] text-txt-faint">$0.38</span>
+            <span class="text-[9px] text-txt-faint ml-auto">Turn 5 · 15 tool calls</span>
+          </summary>
+          <div class="tree-children ml-4 pl-4 border-l-2 border-teal/20 mt-2 space-y-3 pb-1">
+            <div class="text-[12px] text-txt-primary leading-relaxed">
+              <p>Creating <code class="text-[11px] font-mono bg-raised px-1 py-0.5 rounded text-cyan-400">platform.rs</code> with Linux-specific detection logic and updating the build configuration.</p>
+            </div>
+            <details class="group">
+              <summary class="flex items-center gap-2 cursor-pointer">
+                <div class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-white/[0.03] border border-white/[0.04] group-hover:border-white/[0.08] transition-colors">
+                  <svg class="w-2.5 h-2.5 text-txt-faint transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                  <span class="text-[10px] text-txt-secondary">15 tool calls</span>
+                  <span class="text-[9px] text-txt-faint">· Write ×6, Read ×5, Shell ×4</span>
+                </div>
+              </summary>
+            </details>
+            <div class="text-[12px] text-txt-primary leading-relaxed">
+              <p>Implementation complete. Created <code class="text-[11px] font-mono bg-raised px-1 py-0.5 rounded text-cyan-400">platform.rs</code> (+84 lines), updated <code class="text-[11px] font-mono bg-raised px-1 py-0.5 rounded text-cyan-400">lib.rs</code> (+12/-3). Now running <code class="text-[11px] font-mono bg-raised px-1 py-0.5 rounded text-emerald-400">cargo test</code>…</p>
+            </div>
+            <!-- Live streaming indicator -->
+            <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-teal/5 border border-teal/10">
+              <div class="flex items-end gap-[2px] h-3">
+                <div class="wave-bar wave-bar-teal" style="height:4px;width:2px"></div>
+                <div class="wave-bar wave-bar-teal" style="height:8px;width:2px"></div>
+                <div class="wave-bar wave-bar-teal" style="height:6px;width:2px"></div>
+              </div>
+              <span class="text-[10px] text-teal">Running tests... 14/18 passed</span>
+            </div>
+          </div>
+        </details>
+
+        <!-- ── Spawned: Tester-backend-4 (COLLAPSED) ── -->
+        <details class="tree-node tree-branch anim-fade-in" style="animation-delay:0.12s">
+          <summary class="tree-summary flex items-center gap-2.5 px-3 py-2 rounded-lg bg-surface border border-border-subtle hover:border-purple-500/20 cursor-pointer transition-colors">
+            <svg class="tree-chevron w-3 h-3 text-txt-faint flex-shrink-0 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="w-5 h-5 rounded-md bg-teal/20 flex items-center justify-center flex-shrink-0">
+              <span class="text-[8px] font-bold text-teal">T4</span>
+            </div>
+            <span class="text-xs font-medium text-txt-primary">Tester-backend-4</span>
+            <div class="w-1.5 h-1.5 rounded-full bg-teal anim-breathe"></div>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-teal/10 text-teal">running</span>
+            <span class="text-[9px] text-txt-faint font-mono">12m</span>
+            <span class="text-[9px] text-txt-faint">$0.25</span>
+            <span class="text-[9px] text-txt-faint ml-auto">Turn 4 · 8 tool calls</span>
+          </summary>
+          <div class="tree-children ml-4 pl-4 border-l-2 border-teal/20 mt-2 space-y-3 pb-1">
+            <div class="text-[12px] text-txt-primary leading-relaxed">
+              <p>Validating all platform-specific endpoints. Running integration test suite against Linux target environment…</p>
+            </div>
+          </div>
+        </details>
+
+        <!-- ── Spawned: Counterpart-2 (COLLAPSED) ── -->
+        <details class="tree-node tree-branch anim-fade-in" style="animation-delay:0.15s">
+          <summary class="tree-summary flex items-center gap-2.5 px-3 py-2 rounded-lg bg-surface border border-border-subtle hover:border-purple-500/20 cursor-pointer transition-colors">
+            <svg class="tree-chevron w-3 h-3 text-txt-faint flex-shrink-0 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="w-5 h-5 rounded-md bg-teal/20 flex items-center justify-center flex-shrink-0">
+              <span class="text-[8px] font-bold text-teal">C2</span>
+            </div>
+            <span class="text-xs font-medium text-txt-primary">Counterpart-2</span>
+            <div class="w-1.5 h-1.5 rounded-full bg-teal anim-breathe"></div>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-teal/10 text-teal">running</span>
+            <span class="text-[9px] text-txt-faint font-mono">11m</span>
+            <span class="text-[9px] text-txt-faint">$0.18</span>
+            <span class="text-[9px] text-txt-faint ml-auto">Turn 3 · 6 tool calls</span>
+          </summary>
+          <div class="tree-children ml-4 pl-4 border-l-2 border-teal/20 mt-2 space-y-3 pb-1">
+            <div class="text-[12px] text-txt-primary leading-relaxed">
+              <p>Reviewing Architect-1's plan and Builder-backend-3's implementation for correctness and edge cases…</p>
+            </div>
+          </div>
+        </details>
+
+        <!-- ── Orchestrator: Tester-5 done ── -->
+        <details class="tree-node tree-branch anim-fade-in" style="animation-delay:0.18s">
+          <summary class="tree-summary flex items-center gap-2.5 px-3 py-2 rounded-lg bg-surface border border-border-subtle opacity-70 hover:opacity-100 cursor-pointer transition-all">
+            <svg class="tree-chevron w-3 h-3 text-txt-faint flex-shrink-0 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+            <div class="w-5 h-5 rounded-md bg-emerald-500/15 flex items-center justify-center flex-shrink-0">
+              <span class="text-[8px] font-bold text-emerald-400">T5</span>
+            </div>
+            <span class="text-xs font-medium text-txt-secondary">Tester-5</span>
+            <svg class="w-3 h-3 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400">done</span>
+            <span class="text-[9px] text-txt-faint font-mono">25m ago</span>
+            <span class="text-[9px] text-txt-faint">$0.31</span>
+            <span class="text-[9px] text-txt-faint ml-auto">Turn 6 · 12 tool calls</span>
+          </summary>
+          <div class="tree-children ml-4 pl-4 border-l-2 border-emerald-500/15 mt-2 space-y-2 pb-1">
+            <div class="text-[12px] text-txt-secondary leading-relaxed">
+              <p>All integration tests passed. Verified platform detection on Linux x86_64 and ARM64. No regressions found.</p>
+            </div>
+            <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-md bg-emerald-500/5 border border-emerald-500/10">
+              <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+              <span class="text-[10px] text-emerald-400">18/18 tests passed</span>
+            </div>
+          </div>
+        </details>
+
+        <!-- ── Orchestrator: current status ── -->
+        <div class="tree-node flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-500/5 border border-purple-500/10 anim-fade-in" style="animation-delay:0.2s">
+          <svg class="w-3.5 h-3.5 text-purple-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"/></svg>
+          <span class="text-[11px] text-purple-300">Waiting for <strong class="text-purple-200">Builder-backend-3</strong> to finish tests, then will consolidate results from all agents.</span>
+          <div class="flex items-end gap-[2px] h-3 ml-2">
+            <div class="wave-bar" style="height:4px;width:2px;background:#a78bfa"></div>
+            <div class="wave-bar" style="height:8px;width:2px;background:#a78bfa"></div>
+            <div class="wave-bar" style="height:5px;width:2px;background:#a78bfa"></div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Input bar (from 3848) -->
+      <div class="shrink-0 border-t border-border-subtle p-3">
+        <div class="flex items-end gap-2">
+          <div class="flex-1 bg-surface rounded-xl px-4 py-2.5 min-h-[44px] flex items-center border border-border-standard focus-within:border-ember-500/30 transition-colors">
+            <span class="text-xs text-txt-faint">Send a message…</span>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0 pb-1">
+            <div class="flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.04] cursor-pointer hover:bg-white/[0.06] transition-colors">
+              <span class="text-[10px] text-txt-secondary">Agent</span>
+              <svg class="w-2 h-2 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 12 12"><path d="M3 5l3 3 3-3"/></svg>
+            </div>
+            <div class="flex items-center gap-1 px-2 py-1 rounded-md bg-white/[0.04] cursor-pointer hover:bg-white/[0.06] transition-colors">
+              <span class="text-[10px] text-txt-secondary">Sonnet</span>
+              <svg class="w-2 h-2 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 12 12"><path d="M3 5l3 3 3-3"/></svg>
+            </div>
+            <button class="w-8 h-8 rounded-lg bg-gradient-to-r from-ember-500 to-ember-600 hover:brightness-110 flex items-center justify-center transition">
+              <svg class="w-3.5 h-3.5 text-base" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Effects (3849 structure + Graph tab + 3848 Approve/Reject) -->
+    <div class="w-64 flex-shrink-0 border-l border-border-subtle flex flex-col bg-base">
+      <div class="px-3 py-2.5 border-b border-border-subtle flex items-center gap-2">
+        <button class="tab-btn active text-[11px] font-medium text-txt-muted pb-0 px-1">Effects</button>
+        <button class="tab-btn text-[11px] font-medium text-txt-faint pb-0 px-1">Graph</button>
+        <div class="flex-1"></div>
+        <div class="flex gap-1">
+          <button class="text-[10px] px-1.5 py-0.5 rounded bg-ember-500/15 text-ember-400">Session</button>
+          <button class="text-[10px] px-1.5 py-0.5 rounded text-txt-faint">All</button>
+        </div>
+      </div>
+      <div class="px-3 py-2 border-b border-border-subtle flex items-center gap-3">
+        <span class="text-[10px] text-txt-muted">5 files</span>
+        <span class="text-[10px] text-emerald-400">+120</span>
+        <span class="text-[10px] text-red-400">-10</span>
+      </div>
+      <div class="flex-1 overflow-y-auto">
+        <div class="px-2 py-1.5"><span class="text-[9px] uppercase tracking-widest text-txt-faint px-1">Turn 5 · 2m ago</span></div>
+        <div class="effect-file flex items-center gap-2 px-3 py-1.5 cursor-pointer">
+          <svg class="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+          <span class="text-[11px] text-txt-primary truncate flex-1 font-mono">platform.rs</span>
+          <span class="text-[10px] px-1 rounded bg-emerald-500/10 text-emerald-400 flex-shrink-0">A</span>
+          <span class="text-[10px] text-emerald-400">+84</span>
+        </div>
+        <div class="effect-file flex items-center gap-2 px-3 py-1.5 cursor-pointer">
+          <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+          <span class="text-[11px] text-txt-primary truncate flex-1 font-mono">lib.rs</span>
+          <span class="text-[10px] px-1 rounded bg-amber-500/10 text-amber-400 flex-shrink-0">M</span>
+          <div class="flex gap-1.5 flex-shrink-0"><span class="text-[10px] text-emerald-400">+12</span><span class="text-[10px] text-red-400">-3</span></div>
+        </div>
+        <div class="effect-file flex items-center gap-2 px-3 py-1.5 cursor-pointer">
+          <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+          <span class="text-[11px] text-txt-primary truncate flex-1 font-mono">tauri.conf.json</span>
+          <span class="text-[10px] px-1 rounded bg-amber-500/10 text-amber-400 flex-shrink-0">M</span>
+          <div class="flex gap-1.5 flex-shrink-0"><span class="text-[10px] text-emerald-400">+4</span><span class="text-[10px] text-red-400">-1</span></div>
+        </div>
+        <div class="effect-file flex items-center gap-2 px-3 py-1.5 cursor-pointer">
+          <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+          <span class="text-[11px] text-txt-primary truncate flex-1 font-mono">capabilities.json</span>
+          <span class="text-[10px] px-1 rounded bg-amber-500/10 text-amber-400 flex-shrink-0">M</span>
+          <span class="text-[10px] text-emerald-400">+2</span>
+        </div>
+        <div class="px-2 py-1.5 mt-2"><span class="text-[9px] uppercase tracking-widest text-txt-faint px-1">Turn 4 · 8m ago</span></div>
+        <div class="effect-file flex items-center gap-2 px-3 py-1.5 cursor-pointer">
+          <svg class="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/></svg>
+          <span class="text-[11px] text-txt-primary truncate flex-1 font-mono">schemas.json</span>
+          <span class="text-[10px] px-1 rounded bg-amber-500/10 text-amber-400 flex-shrink-0">M</span>
+          <div class="flex gap-1.5 flex-shrink-0"><span class="text-[10px] text-emerald-400">+18</span><span class="text-[10px] text-red-400">-6</span></div>
+        </div>
+      </div>
+      <!-- Approve/Reject (from 3848) -->
+      <div class="shrink-0 p-3 border-t border-border-subtle">
+        <div class="flex items-center gap-2">
+          <button class="flex-1 h-8 rounded-lg bg-gradient-to-r from-ember-500 to-ember-600 hover:brightness-110 transition text-xs font-medium text-base">Approve</button>
+          <button class="h-8 px-3 rounded-lg bg-white/[0.04] hover:bg-white/[0.06] border border-white/[0.06] transition-colors text-xs text-txt-secondary">Reject</button>
+          <button class="h-8 w-8 rounded-lg bg-white/[0.04] hover:bg-white/[0.06] border border-white/[0.06] transition-colors flex items-center justify-center">
+            <svg class="w-3 h-3 text-txt-faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ VIEW: CODE (from 3849) ═══════════════ -->
+<div id="view-code" class="view flex-col flex-1 overflow-hidden">
+  <header class="h-12 flex-shrink-0 bg-window/50 border-b border-border-subtle flex items-center px-5 gap-3 relative">
+    <span class="text-sm font-semibold text-txt-primary">Code</span>
+    <span class="text-txt-faint">·</span>
+    <!-- Project switcher (clickable dropdown) -->
+    <button onclick="togglePicker('code-proj-picker', event)" class="popover-trigger flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-surface border border-border-standard hover:border-cyan-400/30 transition-colors cursor-pointer">
+      <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+      <span class="text-txt-primary font-medium">Angy</span>
+      <svg class="w-2.5 h-2.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 12 12"><path d="M3 5l3 3 3-3"/></svg>
+    </button>
+    <span class="text-txt-faint text-[10px]">/</span>
+    <!-- Repo switcher -->
+    <button onclick="togglePicker('code-repo-picker', event)" class="popover-trigger flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-lg bg-surface border border-border-standard hover:border-ember-500/30 transition-colors cursor-pointer">
+      <svg class="w-3 h-3 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
+      <span class="text-txt-primary font-medium font-mono text-[10px]">angy-main</span>
+      <svg class="w-2.5 h-2.5 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 12 12"><path d="M3 5l3 3 3-3"/></svg>
+    </button>
+    <div class="flex-1"></div>
+    <span class="text-[10px] text-txt-faint font-mono">main</span>
+    <div class="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
+
+    <!-- ── Project picker dropdown (code view) ── -->
+    <div id="code-proj-picker" class="proj-popover hidden fixed w-64 bg-surface border border-border-standard rounded-xl shadow-2xl shadow-black/40 z-[100] overflow-hidden anim-fade-in">
+      <div class="px-3 pt-3 pb-2">
+        <div class="flex items-center gap-2 h-7 px-2.5 rounded-lg bg-white/[0.04] border border-white/[0.06] focus-within:border-ember-500/30 transition-colors">
+          <svg class="w-3 h-3 text-txt-faint flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/></svg>
+          <input type="text" placeholder="Search projects…" class="bg-transparent text-[11px] text-txt-primary outline-none w-full placeholder:text-txt-faint">
+        </div>
+      </div>
+      <div class="border-t border-border-subtle max-h-64 overflow-y-auto">
+        <div class="px-3 py-1.5"><span class="text-[9px] uppercase tracking-widest text-txt-faint">Active</span></div>
+        <!-- Current selection -->
+        <div class="pop-row flex items-center gap-2.5 px-3 py-2 cursor-pointer bg-cyan-400/5 border-l-2 border-cyan-400">
+          <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+          <div class="flex-1 min-w-0">
+            <span class="text-[11px] text-txt-primary font-medium">Angy</span>
+            <span class="text-[9px] text-txt-faint ml-1.5">1 repo</span>
+          </div>
+          <svg class="w-3 h-3 text-cyan-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+        </div>
+        <div class="pop-row flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-white/[0.03] transition-colors">
+          <span class="w-1.5 h-1.5 rounded-full bg-ember-500"></span>
+          <div class="flex-1 min-w-0">
+            <span class="text-[11px] text-txt-primary font-medium">PMS-Test-1</span>
+            <span class="text-[9px] text-txt-faint ml-1.5">1 repo</span>
+          </div>
+        </div>
+        <div class="px-3 py-1.5"><span class="text-[9px] uppercase tracking-widest text-txt-faint">Idle</span></div>
+        <div class="pop-row flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-white/[0.03] transition-colors">
+          <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+          <div class="flex-1 min-w-0">
+            <span class="text-[11px] text-txt-secondary">Smartpricing</span>
+            <span class="text-[9px] text-txt-faint ml-1.5">1 repo</span>
+          </div>
+        </div>
+        <div class="pop-row flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-white/[0.03] transition-colors">
+          <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+          <div class="flex-1 min-w-0">
+            <span class="text-[11px] text-txt-secondary">Smartchat</span>
+            <span class="text-[9px] text-txt-faint ml-1.5">5 repos</span>
+          </div>
+        </div>
+        <div class="pop-row flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-white/[0.03] transition-colors">
+          <span class="w-1.5 h-1.5 rounded-full bg-txt-faint/40"></span>
+          <div class="flex-1 min-w-0">
+            <span class="text-[11px] text-txt-secondary">BigTestProject3</span>
+            <span class="text-[9px] text-txt-faint ml-1.5">1 repo</span>
+          </div>
+        </div>
+        <div class="px-3 py-1.5 text-[10px] text-txt-faint">… 45 more projects</div>
+      </div>
+    </div>
+
+    <!-- ── Repo picker dropdown (code view) ── -->
+    <div id="code-repo-picker" class="proj-popover hidden fixed w-60 bg-surface border border-border-standard rounded-xl shadow-2xl shadow-black/40 z-[100] overflow-hidden anim-fade-in">
+      <div class="px-3 py-1.5 border-b border-border-subtle">
+        <span class="text-[9px] uppercase tracking-widest text-txt-faint">Angy &middot; Repositories</span>
+      </div>
+      <div class="pop-row flex items-center gap-2.5 px-3 py-2 cursor-pointer bg-ember-500/5 border-l-2 border-ember-500">
+        <svg class="w-3 h-3 text-ember-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"/></svg>
+        <div class="flex-1 min-w-0">
+          <div class="text-[11px] text-txt-primary font-medium font-mono">angy-main</div>
+          <div class="text-[9px] text-txt-faint">branch: main &middot; 234 files</div>
+        </div>
+        <svg class="w-3 h-3 text-ember-400 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+      </div>
+    </div>
+  </header>
+  <div class="flex-1 flex overflow-hidden">
+    <!-- File tree -->
+    <div class="w-56 flex-shrink-0 border-r border-border-subtle bg-base flex flex-col">
+      <div class="px-3 py-2 border-b border-border-subtle flex items-center gap-2">
+        <button class="tab-btn active text-[11px] font-medium text-txt-muted pb-0 px-1">Files</button>
+        <button class="tab-btn text-[11px] font-medium text-txt-faint pb-0 px-1">Git</button>
+        <button class="tab-btn text-[11px] font-medium text-txt-faint pb-0 px-1">Find</button>
+      </div>
+      <div class="flex-1 overflow-y-auto py-1 text-[11px] text-txt-secondary">
+        <div class="flex items-center gap-1 px-3 py-0.5 hover:bg-raised/50 cursor-pointer"><span class="text-txt-faint">▾</span> <span class="text-txt-muted">src/</span></div>
+        <div class="flex items-center gap-1 px-6 py-0.5 hover:bg-raised/50 cursor-pointer"><span class="text-txt-faint">▾</span> <span class="text-txt-muted">engine/</span></div>
+        <div class="flex items-center gap-1 px-9 py-0.5 hover:bg-raised/50 cursor-pointer text-cyan-400"><span>⬦</span> HybridPipelineRunner.ts</div>
+        <div class="flex items-center gap-1 px-9 py-0.5 bg-ember-500/5 text-ember-400 cursor-pointer"><span>⬦</span> Orchestrator.ts</div>
+        <div class="flex items-center gap-1 px-9 py-0.5 hover:bg-raised/50 cursor-pointer"><span>⬦</span> ProcessManager.ts <span class="text-amber-400 text-[9px] ml-auto">M</span></div>
+        <div class="flex items-center gap-1 px-9 py-0.5 hover:bg-raised/50 cursor-pointer"><span>⬦</span> ClaudeProcess.ts</div>
+        <div class="flex items-center gap-1 px-9 py-0.5 hover:bg-raised/50 cursor-pointer"><span>⬦</span> KosTypes.ts</div>
+        <div class="flex items-center gap-1 px-6 py-0.5 hover:bg-raised/50 cursor-pointer"><span class="text-txt-faint">▸</span> <span class="text-txt-muted">components/</span></div>
+        <div class="flex items-center gap-1 px-6 py-0.5 hover:bg-raised/50 cursor-pointer"><span class="text-txt-faint">▸</span> <span class="text-txt-muted">stores/</span></div>
+        <div class="flex items-center gap-1 px-3 py-0.5 hover:bg-raised/50 cursor-pointer"><span class="text-txt-faint">▸</span> <span class="text-txt-muted">tests/</span></div>
+        <div class="flex items-center gap-1 px-3 py-0.5 hover:bg-raised/50 cursor-pointer"><span>⬦</span> package.json</div>
+      </div>
+    </div>
+    <!-- Editor -->
+    <div class="flex-1 min-w-0 flex flex-col bg-base">
+      <div class="flex items-center border-b border-border-subtle px-1 h-9">
+        <div class="flex items-center gap-1.5 px-3 py-1.5 text-[11px] bg-surface border-b-2 border-ember-500 text-txt-primary cursor-pointer">Orchestrator.ts <button class="text-txt-faint hover:text-txt-muted ml-1">&times;</button></div>
+        <div class="flex items-center gap-1.5 px-3 py-1.5 text-[11px] text-txt-muted cursor-pointer hover:text-txt-secondary">ProcessManager.ts <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> <button class="text-txt-faint hover:text-txt-muted ml-1">&times;</button></div>
+      </div>
+      <div class="px-4 py-1 text-[10px] text-txt-faint flex items-center gap-1">
+        <span class="hover:text-txt-muted cursor-pointer">src</span><span>›</span><span class="hover:text-txt-muted cursor-pointer">engine</span><span>›</span><span class="text-txt-muted">Orchestrator.ts</span>
+      </div>
+      <div class="flex-1 overflow-auto px-4 py-2 font-mono text-[12px] leading-5">
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">1</div><div><span class="text-purple-400">import</span> <span class="text-txt-primary">{ EventEmitter }</span> <span class="text-purple-400">from</span> <span class="text-emerald-400">'events'</span>;</div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">2</div><div><span class="text-purple-400">import</span> <span class="text-txt-primary">{ ClaudeProcess }</span> <span class="text-purple-400">from</span> <span class="text-emerald-400">'./ClaudeProcess'</span>;</div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">3</div><div><span class="text-purple-400">import</span> <span class="text-txt-primary">{ ProcessManager }</span> <span class="text-purple-400">from</span> <span class="text-emerald-400">'./ProcessManager'</span>;</div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">4</div><div></div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">5</div><div><span class="text-purple-400">export class</span> <span class="text-amber-300">Orchestrator</span> <span class="text-purple-400">extends</span> <span class="text-amber-300">EventEmitter</span> {</div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">6</div><div>  <span class="text-purple-400">private</span> <span class="text-cyan-400">processManager</span>: <span class="text-amber-300">ProcessManager</span>;</div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">7</div><div>  <span class="text-purple-400">private</span> <span class="text-cyan-400">sessions</span>: <span class="text-amber-300">Map</span>&lt;<span class="text-amber-300">string</span>, <span class="text-amber-300">SessionInfo</span>&gt;;</div></div>
+        <div class="flex bg-emerald-500/5 border-l-2 border-emerald-500"><div class="w-10 text-right pr-3 text-emerald-400/60 select-none">8</div><div>  <span class="text-purple-400">private</span> <span class="text-cyan-400">activeEpicId</span>: <span class="text-amber-300">string</span> | <span class="text-amber-300">null</span> = <span class="text-amber-300">null</span>;</div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">9</div><div></div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">10</div><div>  <span class="text-purple-400">constructor</span>(<span class="text-cyan-400">config</span>: <span class="text-amber-300">OrchestratorConfig</span>) {</div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">11</div><div>    <span class="text-purple-400">super</span>();</div></div>
+        <div class="flex"><div class="w-10 text-right pr-3 text-txt-faint/40 select-none">12</div><div>    <span class="text-purple-400">this</span>.<span class="text-cyan-400">processManager</span> = <span class="text-purple-400">new</span> <span class="text-amber-300">ProcessManager</span>(<span class="text-cyan-400">config</span>);</div></div>
+        <div class="flex text-txt-faint/30"><div class="w-10 text-right pr-3 select-none">...</div><div class="italic text-[11px]">// 1,850 more lines</div></div>
+      </div>
+    </div>
+    <!-- Chat sidebar collapsed -->
+    <div class="w-10 flex-shrink-0 border-l border-border-subtle bg-base flex flex-col items-center py-3 cursor-pointer hover:bg-surface transition-colors" title="Open Chat">
+      <svg class="w-4 h-4 text-txt-faint" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"/></svg>
+      <span class="text-[9px] text-txt-faint mt-1 [writing-mode:vertical-lr]">Chat</span>
+    </div>
+  </div>
+</div>
+
+</div><!-- end main area -->
+
+<!-- ═══════════════ FOOTER TICKER (3848 style with build progress) ═══════════════ -->
+<div class="fixed bottom-0 left-14 right-0 h-7 bg-base/90 backdrop-blur-sm border-t border-border-subtle flex items-center overflow-hidden z-40">
+  <!-- Build progress counters (from 3848) -->
+  <div class="flex items-center gap-3 shrink-0 px-4 mr-3 border-r border-border-standard pr-4">
+    <div class="flex items-center gap-1.5">
+      <div class="w-1.5 h-1.5 rounded-full bg-ember-500 anim-breathe"></div>
+      <span class="text-[10px] text-txt-muted">PMS-Test-1 building 6/6</span>
+    </div>
+    <div class="flex items-center gap-1.5">
+      <div class="w-1.5 h-1.5 rounded-full bg-cyan-400 anim-breathe"></div>
+      <span class="text-[10px] text-txt-muted">Angy 1/5</span>
+    </div>
+  </div>
+  <!-- Scrolling ticker -->
+  <div class="flex-1 overflow-hidden">
+    <div class="flex items-center gap-4 whitespace-nowrap ticker-track">
+      <span class="flex items-center gap-1.5 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-teal anim-breathe"></span><span class="text-teal">Architect-1</span><span class="text-txt-faint">editing ProcessManager.ts</span></span>
+      <span class="text-border-standard">·</span>
+      <span class="flex items-center gap-1.5 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-teal anim-breathe"></span><span class="text-teal">Builder-backend-3</span><span class="text-txt-faint">running tests</span></span>
+      <span class="text-border-standard">·</span>
+      <span class="flex items-center gap-1.5 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span class="text-emerald-400">Tester-5</span><span class="text-txt-faint">completed — all tests passed</span></span>
+      <span class="text-border-standard">·</span>
+      <span class="text-[10px] text-txt-faint">6 agents active</span>
+      <span class="text-border-standard">·</span>
+      <!-- Duplicate for seamless loop -->
+      <span class="flex items-center gap-1.5 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-teal anim-breathe"></span><span class="text-teal">Architect-1</span><span class="text-txt-faint">editing ProcessManager.ts</span></span>
+      <span class="text-border-standard">·</span>
+      <span class="flex items-center gap-1.5 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-teal anim-breathe"></span><span class="text-teal">Builder-backend-3</span><span class="text-txt-faint">running tests</span></span>
+      <span class="text-border-standard">·</span>
+      <span class="flex items-center gap-1.5 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span class="text-emerald-400">Tester-5</span><span class="text-txt-faint">completed — all tests passed</span></span>
+      <span class="text-border-standard">·</span>
+      <span class="text-[10px] text-txt-faint">6 agents active</span>
+    </div>
+  </div>
+</div>
+
+<script src="mix-app.js"></script>
+</body>
+</html>
