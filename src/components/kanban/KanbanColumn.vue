@@ -37,6 +37,7 @@
         :epic="epic"
         :selectable="mergeMode"
         :selected="selectedEpicIds.includes(epic.id)"
+        :showProjectBadge="isMultiProject"
         @select="emit('selectEpic', $event)"
         @toggle-select="emit('toggle-select', $event)"
       />
@@ -112,6 +113,8 @@ function onDrop(e: DragEvent) {
 }
 
 const epicStore = useEpicStore();
+
+const isMultiProject = computed(() => props.projectIds.length > 1);
 
 async function clearAll() {
   for (const epic of epics.value) {

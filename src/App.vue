@@ -110,6 +110,7 @@ import { useMissionControl } from './composables/useMissionControl';
 import { setOrchestratorLookup, setProcessManager } from './composables/useEngine';
 import { DelegationStatus } from './engine/types';
 import type { EpicColumn } from './engine/KosTypes';
+import { useActivityLogStore } from './stores/activityLog';
 import { DiffEngine } from './engine/DiffEngine';
 import { engineBus } from './engine/EventBus';
 import { AngyEngine } from './engine/AngyEngine';
@@ -124,6 +125,7 @@ const gitStore = useGitStore();
 const themeStore = useThemeStore();
 const projectStore = useProjectsStore();
 const epicStore = useEpicStore();
+const activityLogStore = useActivityLogStore();
 
 // ── Graph ────────────────────────────────────────────────────────────────
 const { buildFromHistory, startLiveGraph } = useGraphBuilder();
@@ -463,7 +465,7 @@ watch(() => ui.activeEpicId, async (epicId) => {
     await db.open();
     sessionsStore.sessions.clear();
     sessionsStore.messages.clear();
-    await sessionsStore.loadFromDatabase(repoPath);
+    await sessionsStore.loadFromDatabase(undefined);
     fleetStore.rebuildFromSessions();
 
     await nextTick();
@@ -498,10 +500,10 @@ watch(() => ui.workspacePath, async (newPath, oldPath) => {
     const db = getDatabase();
     await db.open();
 
-    // Clear current sessions and reload for new workspace
+    // Load all sessions globally so the fleet shows agents from all projects
     sessionsStore.sessions.clear();
     sessionsStore.messages.clear();
-    await sessionsStore.loadFromDatabase(newPath);
+    await sessionsStore.loadFromDatabase(undefined);
     fleetStore.rebuildFromSessions();
 
     // Wait for DOM update so ChatPanel is mounted before loading messages
@@ -554,7 +556,7 @@ let onEpicStoreSync: () => Promise<void>;
 let onAgentFileEdited: (e: { sessionId: string; filePath: string; toolName: string; toolInput?: Record<string, any> }) => void;
 let onEpicPhaseChanged: (e: { epicId: string; phase: string }) => void;
 let onPipelineInternalCall: (e: { epicId: string; callType: string; status: string }) => void;
-let onPipelineTodoProgress: (e: { epicId: string; current: number; total: number }) => void;
+let onPipelineTodoProgress: (e: { epicId: string; current: number; total: number; scope: string; title: string }) => void;
 
 // ── Global keyboard event: Cmd+N new chat ───────────────────────────────
 
@@ -615,10 +617,6 @@ onMounted(async () => {
     if (sessionsStore.sessions.has(sessionId)) return;
     const info = engine.sessions.getSession(sessionId);
     if (info) {
-      const currentWs = ui.workspacePath;
-      if (currentWs && (!info.workspace || info.workspace !== currentWs)) {
-        return;
-      }
       sessionsStore.sessions.set(sessionId, info);
       if (!sessionsStore.messages.has(sessionId)) {
         sessionsStore.messages.set(sessionId, []);
@@ -717,18 +715,35 @@ onMounted(async () => {
     verifyTodo: 'Verifying todo',
     generateFixTodos: 'Generating fix-todos',
   };
-  onEpicPhaseChanged = ({ phase }) => {
+  onEpicPhaseChanged = ({ epicId, phase }) => {
     const isTerminal = phase === 'completed' || phase === 'failed' || phase === 'cancelled';
+    // Legacy single-activity (backward compat)
     ui.pipelineActivity = isTerminal ? null : phase;
     if (isTerminal) ui.pipelineTodoProgress = null;
+    // Multi-epic activity tracking
+    ui.setEpicActivity(epicId, isTerminal ? null : phase);
+    // Activity log
+    const epic = epicStore.epicById(epicId);
+    if (epic) {
+      const level = phase === 'completed' ? 'success' : phase === 'failed' ? 'error' : 'info';
+      activityLogStore.append(epic.projectId, level, `Epic "${epic.title}" ${phase}`, epicId);
+    }
   };
-  onPipelineInternalCall = ({ callType, status }) => {
+  onPipelineInternalCall = ({ epicId, callType, status }) => {
     ui.pipelineActivity = status === 'started'
       ? (CALL_LABELS[callType] || callType)
       : null;
+    const label = status === 'started' ? (CALL_LABELS[callType] || callType) : null;
+    ui.setEpicActivity(epicId, label);
   };
-  onPipelineTodoProgress = ({ current, total }) => {
+  onPipelineTodoProgress = ({ epicId, current, total, scope, title }) => {
     ui.pipelineTodoProgress = { current, total };
+    ui.setEpicActivity(epicId, `${scope}: ${title}`, { current, total });
+    // Log agent completion milestones
+    const epic = epicStore.epicById(epicId);
+    if (epic) {
+      activityLogStore.append(epic.projectId, 'info', `${scope}-${current} of epic "${epic.title}" completed (${current}/${total})`, epicId);
+    }
   };
   engineBus.on('epic:phaseChanged', onEpicPhaseChanged);
   engineBus.on('pipeline:internalCall', onPipelineInternalCall);
@@ -739,6 +754,7 @@ onMounted(async () => {
   if (db) {
     await projectStore.initialize();
     await epicStore.initialize();
+    await activityLogStore.load();
 
     // Initialize the composable-level pool (for standalone orchestrator)
     const branchManager = engine.branchManager;
@@ -747,13 +763,14 @@ onMounted(async () => {
     const scheduler = engine.scheduler;
     await scheduler.initialize();
 
-    await sessionsStore.loadFromDatabase(ui.workspacePath || undefined);
+    // Load ALL sessions globally (no workspace filter) so the fleet shows agents from all projects
+    await sessionsStore.loadFromDatabase(undefined);
     fleetStore.rebuildFromSessions();
     console.log(`[App] Loaded ${sessionsStore.sessions.size} sessions from database`);
 
     // Periodically sync sessions from DB so other instances' chats appear
     sessionSyncInterval = window.setInterval(async () => {
-      const added = await sessionsStore.syncNewSessions(ui.workspacePath || undefined);
+      const added = await sessionsStore.syncNewSessions(undefined);
       if (added) {
         fleetStore.rebuildFromSessions();
       }

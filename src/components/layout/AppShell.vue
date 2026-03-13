@@ -5,8 +5,9 @@
         <slot name="actions" />
       </template>
     </GlobalTopBar>
-    <div class="flex-1 min-h-0 overflow-hidden">
+    <div class="flex-1 min-h-0 overflow-hidden relative">
       <slot />
+      <ActivityLogPanel />
     </div>
     <StatusBar />
   </div>
@@ -15,4 +16,5 @@
 <script setup lang="ts">
 import GlobalTopBar from './GlobalTopBar.vue';
 import StatusBar from './StatusBar.vue';
+import ActivityLogPanel from './ActivityLogPanel.vue';
 </script>

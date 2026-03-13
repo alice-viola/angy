@@ -1,12 +1,29 @@
 <template>
   <div class="flex items-center gap-3 px-4 py-2 border-b border-[var(--border-subtle)] bg-[var(--bg-surface)]">
-    <!-- Project name -->
-    <h1 class="text-sm font-semibold text-[var(--text-primary)] truncate">
-      {{ projectName }}
-    </h1>
-
-    <!-- Multi-project selector -->
-    <slot name="projectSelector" />
+    <!-- Project filter chips -->
+    <div class="flex items-center gap-1.5 overflow-x-auto shrink-0">
+      <!-- "All" chip -->
+      <button
+        class="flex items-center gap-1 text-[var(--text-xs)] px-2 py-1 rounded-full border transition-colors shrink-0"
+        :class="allSelected
+          ? 'border-[var(--accent-mauve)] bg-[color-mix(in_srgb,var(--accent-mauve)_15%,transparent)] text-[var(--text-primary)]'
+          : 'border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-[var(--border-standard)]'"
+        @click="$emit('showAll')"
+      >All</button>
+      <!-- Per-project chips -->
+      <button
+        v-for="project in projects"
+        :key="project.id"
+        class="flex items-center gap-1 text-[var(--text-xs)] px-2 py-1 rounded-full border transition-colors shrink-0"
+        :class="activeIds.includes(project.id)
+          ? 'border-[var(--border-standard)] text-[var(--text-primary)]'
+          : 'border-[var(--border-subtle)] text-[var(--text-muted)] hover:border-[var(--border-standard)] opacity-50'"
+        @click="$emit('toggleProject', project.id)"
+      >
+        <div class="w-2 h-2 rounded-full shrink-0" :style="{ background: project.color || '#cba6f7' }" />
+        {{ project.name }}
+      </button>
+    </div>
 
     <!-- Spacer -->
     <div class="flex-1" />
@@ -77,9 +94,13 @@
 </template>
 
 <script setup lang="ts">
+import type { Project } from '@/engine/KosTypes';
+
 defineProps<{
-  projectName: string;
+  projects: Project[];
+  activeIds: string[];
   filterText?: string;
+  allSelected?: boolean;
 }>();
 
 defineEmits<{
@@ -87,6 +108,8 @@ defineEmits<{
   scheduleNow: [];
   openSchedulerConfig: [];
   openGitTree: [];
+  toggleProject: [projectId: string];
+  showAll: [];
   'update:filterText': [value: string];
 }>();
 </script>

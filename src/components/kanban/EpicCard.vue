@@ -9,6 +9,12 @@
     @dragstart="onDragStart"
     @dragend="onDragEnd"
   >
+    <!-- Project color stripe (multi-project mode) -->
+    <div
+      v-if="showProjectBadge && projectInfo"
+      class="absolute left-0 top-1 bottom-1 w-[3px] rounded-sm"
+      :style="{ background: projectInfo.color }"
+    />
     <!-- Selection checkbox -->
     <div v-if="selectable" class="flex items-center justify-end mb-1">
       <div
@@ -20,6 +26,11 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
         </svg>
       </div>
+    </div>
+    <!-- Project badge (multi-project mode) -->
+    <div v-if="showProjectBadge && projectInfo" class="flex items-center gap-1.5 mb-1">
+      <div class="w-2 h-2 rounded-full shrink-0" :style="{ background: projectInfo.color }"></div>
+      <span class="text-[var(--text-xs)] text-[var(--text-muted)] truncate">{{ projectInfo.name }}</span>
     </div>
     <!-- Title -->
     <div class="text-[var(--text-base)] font-medium text-[var(--text-primary)] leading-snug mb-1.5">
@@ -99,6 +110,7 @@
 import { computed } from 'vue';
 import type { Epic } from '@/engine/KosTypes';
 import { useUiStore } from '@/stores/ui';
+import { useProjectsStore } from '@/stores/projects';
 
 import { useEpicStore } from '@/stores/epics';
 import { useSessionsStore } from '@/stores/sessions';
@@ -109,9 +121,11 @@ const props = withDefaults(defineProps<{
   epic: Epic;
   selectable?: boolean;
   selected?: boolean;
+  showProjectBadge?: boolean;
 }>(), {
   selectable: false,
   selected: false,
+  showProjectBadge: false,
 });
 const emit = defineEmits<{
   select: [id: string];
@@ -119,8 +133,14 @@ const emit = defineEmits<{
 }>();
 
 const ui = useUiStore();
+const projectsStore = useProjectsStore();
 const epicStore = useEpicStore();
 const sessionsStore = useSessionsStore();
+
+const projectInfo = computed(() => {
+  const project = projectsStore.projectById(props.epic.projectId);
+  return project ? { name: project.name, color: project.color || '#cba6f7' } : null;
+});
 
 const branchName = computed(() => epicStore.epicBranchName(props.epic.id));
 const { loading: prLoading, error: prError, createPR } = useCreatePR();

@@ -31,11 +31,16 @@ export const useUiStore = defineStore('ui', () => {
   const missionControlFilter = ref<string | null>(null);
   const autoCommitEnabled = ref(false);
   const kanbanProjectIds = ref<string[]>([]);
+  const fleetProjectIds = ref<string[]>([]); // empty = show all
   const notifications = ref<AppNotification[]>([]);
   const repoSwitchOnly = ref(false);
   const kanbanFilterText = ref('');
   const pipelineActivity = ref<string | null>(null);
   const pipelineTodoProgress = ref<{ current: number; total: number } | null>(null);
+
+  // Multi-epic activity tracking: epicId -> { label, progress }
+  const epicActivities = ref<Map<string, { label: string; progress?: { current: number; total: number } }>>(new Map());
+  const activityLogVisible = ref(false);
 
   // Diff view state (git diff shown in Monaco DiffSplitView)
   const diffView = ref<{
@@ -142,7 +147,9 @@ export const useUiStore = defineStore('ui', () => {
 
   function navigateToProject(projectId: string) {
     activeProjectId.value = projectId;
-    kanbanProjectIds.value = [projectId];
+    if (!kanbanProjectIds.value.includes(projectId)) {
+      kanbanProjectIds.value = [...kanbanProjectIds.value, projectId];
+    }
     viewMode.value = 'kanban';
   }
 
@@ -152,12 +159,21 @@ export const useUiStore = defineStore('ui', () => {
     viewMode.value = 'manager';
   }
 
-  function navigateToKanban(projectId: string) {
-    activeProjectId.value = projectId;
-    if (!kanbanProjectIds.value.includes(projectId)) {
-      kanbanProjectIds.value = [projectId];
+  function navigateToKanban(projectId?: string) {
+    if (projectId) {
+      activeProjectId.value = projectId;
+      if (!kanbanProjectIds.value.includes(projectId)) {
+        kanbanProjectIds.value = [...kanbanProjectIds.value, projectId];
+      }
     }
     activeEpicId.value = null;
+    viewMode.value = 'kanban';
+  }
+
+  /** Show all projects on the kanban board */
+  function showAllProjectsOnKanban(allProjectIds: string[]) {
+    kanbanProjectIds.value = [...allProjectIds];
+    activeProjectId.value = allProjectIds[0] ?? null;
     viewMode.value = 'kanban';
   }
 
@@ -167,9 +183,37 @@ export const useUiStore = defineStore('ui', () => {
       // Don't allow removing the last project
       if (kanbanProjectIds.value.length > 1) {
         kanbanProjectIds.value = kanbanProjectIds.value.filter(id => id !== projectId);
+        // If we removed the active project, switch to another
+        if (activeProjectId.value === projectId) {
+          activeProjectId.value = kanbanProjectIds.value[0] ?? null;
+        }
       }
     } else {
       kanbanProjectIds.value = [...kanbanProjectIds.value, projectId];
+    }
+  }
+
+  function toggleFleetProject(projectId: string) {
+    const idx = fleetProjectIds.value.indexOf(projectId);
+    if (idx >= 0) {
+      fleetProjectIds.value = fleetProjectIds.value.filter(id => id !== projectId);
+    } else {
+      fleetProjectIds.value = [...fleetProjectIds.value, projectId];
+    }
+  }
+
+  function toggleActivityLog() {
+    activityLogVisible.value = !activityLogVisible.value;
+  }
+
+  function setEpicActivity(epicId: string, label: string | null, progress?: { current: number; total: number }) {
+    if (!label) {
+      epicActivities.value.delete(epicId);
+      epicActivities.value = new Map(epicActivities.value);
+    } else {
+      const updated = new Map(epicActivities.value);
+      updated.set(epicId, { label, progress });
+      epicActivities.value = updated;
     }
   }
 
@@ -177,13 +221,15 @@ export const useUiStore = defineStore('ui', () => {
     viewMode, activeProjectId, activeEpicId, terminalVisible, activeLeftTab,
     workspacePath, currentFile, currentBranch, currentModel, isProcessing,
     inlinePreviewFile, effectsPanelVisible, editorChatVisible, rightPanelMode, diffView,
-    missionControlFilter, autoCommitEnabled, kanbanProjectIds, notifications, repoSwitchOnly,
+    missionControlFilter, autoCommitEnabled, kanbanProjectIds, fleetProjectIds, notifications, repoSwitchOnly,
     managerSizes, editorSizes, kanbanFilterText, pipelineActivity, pipelineTodoProgress,
+    epicActivities, activityLogVisible,
     switchToMode, toggleViewMode, toggleTerminal, dismissInlinePreview,
     toggleEffectsPanel, toggleEditorChat, toggleRightPanelMode, setRightPanelMode,
     showDiffView, closeDiffView,
     enterMissionControl, exitMissionControl, setMissionControlFilter, toggleAutoCommit,
     addNotification, dismissNotification, clearNotifications,
-    navigateHome, navigateToProject, navigateToEpic, navigateToKanban, toggleKanbanProject,
+    navigateHome, navigateToProject, navigateToEpic, navigateToKanban,
+    showAllProjectsOnKanban, toggleKanbanProject, toggleFleetProject, toggleActivityLog, setEpicActivity,
   };
 });

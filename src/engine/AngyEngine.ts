@@ -637,6 +637,7 @@ export class AngyEngine {
       id: crypto.randomUUID(),
       name,
       description,
+      color: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

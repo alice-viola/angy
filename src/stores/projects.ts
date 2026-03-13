@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { Project, ProjectRepo } from '@/engine/KosTypes';
+import { PROJECT_COLORS } from '@/engine/KosTypes';
 import { getDatabase } from './sessions';
 
 export const useProjectsStore = defineStore('projects', () => {
@@ -39,12 +40,18 @@ export const useProjectsStore = defineStore('projects', () => {
     }
   }
 
+  function nextColor(): string {
+    const usedColors = new Set(projects.value.map(p => p.color));
+    return PROJECT_COLORS.find(c => !usedColors.has(c)) ?? PROJECT_COLORS[projects.value.length % PROJECT_COLORS.length];
+  }
+
   async function createProject(name: string, description?: string): Promise<Project> {
     const now = new Date().toISOString();
     const project: Project = {
       id: crypto.randomUUID(),
       name,
       description: description ?? '',
+      color: nextColor(),
       createdAt: now,
       updatedAt: now,
     };
@@ -55,12 +62,13 @@ export const useProjectsStore = defineStore('projects', () => {
     return project;
   }
 
-  async function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'description'>>) {
+  async function updateProject(id: string, updates: Partial<Pick<Project, 'name' | 'description' | 'color'>>) {
     const project = projects.value.find((p) => p.id === id);
     if (!project) return;
 
     if (updates.name !== undefined) project.name = updates.name;
     if (updates.description !== undefined) project.description = updates.description;
+    if (updates.color !== undefined) project.color = updates.color;
     project.updatedAt = new Date().toISOString();
 
     const db = getDatabase();
@@ -111,6 +119,14 @@ export const useProjectsStore = defineStore('projects', () => {
 
   async function initialize() {
     await loadAll();
+    // Auto-assign colors to projects that don't have one
+    for (const project of projects.value) {
+      if (!project.color) {
+        project.color = nextColor();
+        const db = getDatabase();
+        await db.saveProject(project);
+      }
+    }
   }
 
   return {

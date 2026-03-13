@@ -107,6 +107,16 @@
           {{ agent.title || 'New Agent' }}
         </span>
 
+        <!-- Project badge -->
+        <span
+          v-if="agentProject"
+          class="shrink-0 flex items-center gap-1 text-[var(--text-xs)] px-1.5 py-0.5 rounded-full leading-none text-[var(--text-muted)]"
+          :style="{ background: `color-mix(in srgb, ${agentProject.color} 15%, transparent)` }"
+        >
+          <div class="w-1.5 h-1.5 rounded-full shrink-0" :style="{ background: agentProject.color }" />
+          {{ agentProject.name }}
+        </span>
+
         <!-- Epic pipeline badge -->
         <span
           v-if="agent.epicId"
@@ -198,6 +208,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import type { AgentSummary } from '../../engine/types';
+import { useEpicStore } from '../../stores/epics';
+import { useProjectsStore } from '../../stores/projects';
 
 // ── Props / Emits ────────────────────────────────────────────────────────
 
@@ -237,11 +249,24 @@ const editInput = ref<HTMLInputElement | null>(null);
 
 // ── Computed ─────────────────────────────────────────────────────────────
 
+const epicStore = useEpicStore();
+const projectsStore = useProjectsStore();
+
 const depth = computed(() => (props.agent as HierarchicalAgent).depth ?? 0);
 const isOrchestratorRoot = computed(() => (props.agent as HierarchicalAgent).isOrchestratorRoot ?? false);
 const isSubOrchestrator = computed(() => (props.agent as HierarchicalAgent).isSubOrchestrator ?? false);
 const orchestratorDepth = computed(() => (props.agent as HierarchicalAgent).orchestratorDepth ?? 0);
 const childCount = computed(() => (props.agent as HierarchicalAgent).childCount ?? 0);
+
+// Resolve project from epicId
+const agentProject = computed(() => {
+  if (!props.agent.epicId) return null;
+  const epic = epicStore.epicById(props.agent.epicId);
+  if (!epic) return null;
+  const project = projectsStore.projectById(epic.projectId);
+  if (!project) return null;
+  return { name: project.name, color: project.color || '#cba6f7' };
+});
 
 // Intensity: based on edit count (proxy for turn count) + recency
 const intensity = computed(() => {

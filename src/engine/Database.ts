@@ -2,7 +2,7 @@ import SqlDatabase from '@tauri-apps/plugin-sql';
 import { mkdir } from '@tauri-apps/plugin-fs';
 import { appDataDir } from '@tauri-apps/api/path';
 import { DelegationStatus, type SessionInfo, type MessageRecord, type CheckpointRecord, type PipelineSnapshot } from './types';
-import type { Project, ProjectRepo, Epic, EpicColumn, EpicBranch, SchedulerConfig, SchedulerAction } from './KosTypes';
+import type { Project, ProjectRepo, Epic, EpicColumn, EpicBranch, SchedulerConfig, SchedulerAction, ActivityLogEntry, ActivityLogLevel } from './KosTypes';
 
 export class Database {
   private db: SqlDatabase | null = null;
@@ -132,6 +132,11 @@ export class Database {
       )
     `);
 
+    // Migration: add color column to projects
+    try {
+      await this.db.execute(`ALTER TABLE projects ADD COLUMN color TEXT DEFAULT ''`);
+    } catch { /* column already exists */ }
+
     await this.db.execute(`
       CREATE TABLE IF NOT EXISTS project_repos (
         id TEXT PRIMARY KEY,
@@ -249,6 +254,18 @@ export class Database {
         cost_usd REAL NOT NULL,
         input_tokens INTEGER DEFAULT 0,
         output_tokens INTEGER DEFAULT 0,
+        timestamp TEXT NOT NULL
+      )
+    `);
+
+    await this.db.execute(`
+      CREATE TABLE IF NOT EXISTS activity_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id TEXT NOT NULL,
+        epic_id TEXT DEFAULT NULL,
+        session_id TEXT DEFAULT NULL,
+        level TEXT NOT NULL DEFAULT 'info',
+        message TEXT NOT NULL,
         timestamp TEXT NOT NULL
       )
     `);
@@ -567,9 +584,9 @@ export class Database {
     if (!this.db) return;
 
     await this.db.execute(
-      `INSERT OR REPLACE INTO projects (id, name, description, created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [project.id, project.name, project.description, project.createdAt, project.updatedAt],
+      `INSERT OR REPLACE INTO projects (id, name, description, color, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [project.id, project.name, project.description, project.color || '', project.createdAt, project.updatedAt],
     );
   }
 
@@ -577,13 +594,14 @@ export class Database {
     if (!this.db) return [];
 
     const rows = await this.db.select<any[]>(
-      'SELECT id, name, description, created_at, updated_at FROM projects ORDER BY updated_at DESC',
+      'SELECT id, name, description, color, created_at, updated_at FROM projects ORDER BY updated_at DESC',
     );
 
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
       description: r.description,
+      color: r.color || '',
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     }));
@@ -593,7 +611,7 @@ export class Database {
     if (!this.db) return null;
 
     const rows = await this.db.select<any[]>(
-      'SELECT id, name, description, created_at, updated_at FROM projects WHERE id = $1 LIMIT 1',
+      'SELECT id, name, description, color, created_at, updated_at FROM projects WHERE id = $1 LIMIT 1',
       [id],
     );
 
@@ -603,6 +621,7 @@ export class Database {
       id: r.id,
       name: r.name,
       description: r.description,
+      color: r.color || '',
       createdAt: r.created_at,
       updatedAt: r.updated_at,
     };
@@ -1029,6 +1048,37 @@ export class Database {
       autoProfiles: r.auto_profiles || '[]',
       updatedAt: r.updated_at,
       createdAt: r.created_at,
+    }));
+  }
+
+  // ── Activity Log ────────────────────────────────────────────────────
+
+  async appendActivityLog(entry: Omit<ActivityLogEntry, 'id'>): Promise<void> {
+    if (!this.db) return;
+
+    await this.db.execute(
+      `INSERT INTO activity_log (project_id, epic_id, session_id, level, message, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [entry.projectId, entry.epicId ?? null, entry.sessionId ?? null, entry.level, entry.message, entry.timestamp],
+    );
+  }
+
+  async loadActivityLog(limit: number = 200): Promise<ActivityLogEntry[]> {
+    if (!this.db) return [];
+
+    const rows = await this.db.select<any[]>(
+      'SELECT id, project_id, epic_id, session_id, level, message, timestamp FROM activity_log ORDER BY id DESC LIMIT $1',
+      [limit],
+    );
+
+    return rows.map((r) => ({
+      id: r.id,
+      projectId: r.project_id,
+      epicId: r.epic_id || null,
+      sessionId: r.session_id || null,
+      level: r.level as ActivityLogLevel,
+      message: r.message,
+      timestamp: r.timestamp,
     }));
   }
 

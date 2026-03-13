@@ -1,5 +1,83 @@
 <template>
   <div class="flex items-center gap-3">
+    <!-- Project multi-select dropdown -->
+    <div class="relative" ref="projectDropdownRef">
+      <button
+        class="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border transition-colors shrink-0"
+        :class="allSelected
+          ? 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-standard)]'
+          : 'border-[var(--accent-mauve)] text-[var(--accent-mauve)] bg-[color-mix(in_srgb,var(--accent-mauve)_10%,transparent)]'"
+        @click="projectDropdownOpen = !projectDropdownOpen"
+      >
+        <!-- Color dots for selected projects (up to 3) -->
+        <span class="flex items-center gap-0.5">
+          <span
+            v-for="p in selectedProjectDots"
+            :key="p.id"
+            class="w-1.5 h-1.5 rounded-full shrink-0"
+            :style="{ background: p.color || '#cba6f7' }"
+          />
+        </span>
+        {{ dropdownLabel }}
+        <svg class="w-3 h-3 shrink-0 transition-transform" :class="projectDropdownOpen && 'rotate-180'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      <!-- Dropdown panel -->
+      <div
+        v-if="projectDropdownOpen"
+        class="absolute left-0 top-full mt-1 z-50 min-w-[180px] rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] py-1"
+      >
+        <!-- All option -->
+        <button
+          class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--bg-hover)] transition-colors"
+          :class="allSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'"
+          @click="showAllProjects"
+        >
+          <span
+            class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors"
+            :class="allSelected
+              ? 'bg-[var(--accent-mauve)] border-[var(--accent-mauve)]'
+              : 'border-[var(--border-standard)]'"
+          >
+            <svg v-if="allSelected" class="w-2 h-2 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </span>
+          All projects
+        </button>
+
+        <div class="my-1 h-px bg-[var(--border-subtle)]" />
+
+        <!-- Per-project rows -->
+        <button
+          v-for="project in allProjects"
+          :key="project.id"
+          class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--bg-hover)] transition-colors"
+          :class="ui.kanbanProjectIds.includes(project.id) ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'"
+          @click="ui.toggleKanbanProject(project.id)"
+        >
+          <span
+            class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors"
+            :style="ui.kanbanProjectIds.includes(project.id)
+              ? { background: project.color || '#cba6f7', borderColor: project.color || '#cba6f7' }
+              : {}"
+            :class="!ui.kanbanProjectIds.includes(project.id) && 'border-[var(--border-standard)]'"
+          >
+            <svg v-if="ui.kanbanProjectIds.includes(project.id)" class="w-2 h-2 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </span>
+          <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: project.color || '#cba6f7' }" />
+          <span class="truncate">{{ project.name }}</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Separator -->
+    <div class="w-px h-4 bg-[var(--border-subtle)]" />
+
     <!-- Filter input -->
     <div class="relative">
       <svg class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -134,11 +212,39 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useUiStore } from '@/stores/ui';
 import { useProjectsStore } from '@/stores/projects';
 
 const ui = useUiStore();
 const projectsStore = useProjectsStore();
+const projectDropdownRef = ref<HTMLElement | null>(null);
+const projectDropdownOpen = ref(false);
+
+const allProjects = computed(() => projectsStore.projects);
+
+const allSelected = computed(() =>
+  ui.kanbanProjectIds.length === projectsStore.projects.length && projectsStore.projects.length > 0
+);
+
+const dropdownLabel = computed(() => {
+  if (allSelected.value) return 'All projects';
+  if (ui.kanbanProjectIds.length === 1) {
+    const p = projectsStore.projects.find(p => p.id === ui.kanbanProjectIds[0]);
+    return p?.name ?? '1 project';
+  }
+  return `${ui.kanbanProjectIds.length} projects`;
+});
+
+const selectedProjectDots = computed(() =>
+  allProjects.value
+    .filter(p => ui.kanbanProjectIds.includes(p.id))
+    .slice(0, 3)
+);
+
+function showAllProjects() {
+  ui.showAllProjectsOnKanban(projectsStore.projects.map(p => p.id));
+}
 
 function goToMode(mode: 'manager' | 'editor') {
   if (ui.activeProjectId) {
@@ -149,6 +255,15 @@ function goToMode(mode: 'manager' | 'editor') {
   }
   ui.switchToMode(mode);
 }
+
+function onClickOutside(e: MouseEvent) {
+  if (projectDropdownRef.value && !projectDropdownRef.value.contains(e.target as Node)) {
+    projectDropdownOpen.value = false;
+  }
+}
+
+onMounted(() => document.addEventListener('mousedown', onClickOutside));
+onUnmounted(() => document.removeEventListener('mousedown', onClickOutside));
 
 defineEmits<{
   'add-epic': [];

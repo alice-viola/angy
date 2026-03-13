@@ -62,6 +62,31 @@
       </button>
     </div>
 
+    <!-- Project picker for Add Epic (multi-project) -->
+    <Teleport to="body">
+      <div
+        v-if="showProjectPicker"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        @click.self="showProjectPicker = false"
+      >
+        <div class="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-[var(--radius-md)] shadow-[var(--shadow-lg)] p-4 min-w-[240px]">
+          <p class="text-xs font-semibold text-[var(--text-primary)] mb-3">Create epic in which project?</p>
+          <div class="space-y-1.5">
+            <button
+              v-for="project in pickerProjects"
+              :key="project.id"
+              class="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-[var(--radius-md)]
+                     text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)] transition-colors"
+              @click="addEpicToProject(project.id)"
+            >
+              <div class="w-2.5 h-2.5 rounded-full shrink-0" :style="{ background: project.color || '#cba6f7' }" />
+              {{ project.name }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
     <!-- Scheduler config dialog -->
     <SchedulerConfigDialog
       :visible="showSchedulerConfig"
@@ -91,6 +116,7 @@ import { ref, computed } from 'vue';
 import type { EpicColumn, SchedulerConfig } from '@/engine/KosTypes';
 import { useUiStore } from '@/stores/ui';
 import { useEpicStore } from '@/stores/epics';
+import { useProjectsStore } from '@/stores/projects';
 import { engineBus } from '@/engine/EventBus';
 import { Scheduler } from '@/engine/Scheduler';
 import KanbanColumn from './KanbanColumn.vue';
@@ -103,6 +129,7 @@ import MergeEpicsDialog from './MergeEpicsDialog.vue';
 
 const ui = useUiStore();
 const epicStore = useEpicStore();
+const projectsStore = useProjectsStore();
 
 const gitOpsPanelRef = ref<InstanceType<typeof GitOpsPanel> | null>(null);
 const selectedEpicId = ref<string | null>(null);
@@ -113,9 +140,17 @@ const showGitOps = ref(false);
 const mergeMode = ref(false);
 const selectedEpicIds = ref<string[]>([]);
 const showMergeDialog = ref(false);
+const showProjectPicker = ref(false);
 
 const columns: EpicColumn[] = ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done', 'discarded'];
 const projectId = computed(() => ui.activeProjectId ?? '');
+
+// Projects visible on the kanban
+const pickerProjects = computed(() =>
+  projectsStore.projects.filter(p => ui.kanbanProjectIds.includes(p.id))
+);
+
+const isMultiProject = computed(() => ui.kanbanProjectIds.length > 1);
 
 function onSelectEpic(epicId: string) {
   selectedEpicId.value = epicId;
@@ -123,8 +158,19 @@ function onSelectEpic(epicId: string) {
 }
 
 async function addEpic() {
-  if (!projectId.value) return;
-  const epic = await epicStore.createEpic(projectId.value, 'New Epic');
+  if (isMultiProject.value) {
+    // Show project picker
+    showProjectPicker.value = true;
+    return;
+  }
+  const targetProjectId = ui.kanbanProjectIds[0] || projectId.value;
+  if (!targetProjectId) return;
+  await addEpicToProject(targetProjectId);
+}
+
+async function addEpicToProject(targetProjectId: string) {
+  showProjectPicker.value = false;
+  const epic = await epicStore.createEpic(targetProjectId, 'New Epic');
   selectedEpicId.value = epic.id;
   isNewEpic.value = true;
 }

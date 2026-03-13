@@ -33,8 +33,38 @@ export interface Project {
   id: string;
   name: string;
   description: string;
+  color: string;
   createdAt: string;
   updatedAt: string;
+}
+
+// ── Predefined project colors ──────────────────────────────────────────────
+
+export const PROJECT_COLORS = [
+  '#cba6f7', // mauve
+  '#89b4fa', // blue
+  '#a6e3a1', // green
+  '#f9e2af', // yellow
+  '#fab387', // peach
+  '#f38ba8', // red
+  '#94e2d5', // teal
+  '#f5c2e7', // pink
+  '#74c7ec', // sapphire
+  '#b4befe', // lavender
+] as const;
+
+// ── Activity Log ───────────────────────────────────────────────────────────
+
+export type ActivityLogLevel = 'info' | 'success' | 'warning' | 'error';
+
+export interface ActivityLogEntry {
+  id: number;
+  projectId: string;
+  epicId: string | null;
+  sessionId: string | null;
+  level: ActivityLogLevel;
+  message: string;
+  timestamp: string;
 }
 
 export interface ProjectRepo {
