@@ -67,6 +67,11 @@ export const useEpicStore = defineStore('epics', () => {
     return branches[0].branchName;
   }
 
+  const activeEpicsByProject = computed(() => {
+    return (projectId: string): number =>
+      epics.value.filter((e) => e.projectId === projectId && e.column === 'in-progress').length;
+  });
+
   const activeEpics = computed(() =>
     epics.value.filter((e) => e.column === 'in-progress'),
   );
@@ -295,6 +300,7 @@ export const useEpicStore = defineStore('epics', () => {
     epicsByProject,
     epicsByColumn,
     epicBranchName,
+    activeEpicsByProject,
     activeEpics,
     reviewEpics,
     // Actions

@@ -1,75 +1,115 @@
-<template>
-  <div class="flex flex-col h-full bg-[var(--bg-base)]">
-    <!-- Main content -->
-    <div class="flex-1 overflow-y-auto">
-      <div class="max-w-[900px] mx-auto px-8 py-12">
-        <!-- Welcome tip -->
-        <SectionTip tipId="home-welcome" title="Welcome to Angy" icon="🚀">
-          Angy helps you orchestrate AI coding agents. Start by creating a
-          <strong class="text-[var(--text-primary)]">Project</strong> — a collection of repos your agents work on.
-          Then use the <strong class="text-[var(--text-primary)]">Kanban</strong> board to plan epics, and the
-          <strong class="text-[var(--text-primary)]">Agent Fleet</strong> to run them.
-        </SectionTip>
+<script setup lang="ts">
+import { ref, computed } from 'vue';
+import type { Project } from '@/engine/KosTypes';
+import { useProjectsStore } from '@/stores/projects';
+import { useEpicStore } from '@/stores/epics';
+import { useFleetStore } from '@/stores/fleet';
+import { useUiStore } from '@/stores/ui';
+import ProjectCard from './ProjectCard.vue';
+import NewProjectCard from './NewProjectCard.vue';
+import NewProjectDialog from './NewProjectDialog.vue';
+import ProjectSettingsDialog from './ProjectSettingsDialog.vue';
 
-        <!-- Header with Open Workspace CTA -->
-        <div class="flex items-center justify-between mb-8">
-          <div />
-          <button
-            @click="onOpenWorkspace"
-            class="flex items-center gap-3 px-4 py-2.5 text-xs text-[var(--text-secondary)] bg-[var(--bg-surface)] border border-[var(--border-standard)] rounded-lg hover:border-[var(--accent-teal)] hover:brightness-110 transition-all"
-          >
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
-            </svg>
-            <div class="text-left">
-              <div class="font-medium">Open Workspace</div>
-              <div class="text-[10px] text-[var(--text-muted)]">Agent fleet without a project</div>
-            </div>
-            <InfoTip text="Opens a folder directly without a project. Best for quick one-off tasks. For organized multi-repo work, create a Project instead." position="bottom" />
-          </button>
+const projectsStore = useProjectsStore();
+const epicStore = useEpicStore();
+const fleetStore = useFleetStore();
+const ui = useUiStore();
+
+const showNewProject = ref(false);
+const settingsProject = ref<Project | null>(null);
+
+const greeting = computed(() => {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+});
+
+const subtitleStats = computed(() => {
+  const pc = projectsStore.projects.length;
+  const ac = projectsStore.projects.reduce(
+    (sum, p) => sum + epicStore.activeEpicsByProject(p.id),
+    0
+  );
+  return `${pc} project${pc !== 1 ? 's' : ''}${ac > 0 ? `, ${ac} active epic${ac !== 1 ? 's' : ''}` : ''}`;
+});
+</script>
+
+<template>
+  <div class="flex flex-col h-full">
+    <!-- Header bar -->
+    <div class="h-12 bg-window/50 border-b border-border-subtle px-5 flex items-center gap-4 shrink-0">
+      <span class="text-sm font-medium text-txt-primary">Projects</span>
+      <span class="text-[10px] bg-white/[0.06] px-1.5 py-0.5 rounded-full text-txt-muted">
+        {{ projectsStore.projects.length }}
+      </span>
+      <div class="flex-1" />
+      <!-- Search trigger -->
+      <button
+        class="w-64 h-7 bg-white/[0.03] border border-white/[0.06] rounded-lg hover:border-ember/30 flex items-center gap-2 px-2 text-[11px] text-txt-faint cursor-pointer transition-colors"
+        @click="ui.openCommandPalette()"
+      >
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+        </svg>
+        <span class="flex-1 text-left">Search projects...</span>
+        <span class="text-[10px] px-1.5 py-0.5 rounded bg-white/[0.06] border border-white/[0.08] text-txt-faint font-mono">⌘K</span>
+      </button>
+    </div>
+
+    <!-- Scrollable content -->
+    <div class="flex-1 overflow-y-auto">
+      <div class="max-w-5xl mx-auto px-8">
+        <!-- Greeting -->
+        <div class="p-8 mb-8 anim-fade-in">
+          <h1 class="text-2xl font-bold text-txt-primary mb-1">{{ greeting }}</h1>
+          <p class="text-sm text-txt-secondary">{{ subtitleStats }}</p>
         </div>
+
+        <!-- Loading skeletons -->
+        <template v-if="projectsStore.loading">
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div v-for="i in 3" :key="i" class="bg-surface rounded-2xl p-5 animate-pulse">
+              <div class="w-10 h-10 rounded-xl bg-raised mb-3" />
+              <div class="h-4 bg-raised rounded w-3/4 mb-2" />
+              <div class="h-3 bg-raised rounded w-full mb-1" />
+              <div class="h-3 bg-raised rounded w-2/3" />
+            </div>
+          </div>
+        </template>
 
         <!-- Empty state -->
-        <div
-          v-if="projectsStore.projects.length === 0 && !projectsStore.loading"
-          class="flex flex-col items-center justify-center py-20 text-center"
-        >
-          <div class="text-[var(--text-faint)] mb-4">
-            <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+        <template v-else-if="projectsStore.projects.length === 0">
+          <div class="flex flex-col items-center justify-center py-20 text-center">
+            <svg class="w-12 h-12 text-txt-faint mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
             </svg>
+            <p class="text-sm text-txt-muted mb-4">Create a project to get started</p>
+            <button
+              class="px-4 py-2 text-xs rounded-lg bg-ember text-white hover:brightness-110 transition-all"
+              @click="showNewProject = true"
+            >New Project</button>
           </div>
-          <p class="text-sm text-[var(--text-muted)] mb-4">Create a project to organize your repos, plan work in Kanban, and let AI agents build your code.</p>
-          <button
-            @click="showNewProject = true"
-            class="px-4 py-2 text-xs bg-[var(--accent-mauve)] text-white rounded-lg hover:brightness-110 transition-all"
-          >
-            Create Project
-          </button>
-        </div>
+        </template>
 
-        <!-- Project grid -->
+        <!-- Card grid -->
         <template v-else>
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <ProjectCard
-              v-for="project in projectsStore.projects"
+              v-for="(project, idx) in projectsStore.projects"
               :key="project.id"
               :project="project"
+              :agents="fleetStore.agentsByProject(project.id)"
+              :active-epic-count="epicStore.activeEpicsByProject(project.id)"
+              :repo-count="projectsStore.reposByProjectId(project.id).length"
+              :index="idx"
               @open-settings="settingsProject = project"
             />
-
-            <!-- New project card -->
-            <button
-              @click="showNewProject = true"
-              class="flex flex-col items-center justify-center gap-2 min-h-[120px] border border-dashed border-[var(--border-subtle)] rounded-lg text-[var(--text-faint)] hover:text-[var(--accent-teal)] hover:border-[var(--accent-teal)] transition-colors cursor-pointer"
-            >
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-              </svg>
-              <span class="text-xs">New Project</span>
-            </button>
+            <NewProjectCard @click="showNewProject = true" />
           </div>
-
         </template>
       </div>
     </div>
@@ -79,27 +119,3 @@
     <ProjectSettingsDialog v-if="settingsProject" :project="settingsProject" @close="settingsProject = null" />
   </div>
 </template>
-
-<script setup lang="ts">
-import { ref } from 'vue';
-import type { Project } from '@/engine/KosTypes';
-import { useProjectsStore } from '@/stores/projects';
-import { useUiStore } from '@/stores/ui';
-import ProjectCard from './ProjectCard.vue';
-import NewProjectDialog from './NewProjectDialog.vue';
-import ProjectSettingsDialog from './ProjectSettingsDialog.vue';
-import SectionTip from '@/components/common/SectionTip.vue';
-import InfoTip from '@/components/common/InfoTip.vue';
-
-const projectsStore = useProjectsStore();
-const ui = useUiStore();
-
-function onOpenWorkspace() {
-  ui.activeProjectId = null;
-  ui.workspacePath = '';
-  ui.switchToMode('agents');
-}
-
-const showNewProject = ref(false);
-const settingsProject = ref<Project | null>(null);
-</script>

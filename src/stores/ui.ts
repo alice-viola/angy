@@ -134,6 +134,10 @@ export const useUiStore = defineStore('ui', () => {
     notifications.value = []
   }
 
+  function openCommandPalette() {
+    window.dispatchEvent(new CustomEvent('angy:command-palette'));
+  }
+
   function navigateHome() {
     viewMode.value = 'home';
     activeProjectId.value = null;
@@ -185,5 +189,6 @@ export const useUiStore = defineStore('ui', () => {
     enterMissionControl, exitMissionControl, setMissionControlFilter, toggleAutoCommit,
     addNotification, dismissNotification, clearNotifications,
     navigateHome, navigateToProject, navigateToEpic, navigateToKanban, toggleKanbanProject,
+    openCommandPalette,
   };
 });

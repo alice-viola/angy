@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { AgentSummary } from '../engine/types';
 import { useSessionsStore } from './sessions';
+import { useEpicStore } from './epics';
 
 // ── Fleet Store ─────────────────────────────────────────────────────────
 
@@ -29,6 +30,30 @@ export const useFleetStore = defineStore('fleet', () => {
   function childrenOf(parentId: string): AgentSummary[] {
     return agents.value.filter((a) => a.parentSessionId === parentId);
   }
+
+  /** Agents belonging to a specific project (resolved via epicId → Epic.projectId) */
+  const agentsByProject = computed(() => {
+    return (projectId: string): AgentSummary[] => {
+      const epicStore = useEpicStore();
+      return agents.value.filter((a) => {
+        if (!a.epicId) return false;
+        const epic = epicStore.epicById(a.epicId);
+        return epic?.projectId === projectId;
+      });
+    };
+  });
+
+  /** Active (non-idle) agents belonging to a specific project */
+  const activeAgentsByProject = computed(() => {
+    return (projectId: string): AgentSummary[] => {
+      const epicStore = useEpicStore();
+      return agents.value.filter((a) => {
+        if (!a.epicId) return false;
+        const epic = epicStore.epicById(a.epicId);
+        return epic?.projectId === projectId && a.status !== 'idle';
+      });
+    };
+  });
 
   // ── Actions ────────────────────────────────────────────────────────
 
@@ -140,6 +165,8 @@ export const useFleetStore = defineStore('fleet', () => {
     // Getters
     hierarchicalAgents,
     rootAgents,
+    agentsByProject,
+    activeAgentsByProject,
     // Actions
     childrenOf,
     rebuildFromSessions,

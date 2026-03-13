@@ -16,6 +16,8 @@
   --color-teal: var(--accent-teal);
   --color-teal-400: var(--accent-teal-400);
   --color-rose: var(--accent-rose);
+  --color-mauve: var(--accent-mauve);
+  --color-blue: var(--accent-blue);
   --color-txt-primary: var(--text-primary);
   --color-txt-secondary: var(--text-secondary);
   --color-txt-muted: var(--text-muted);
@@ -173,4 +175,52 @@ button:focus-visible {
 
 .card-glow-review {
   box-shadow: 0 0 16px -6px rgba(251,146,60,0.10);
+}
+
+/* Keyframe animations */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+@keyframes shimmer-border {
+  0%   { border-color: rgba(16,185,129,0.25); }
+  50%  { border-color: rgba(16,185,129,0.55); }
+  100% { border-color: rgba(16,185,129,0.25); }
+}
+@keyframes wave {
+  0%, 100% { height: 4px; }
+  50%       { height: 14px; }
+}
+
+/* Animation utility classes */
+.anim-fade-in {
+  animation: fade-in 0.35s ease-out both;
+}
+.anim-breathe {
+  animation: breathe 2.5s ease-in-out infinite;
+}
+.anim-shimmer {
+  animation: shimmer-border 2s ease-in-out infinite;
+}
+.wave-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: #f59e0b;
+  animation: wave 1s ease-in-out infinite;
+}
+.wave-bar:nth-child(2) { animation-delay: 0.15s; }
+.wave-bar:nth-child(3) { animation-delay: 0.30s; }
+.wave-bar:nth-child(4) { animation-delay: 0.45s; }
+.wave-bar:nth-child(5) { animation-delay: 0.60s; }
+.accent-stripe {
+  position: absolute;
+  left: 0;
+  top: 12px;
+  bottom: 12px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
 }
