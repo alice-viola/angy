@@ -75,6 +75,7 @@ export interface Epic {
   completedAt: string | null;
   suspendedAt: string | null;
   runAfter: string | null;
+  progress?: number;  // 0-1 float, used by ActiveCard progress ring
 }
 
 // ── Epic Branch & Repo Lock ─────────────────────────────────────────────────

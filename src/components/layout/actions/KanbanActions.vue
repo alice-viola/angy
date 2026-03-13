@@ -1,46 +1,5 @@
 <template>
   <div class="flex items-center gap-3">
-    <!-- Filter input -->
-    <div class="relative">
-      <svg class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[var(--text-muted)]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-      </svg>
-      <input
-        :value="ui.kanbanFilterText"
-        placeholder="Filter epics..."
-        class="pl-7 pr-2 py-1 text-xs rounded border border-[var(--border-subtle)] bg-[var(--bg-base)]
-               text-[var(--text-primary)] placeholder:text-[var(--text-muted)] w-40
-               focus:outline-none focus:border-[var(--accent-mauve)] transition-colors"
-        @input="ui.kanbanFilterText = ($event.target as HTMLInputElement).value"
-      />
-    </div>
-
-    <!-- Add Epic -->
-    <button
-      class="flex items-center gap-1 text-xs px-2.5 py-1 rounded
-             bg-[var(--accent-mauve)] text-[var(--bg-base)] font-medium
-             hover:opacity-90 transition-opacity"
-      @click="$emit('add-epic')"
-    >
-      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-      </svg>
-      Add Epic
-    </button>
-
-    <!-- Schedule Now -->
-    <button
-      class="text-xs px-2.5 py-1 rounded border border-[var(--border-subtle)]
-             text-[var(--text-secondary)] hover:text-[var(--text-primary)]
-             hover:border-[var(--border-standard)] transition-colors"
-      @click="$emit('schedule-now')"
-    >
-      Schedule Now
-    </button>
-
-    <!-- Separator -->
-    <div class="w-px h-4 bg-[var(--border-subtle)]" />
-
     <!-- Agents -->
     <button
       class="flex items-center gap-1 text-xs px-2.5 py-1 rounded border border-[var(--border-subtle)]
@@ -151,8 +110,6 @@ function goToMode(mode: 'agents' | 'code') {
 }
 
 defineEmits<{
-  'add-epic': [];
-  'schedule-now': [];
   'open-git-tree': [];
   'open-scheduler-config': [];
   'toggle-git-ops': [];

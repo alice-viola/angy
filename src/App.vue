@@ -3,8 +3,6 @@
     <template #actions>
       <HomeActions v-if="ui.viewMode === 'home'" />
       <KanbanActions v-else-if="ui.viewMode === 'kanban'"
-        @add-epic="kanbanViewRef?.addEpic()"
-        @schedule-now="kanbanViewRef?.scheduleNow()"
         @open-git-tree="kanbanViewRef?.openGitTree()"
         @open-scheduler-config="kanbanViewRef?.openSchedulerConfig()"
         @toggle-git-ops="kanbanViewRef?.toggleGitOps()"

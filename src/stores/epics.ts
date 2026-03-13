@@ -61,6 +61,15 @@ export const useEpicStore = defineStore('epics', () => {
     };
   });
 
+  const epicsByColumns = computed(() => {
+    return (projectIds: string | string[], columns: EpicColumn[]): Epic[] => {
+      const ids = Array.isArray(projectIds) ? projectIds : [projectIds];
+      return epics.value
+        .filter((e) => ids.includes(e.projectId) && columns.includes(e.column))
+        .sort((a, b) => priorityWeight[b.priorityHint] - priorityWeight[a.priorityHint]);
+    };
+  });
+
   function epicBranchName(epicId: string): string | null {
     const branches = epicBranches.value.get(epicId);
     if (!branches || branches.length === 0) return null;
@@ -299,6 +308,7 @@ export const useEpicStore = defineStore('epics', () => {
     epicById,
     epicsByProject,
     epicsByColumn,
+    epicsByColumns,
     epicBranchName,
     activeEpicsByProject,
     activeEpics,
