@@ -229,7 +229,7 @@ export class ProcessManager {
       }
 
       // MCP orchestrator tool interception
-      if (payload.toolName.startsWith(MCP_ORCHESTRATOR_PREFIX)) {
+      if (options.mode === 'orchestrator' && payload.toolName.startsWith(MCP_ORCHESTRATOR_PREFIX)) {
         if (this.orchestratorLookup) {
           const orch = this.orchestratorLookup(sessionId);
           if (orch) {
@@ -279,7 +279,7 @@ export class ProcessManager {
       engineBus.emit('session:finished', { sessionId, exitCode });
 
       // Notify orchestrator of session turn completion
-      if (this.orchestratorLookup) {
+      if (options.mode === 'orchestrator' && this.orchestratorLookup) {
         const orch = this.orchestratorLookup(sessionId);
         if (orch) {
           orch.onSessionFinishedProcessing(sessionId);
