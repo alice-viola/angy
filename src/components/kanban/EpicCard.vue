@@ -81,6 +81,12 @@
         review
       </span>
 
+      <!-- Worktree badge -->
+      <span
+        v-if="epic.useWorktree"
+        class="text-[var(--text-xs)] px-1 py-0.5 rounded bg-[var(--accent-teal)]/20 text-[var(--accent-teal)]"
+      >wt</span>
+
       <!-- Agent count -->
       <span v-if="agentCount > 0" class="flex items-center gap-0.5 text-[var(--text-xs)] text-[var(--text-secondary)]">
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

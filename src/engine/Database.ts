@@ -203,6 +203,12 @@ export class Database {
     try {
       await this.db.execute(`ALTER TABLE epics ADD COLUMN run_after TEXT DEFAULT NULL`);
     } catch { /* column already exists */ }
+    try {
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN use_worktree INTEGER DEFAULT 0`);
+    } catch { /* column already exists */ }
+    try {
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN base_branch TEXT DEFAULT NULL`);
+    } catch { /* column already exists */ }
 
     await this.db.execute(`
       CREATE TABLE IF NOT EXISTS epic_branches (
@@ -215,6 +221,11 @@ export class Database {
         created_at TEXT NOT NULL
       )
     `);
+
+    // Migration: add worktree_path to epic_branches
+    try {
+      await this.db.execute(`ALTER TABLE epic_branches ADD COLUMN worktree_path TEXT DEFAULT NULL`);
+    } catch { /* column already exists */ }
 
     await this.db.execute(`
       CREATE TABLE IF NOT EXISTS scheduler_config (
@@ -702,10 +713,11 @@ export class Database {
     await this.db.execute(
       `INSERT OR REPLACE INTO epics
        (id, project_id, title, description, acceptance_criteria, "column", priority_hint,
-        complexity, model, depends_on, target_repos, pipeline_type, use_git_branch, rejection_count, rejection_feedback,
+        complexity, model, depends_on, target_repos, pipeline_type, use_git_branch, use_worktree, base_branch,
+        rejection_count, rejection_feedback,
         last_attempt_files, last_validation_results, last_architect_plan,
         computed_score, root_session_id, cost_total, created_at, updated_at, started_at, completed_at, suspended_at, run_after)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27)`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)`,
       [
         epic.id,
         epic.projectId,
@@ -720,6 +732,8 @@ export class Database {
         JSON.stringify(epic.targetRepoIds),
         epic.pipelineType || 'hybrid',
         epic.useGitBranch ? 1 : 0,
+        epic.useWorktree ? 1 : 0,
+        epic.baseBranch ?? null,
         epic.rejectionCount,
         epic.rejectionFeedback,
         JSON.stringify(epic.lastAttemptFiles ?? []),
@@ -786,9 +800,9 @@ export class Database {
     if (!this.db) return;
 
     await this.db.execute(
-      `INSERT OR REPLACE INTO epic_branches (id, epic_id, repo_id, branch_name, base_branch, status, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [branch.id, branch.epicId, branch.repoId, branch.branchName, branch.baseBranch, branch.status, new Date().toISOString()],
+      `INSERT OR REPLACE INTO epic_branches (id, epic_id, repo_id, branch_name, base_branch, status, created_at, worktree_path)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [branch.id, branch.epicId, branch.repoId, branch.branchName, branch.baseBranch, branch.status, new Date().toISOString(), branch.worktreePath ?? null],
     );
   }
 
@@ -796,7 +810,7 @@ export class Database {
     if (!this.db) return [];
 
     const rows = await this.db.select<any[]>(
-      'SELECT id, epic_id, repo_id, branch_name, base_branch, status FROM epic_branches WHERE epic_id = $1',
+      'SELECT id, epic_id, repo_id, branch_name, base_branch, status, worktree_path FROM epic_branches WHERE epic_id = $1',
       [epicId],
     );
 
@@ -807,6 +821,7 @@ export class Database {
       branchName: r.branch_name,
       baseBranch: r.base_branch,
       status: r.status,
+      worktreePath: r.worktree_path || null,
     }));
   }
 
@@ -814,7 +829,7 @@ export class Database {
     if (!this.db) return [];
 
     const rows = await this.db.select<any[]>(
-      'SELECT id, epic_id, repo_id, branch_name, base_branch, status FROM epic_branches',
+      'SELECT id, epic_id, repo_id, branch_name, base_branch, status, worktree_path FROM epic_branches',
     );
 
     return rows.map((r) => ({
@@ -824,6 +839,7 @@ export class Database {
       branchName: r.branch_name,
       baseBranch: r.base_branch,
       status: r.status,
+      worktreePath: r.worktree_path || null,
     }));
   }
 
@@ -1315,6 +1331,8 @@ export class Database {
       targetRepoIds: JSON.parse(r.target_repos || '[]'),
       pipelineType: r.pipeline_type || 'hybrid',
       useGitBranch: Boolean(r.use_git_branch ?? 1),
+      useWorktree: Boolean(r.use_worktree ?? 0),
+      baseBranch: r.base_branch || null,
       rejectionCount: r.rejection_count,
       rejectionFeedback: r.rejection_feedback ?? '',
       lastAttemptFiles: JSON.parse(r.last_attempt_files || '[]'),

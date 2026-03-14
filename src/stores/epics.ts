@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import type { Epic, EpicBranch, EpicColumn, PriorityHint } from '@/engine/KosTypes';
+import type { Epic, EpicBranch, EpicColumn, PriorityHint, BlockingReason } from '@/engine/KosTypes';
 import { getDatabase } from './sessions';
 import { engineBus } from '@/engine/EventBus';
 
@@ -31,6 +31,7 @@ export const useEpicStore = defineStore('epics', () => {
   const epics = ref<Epic[]>([]);
   const epicBranches = ref<Map<string, EpicBranch[]>>(new Map());
   const loading = ref<boolean>(false);
+  const blockingReasons = ref<Record<string, BlockingReason[]>>({});
   let engineListenersSetup = false;
 
   // ── Getters ────────────────────────────────────────────────────────
@@ -89,6 +90,8 @@ export const useEpicStore = defineStore('epics', () => {
     epics.value.filter((e) => e.column === 'review'),
   );
 
+  const getBlockingReasons = computed(() => (epicId: string) => blockingReasons.value[epicId] ?? []);
+
   // ── Actions ────────────────────────────────────────────────────────
 
   async function loadAll(projectId?: string): Promise<void> {
@@ -123,7 +126,7 @@ export const useEpicStore = defineStore('epics', () => {
   async function createEpic(
     projectId: string,
     title: string,
-    opts?: Partial<Pick<Epic, 'description' | 'acceptanceCriteria' | 'priorityHint' | 'complexity' | 'targetRepoIds'>>,
+    opts?: Partial<Pick<Epic, 'description' | 'acceptanceCriteria' | 'priorityHint' | 'complexity' | 'targetRepoIds' | 'useWorktree' | 'baseBranch'>>,
   ): Promise<Epic> {
     const now = nowISO();
     const epic: Epic = {
@@ -139,6 +142,8 @@ export const useEpicStore = defineStore('epics', () => {
       targetRepoIds: opts?.targetRepoIds ?? [],
       pipelineType: 'hybrid',
       useGitBranch: false,
+      useWorktree: opts?.useWorktree ?? false,
+      baseBranch: opts?.baseBranch ?? null,
       dependsOn: [],
       runAfter: null,
       rejectionCount: 0,
@@ -296,6 +301,9 @@ export const useEpicStore = defineStore('epics', () => {
         if (idx === -1) return;
         epics.value[idx] = epic;
       });
+      engineBus.on('scheduler:blockingReasons', (payload) => {
+        blockingReasons.value = payload.reasons;
+      });
     }
   }
 
@@ -304,6 +312,7 @@ export const useEpicStore = defineStore('epics', () => {
     epics,
     epicBranches,
     loading,
+    blockingReasons,
     // Getters
     epicById,
     epicsByProject,
@@ -313,6 +322,7 @@ export const useEpicStore = defineStore('epics', () => {
     activeEpicsByProject,
     activeEpics,
     reviewEpics,
+    getBlockingReasons,
     // Actions
     loadAll,
     createEpic,

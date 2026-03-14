@@ -71,7 +71,7 @@ export class AngyEngine {
     this.sessions = new SessionService(this.db);
     this.processes = new ProcessManager();
     this.branchManager = new BranchManager(this.db);
-    this.pool = OrchestratorPool.getInstance(this.branchManager);
+    this.pool = OrchestratorPool.getInstance(this.branchManager, this.db);
     this.scheduler = Scheduler.getInstance();
     this.epics = new DatabaseEpicRepository(this.db);
     this.projects = new DatabaseProjectRepository(this.db);
@@ -126,6 +126,9 @@ export class AngyEngine {
 
     // 6. Listen for epic lifecycle events
     this.wireEpicLifecycleEvents();
+
+    // 7. Reconcile orphaned worktrees
+    await this.reconcileWorktrees();
 
     this._initialized = true;
     console.log('[AngyEngine] Initialized');
@@ -284,7 +287,7 @@ export class AngyEngine {
   async createEpic(
     projectId: string,
     title: string,
-    opts?: Partial<Pick<Epic, 'description' | 'acceptanceCriteria' | 'priorityHint' | 'complexity' | 'model' | 'targetRepoIds' | 'dependsOn' | 'pipelineType'>>,
+    opts?: Partial<Pick<Epic, 'description' | 'acceptanceCriteria' | 'priorityHint' | 'complexity' | 'model' | 'targetRepoIds' | 'dependsOn' | 'pipelineType' | 'useWorktree' | 'baseBranch'>>,
   ): Promise<Epic> {
     const now = new Date().toISOString();
     const epic: Epic = {
@@ -300,6 +303,8 @@ export class AngyEngine {
       targetRepoIds: opts?.targetRepoIds ?? [],
       pipelineType: opts?.pipelineType ?? 'hybrid',
       useGitBranch: false,
+      useWorktree: opts?.useWorktree ?? false,
+      baseBranch: opts?.baseBranch ?? null,
       dependsOn: opts?.dependsOn ?? [],
       runAfter: null,
       rejectionCount: 0,
@@ -597,6 +602,9 @@ export class AngyEngine {
 
     for (const branch of branches) {
       if (branch.status !== 'active') continue;
+      // Worktree branches don't affect main repo HEAD — skip restore
+      if (branch.worktreePath) continue;
+
       const repo = await this.db.loadProjectRepo(branch.repoId);
       if (!repo) continue;
 
@@ -605,11 +613,64 @@ export class AngyEngine {
     }
   }
 
+  // ── Worktree cleanup ──────────────────────────────────────────────
+
+  private hasRunAfterSuccessor(epicId: string): boolean {
+    const allEpics = this.epics.listEpics();
+    return allEpics.some(e =>
+      e.runAfter === epicId && e.column !== 'done' && e.column !== 'discarded',
+    );
+  }
+
+  private async cleanupWorktreesForEpic(epicId: string): Promise<void> {
+    if (this.hasRunAfterSuccessor(epicId)) {
+      console.log(`[AngyEngine] Skipping worktree cleanup for ${epicId} — has runAfter successor`);
+      return;
+    }
+
+    const branches = await this.branchManager.getEpicBranches(epicId);
+    for (const branch of branches) {
+      if (!branch.worktreePath) continue;
+      const repo = await this.db.loadProjectRepo(branch.repoId);
+      if (!repo) continue;
+      await this.branchManager.removeWorktree(repo.path, branch.worktreePath);
+    }
+  }
+
+  async reconcileWorktrees(): Promise<void> {
+    try {
+      const allBranches = await this.db.loadAllEpicBranches();
+      const knownWorktreePaths = new Set(
+        allBranches.filter(b => b.worktreePath).map(b => b.worktreePath!),
+      );
+
+      const allProjects = this.projects.listProjects();
+      const allRepos: ProjectRepo[] = [];
+      for (const proj of allProjects) {
+        allRepos.push(...this.projects.reposByProjectId(proj.id));
+      }
+      for (const repo of allRepos) {
+        const worktrees = await this.branchManager.listWorktrees(repo.path);
+        for (const wt of worktrees) {
+          // Skip the main repo itself
+          if (wt === repo.path) continue;
+          if (!knownWorktreePaths.has(wt)) {
+            console.log(`[AngyEngine] reconcileWorktrees: removing orphan ${wt}`);
+            await this.branchManager.removeWorktree(repo.path, wt);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[AngyEngine] reconcileWorktrees error:', err);
+    }
+  }
+
   private wireEpicLifecycleEvents(): void {
     // When an epic completes, restore repos then move to review
     engineBus.on('epic:completed', async ({ epicId }) => {
       try {
         await this.restoreReposForEpic(epicId);
+        await this.cleanupWorktreesForEpic(epicId);
         await this.scheduler.moveToReview(epicId);
       } catch (err) {
         console.error(`[AngyEngine] Failed to move epic ${epicId} to review:`, err);
@@ -621,6 +682,7 @@ export class AngyEngine {
     engineBus.on('epic:failed', async ({ epicId, reason }) => {
       try {
         await this.restoreReposForEpic(epicId);
+        await this.cleanupWorktreesForEpic(epicId);
         await this.scheduler.rejectEpic(epicId, `Agent failed: ${reason}`);
       } catch (err) {
         console.error(`[AngyEngine] Failed to reject epic ${epicId}:`, err);

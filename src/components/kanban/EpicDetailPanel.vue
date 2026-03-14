@@ -19,6 +19,18 @@
 
     <div v-if="epic" class="flex-1 overflow-y-auto scroll-area">
 
+      <!-- Blocking reasons -->
+      <div
+        v-if="(epic.column === 'todo' || epic.column === 'backlog') && epicStore.getBlockingReasons(epic.id).length > 0"
+        class="px-5 pt-4 pb-2 flex flex-wrap gap-1.5"
+      >
+        <span
+          v-for="reason in epicStore.getBlockingReasons(epic.id)"
+          :key="reason.type + (reason.relatedEpicId ?? '')"
+          :class="reasonClass(reason)"
+        >{{ reason.label }}</span>
+      </div>
+
       <!-- Definition -->
       <div class="px-5 pt-5 pb-5 space-y-5">
 
@@ -162,6 +174,32 @@
               <span class="text-[12px] font-mono text-teal truncate select-all" :title="branchName">
                 {{ branchName }}
               </span>
+            </div>
+          </div>
+
+          <!-- Worktree mode -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="field-label">Worktree mode</span>
+              <button
+                class="panel-toggle"
+                :class="draft.useWorktree ? 'on' : 'off'"
+                @click="draft.useWorktree = !draft.useWorktree"
+              />
+            </div>
+            <p class="text-[11px] text-txt-faint leading-relaxed">
+              {{ draft.useWorktree ? 'Uses a separate git worktree — no branch switching in the main repo' : 'Agents work in the main repo checkout' }}
+            </p>
+            <div v-if="draft.useWorktree" class="space-y-1.5">
+              <label class="field-label">Base branch</label>
+              <BranchPicker
+                v-model="draft.baseBranch"
+                :repoIds="epicRepoIds"
+                :projectId="epic!.projectId"
+                placeholder="Base branch..."
+                :disabled="!!draft.runAfter"
+              />
+              <p v-if="!!draft.runAfter" class="text-[11px] text-txt-faint">Inherited from predecessor</p>
             </div>
           </div>
         </div>
@@ -355,10 +393,13 @@ import { ref, computed, watch, nextTick } from 'vue';
 import type { EpicColumn, EpicPipelineType, PriorityHint, ComplexityEstimate } from '@/engine/KosTypes';
 import { useUiStore } from '@/stores/ui';
 import { useEpicStore } from '@/stores/epics';
+import { useProjectsStore } from '@/stores/projects';
 import { Scheduler } from '@/engine/Scheduler';
 import { engineBus } from '@/engine/EventBus';
 import { useCreatePR } from '@/composables/useCreatePR';
 import RepoScopeSelector from './RepoScopeSelector.vue';
+import BranchPicker from './BranchPicker.vue';
+import type { BlockingReason } from '@/engine/KosTypes';
 
 const props = defineProps<{ epicId: string; isNew?: boolean }>();
 const emit = defineEmits<{ close: []; created: [] }>();
@@ -408,6 +449,8 @@ const draft = ref({
   targetRepoIds: [] as string[],
   pipelineType: 'hybrid' as EpicPipelineType,
   useGitBranch: false,
+  useWorktree: false,
+  baseBranch: null as string | null,
   dependsOn: [] as string[],
   runAfter: null as string | null,
 });
@@ -437,6 +480,8 @@ function loadDraft() {
     targetRepoIds: [...e.targetRepoIds],
     pipelineType: e.pipelineType || 'hybrid',
     useGitBranch: e.useGitBranch ?? true,
+    useWorktree: e.useWorktree ?? false,
+    baseBranch: e.baseBranch ?? null,
     dependsOn: [...e.dependsOn],
     runAfter: e.runAfter ?? null,
   };
@@ -503,6 +548,8 @@ async function save() {
     targetRepoIds: d.targetRepoIds,
     pipelineType: d.pipelineType,
     useGitBranch: d.useGitBranch,
+    useWorktree: d.useWorktree,
+    baseBranch: d.baseBranch,
     dependsOn: d.dependsOn,
     runAfter: d.runAfter,
   });
@@ -528,6 +575,24 @@ function suspendEpic() {
 
 function resumeEpic() {
   engineBus.emit('epic:requestStart', { epicId: props.epicId });
+}
+
+const epicRepoIds = computed(() => {
+  if (!epic.value) return [];
+  if (draft.value.targetRepoIds.length > 0) return draft.value.targetRepoIds;
+  const projectsStore = useProjectsStore();
+  return projectsStore.reposByProjectId(epic.value.projectId).map(r => r.id);
+});
+
+function reasonClass(reason: BlockingReason): string {
+  const base = 'text-[10px] px-1.5 py-0.5 rounded-full inline-block';
+  if (reason.type === 'runAfter' || reason.type === 'dependency')
+    return `${base} bg-amber-500/10 text-amber-400`;
+  if (reason.type === 'repoLock')
+    return `${base} bg-red-500/10 text-red-400`;
+  if (reason.type === 'concurrency' || reason.type === 'projectConcurrency')
+    return `${base} bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]`;
+  return `${base} bg-[var(--accent-yellow)]/10 text-[var(--accent-yellow)]`;
 }
 
 const rejectionFeedback = ref('');

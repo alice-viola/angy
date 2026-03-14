@@ -21,6 +21,15 @@
       <!-- Title -->
       <p class="text-xs text-txt-primary font-medium leading-snug">{{ epic.title }}</p>
 
+      <!-- Blocking reasons -->
+      <div v-if="blockingReasons.length" class="flex flex-wrap gap-1 mt-1">
+        <span
+          v-for="reason in blockingReasons"
+          :key="reason.type + (reason.relatedEpicId ?? '')"
+          :class="reasonClass(reason)"
+        >{{ reasonShortLabel(reason) }}</span>
+      </div>
+
       <!-- Branch -->
       <div v-if="actions.branchName.value" class="flex items-center gap-1 mt-1.5">
         <svg class="w-3 h-3 text-txt-faint flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -46,8 +55,9 @@
 
 <script setup lang="ts">
 import { computed, toRef } from 'vue';
-import type { Epic } from '@/engine/KosTypes';
+import type { Epic, BlockingReason } from '@/engine/KosTypes';
 import { useProjectsStore } from '@/stores/projects';
+import { useEpicStore } from '@/stores/epics';
 import { useEpicCardActions } from '@/composables/useEpicCardActions';
 import PriorityBadge from './PriorityBadge.vue';
 
@@ -68,6 +78,28 @@ const emit = defineEmits<{
 }>();
 
 const projectsStore = useProjectsStore();
+const epicStore = useEpicStore();
+
+const blockingReasons = computed(() => epicStore.getBlockingReasons(props.epic.id));
+
+function reasonClass(reason: BlockingReason): string {
+  const base = 'text-[10px] px-1.5 py-0.5 rounded-full';
+  if (reason.type === 'runAfter' || reason.type === 'dependency')
+    return `${base} bg-amber-500/10 text-amber-400`;
+  if (reason.type === 'repoLock')
+    return `${base} bg-red-500/10 text-red-400`;
+  if (reason.type === 'concurrency' || reason.type === 'projectConcurrency')
+    return `${base} bg-[var(--accent-blue)]/10 text-[var(--accent-blue)]`;
+  return `${base} bg-[var(--accent-yellow)]/10 text-[var(--accent-yellow)]`;
+}
+
+function reasonShortLabel(reason: BlockingReason): string {
+  const map: Record<string, string> = {
+    runAfter: 'after', dependency: 'dep', repoLock: 'locked',
+    concurrency: 'limit', projectConcurrency: 'proj limit', budget: 'budget',
+  };
+  return map[reason.type] ?? reason.type;
+}
 
 const actions = useEpicCardActions({
   epic: toRef(props, 'epic'),

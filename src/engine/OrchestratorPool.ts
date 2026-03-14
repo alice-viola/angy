@@ -1,5 +1,6 @@
 import type { Epic, EpicBranch, OrchestratorOptions, ProjectRepo } from './KosTypes'
 import { BranchManager } from './BranchManager'
+import type { Database } from './Database'
 
 // ── OrchestratorPool — Multi-Orchestrator Manager (singleton) ─────────────
 
@@ -37,20 +38,22 @@ export class OrchestratorPool {
   private epicProjects = new Map<string, string>()               // epicId → projectId
   private static instance: OrchestratorPool | null = null
   private branchManager: BranchManager
+  private db: Database
   private orchestratorFactory: OrchestratorFactory | null = null
   private resumeFactory: ResumeFactory | null = null
   private maxDepth = DEFAULT_MAX_DEPTH
 
-  private constructor(branchManager: BranchManager) {
+  private constructor(branchManager: BranchManager, db: Database) {
     this.branchManager = branchManager
+    this.db = db
   }
 
-  static getInstance(branchManager?: BranchManager): OrchestratorPool {
+  static getInstance(branchManager?: BranchManager, db?: Database): OrchestratorPool {
     if (!OrchestratorPool.instance) {
-      if (!branchManager) {
-        throw new Error('BranchManager required for first OrchestratorPool initialization')
+      if (!branchManager || !db) {
+        throw new Error('BranchManager and Database required for first OrchestratorPool initialization')
       }
-      OrchestratorPool.instance = new OrchestratorPool(branchManager)
+      OrchestratorPool.instance = new OrchestratorPool(branchManager, db)
     }
     return OrchestratorPool.instance
   }
@@ -74,6 +77,42 @@ export class OrchestratorPool {
     this.maxDepth = depth
   }
 
+  // ── inheritFromPredecessor ────────────────────────────────────────────
+
+  async inheritFromPredecessor(
+    epic: Epic,
+    repos: ProjectRepo[],
+    options: OrchestratorOptions,
+  ): Promise<boolean> {
+    if (!epic.runAfter) return false
+
+    const predecessorBranches = await this.db.loadEpicBranches(epic.runAfter)
+    if (predecessorBranches.length === 0) return false
+
+    for (const predBranch of predecessorBranches) {
+      const repo = repos.find(r => r.id === predBranch.repoId)
+      if (!repo) continue
+
+      const branch: EpicBranch = {
+        id: crypto.randomUUID(),
+        epicId: epic.id,
+        repoId: predBranch.repoId,
+        branchName: predBranch.branchName,
+        baseBranch: predBranch.baseBranch,
+        status: 'active',
+        worktreePath: predBranch.worktreePath,
+      }
+      await this.db.saveEpicBranch(branch)
+
+      if (predBranch.worktreePath) {
+        options.repoPaths[repo.id] = predBranch.worktreePath
+      }
+    }
+
+    console.log(`[OrchestratorPool] Inherited ${predecessorBranches.length} branch(es) from predecessor ${epic.runAfter}`)
+    return true
+  }
+
   // ── spawnRoot ─────────────────────────────────────────────────────────
 
   async spawnRoot(
@@ -88,42 +127,70 @@ export class OrchestratorPool {
       throw new Error(`Epic ${epicId} already has an active orchestrator`)
     }
 
-    // Prepare repos: checkpoint dirty state, optionally create epic branch
+    // Prepare repos: checkpoint dirty state, optionally create epic branch or worktree
     // Read-only pipelines (investigate, plan) skip repo preparation entirely
     const isReadOnly = epic.pipelineType === 'investigate' || epic.pipelineType === 'plan'
     if (repos.length > 0 && !isReadOnly) {
-      for (const repo of repos) {
-        await this.branchManager.createCheckpoint(repo.path, epic.title)
+      // Try to inherit from predecessor first (runAfter chain)
+      const inherited = await this.inheritFromPredecessor(epic, repos, options)
 
-        if (epic.useGitBranch) {
+      if (!inherited) {
+        for (const repo of repos) {
+          await this.branchManager.createCheckpoint(repo.path, epic.title)
           const slug = BranchManager.epicTitleToSlug(epic.title)
           const branchName = `epic/${slug}`
-          const ok = await this.branchManager.createAndCheckoutEpicBranch(
-            repo.path, branchName, repo.defaultBranch,
-          )
-          if (ok) {
-            const branch: EpicBranch = {
-              id: crypto.randomUUID(),
-              epicId,
-              repoId: repo.id,
-              branchName,
-              baseBranch: repo.defaultBranch,
-              status: 'active',
+
+          if (epic.useWorktree) {
+            // Case 1: Worktree mode
+            const worktreePath = BranchManager.computeWorktreePath(repo.path, slug)
+            const ok = await this.branchManager.createWorktree(
+              repo.path, worktreePath, branchName, epic.baseBranch,
+            )
+            if (ok) {
+              const branch: EpicBranch = {
+                id: crypto.randomUUID(),
+                epicId,
+                repoId: repo.id,
+                branchName,
+                baseBranch: repo.defaultBranch,
+                status: 'active',
+                worktreePath,
+              }
+              await this.branchManager.saveBranchRecord(branch)
+              options.repoPaths[repo.id] = worktreePath
             }
-            await this.branchManager.saveBranchRecord(branch)
-          }
-        } else {
-          const currentBranch = await this.branchManager.getCurrentBranch(repo.path)
-          if (currentBranch) {
-            const branch: EpicBranch = {
-              id: crypto.randomUUID(),
-              epicId,
-              repoId: repo.id,
-              branchName: currentBranch,
-              baseBranch: currentBranch,
-              status: 'tracking',
+          } else if (epic.useGitBranch) {
+            // Case 2: Checkout-based branch
+            const ok = await this.branchManager.createAndCheckoutEpicBranch(
+              repo.path, branchName, repo.defaultBranch,
+            )
+            if (ok) {
+              const branch: EpicBranch = {
+                id: crypto.randomUUID(),
+                epicId,
+                repoId: repo.id,
+                branchName,
+                baseBranch: repo.defaultBranch,
+                status: 'active',
+                worktreePath: null,
+              }
+              await this.branchManager.saveBranchRecord(branch)
             }
-            await this.branchManager.saveBranchRecord(branch)
+          } else {
+            // Case 3: Tracking (no branch management)
+            const currentBranch = await this.branchManager.getCurrentBranch(repo.path)
+            if (currentBranch) {
+              const branch: EpicBranch = {
+                id: crypto.randomUUID(),
+                epicId,
+                repoId: repo.id,
+                branchName: currentBranch,
+                baseBranch: currentBranch,
+                status: 'tracking',
+                worktreePath: null,
+              }
+              await this.branchManager.saveBranchRecord(branch)
+            }
           }
         }
       }

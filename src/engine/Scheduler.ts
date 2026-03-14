@@ -9,7 +9,7 @@
  * and a direct reference for config/log.
  */
 
-import type { Epic, SchedulerConfig, SchedulerAction, RepoLock, PriorityHint, ComplexityEstimate, OrchestratorOptions } from './KosTypes';
+import type { Epic, SchedulerConfig, SchedulerAction, RepoLock, PriorityHint, ComplexityEstimate, OrchestratorOptions, BlockingReason } from './KosTypes';
 import type { OrchestratorPool } from './OrchestratorPool';
 import type { Database } from './Database';
 import type { EpicRepository, ProjectRepository } from './repositories';
@@ -255,17 +255,28 @@ export class Scheduler {
 
   // ── Repo Locking ──────────────────────────────────────────────────────
 
+  private resolveRepoIds(epic: Epic): string[] {
+    if (epic.targetRepoIds.length > 0) return epic.targetRepoIds;
+    if (this.projectRepo) {
+      return this.projectRepo.reposByProjectId(epic.projectId).map(r => r.id);
+    }
+    return [];
+  }
+
   canAcquireRepos(epic: Epic): boolean {
-    if (epic.targetRepoIds.length === 0) return true;
-    for (const repoId of epic.targetRepoIds) {
+    if (epic.useWorktree) return true;
+    const repoIds = this.resolveRepoIds(epic);
+    for (const repoId of repoIds) {
       if (this.repoLocks.has(repoId)) return false;
     }
     return true;
   }
 
   acquireRepos(epic: Epic): void {
+    if (epic.useWorktree) return;
+    const repoIds = this.resolveRepoIds(epic);
     const now = new Date().toISOString();
-    for (const repoId of epic.targetRepoIds) {
+    for (const repoId of repoIds) {
       this.repoLocks.set(repoId, { repoId, epicId: epic.id, acquiredAt: now });
     }
   }
@@ -316,6 +327,60 @@ export class Scheduler {
       }
     }
     return false;
+  }
+
+  // ── Blocking Reasons ─────────────────────────────────────────────────
+
+  getBlockingReasons(epic: Epic, allEpics: Epic[]): BlockingReason[] {
+    const reasons: BlockingReason[] = [];
+
+    // runAfter
+    if (epic.runAfter) {
+      const predecessor = allEpics.find(e => e.id === epic.runAfter);
+      if (predecessor && predecessor.column !== 'review' && predecessor.column !== 'done') {
+        reasons.push({ type: 'runAfter', label: `Waiting for '${predecessor.title}' to finish`, relatedEpicId: epic.runAfter });
+      }
+    }
+
+    // dependency
+    for (const depId of epic.dependsOn) {
+      const dep = allEpics.find(e => e.id === depId);
+      if (!dep || dep.column !== 'done') {
+        reasons.push({ type: 'dependency', label: `Blocked by '${dep?.title ?? depId}'`, relatedEpicId: depId });
+      }
+    }
+
+    // repoLock (skip for worktree epics)
+    if (!epic.useWorktree) {
+      const repoIds = this.resolveRepoIds(epic);
+      for (const repoId of repoIds) {
+        const lock = this.repoLocks.get(repoId);
+        if (lock && lock.epicId !== epic.id) {
+          const lockingEpic = allEpics.find(e => e.id === lock.epicId);
+          reasons.push({ type: 'repoLock', label: `Repo locked by '${lockingEpic?.title ?? lock.epicId}'`, relatedEpicId: lock.epicId, relatedRepoId: repoId });
+        }
+      }
+    }
+
+    // concurrency
+    const inProgressCount = allEpics.filter(e => e.column === 'in-progress').length;
+    if (inProgressCount >= this.config.maxConcurrentEpics) {
+      reasons.push({ type: 'concurrency', label: 'Global concurrency limit reached' });
+    }
+
+    // projectConcurrency
+    if (this.config.maxConcurrentPerProject && this.config.maxConcurrentPerProject > 0) {
+      const inProgressForProject = allEpics.filter(e => e.column === 'in-progress' && e.projectId === epic.projectId).length;
+      if (inProgressForProject >= this.config.maxConcurrentPerProject) {
+        reasons.push({ type: 'projectConcurrency', label: 'Project concurrency limit reached' });
+      }
+    }
+
+    // budget
+    // Note: budget check is async in tick(), so we can only flag if config says budget is 0
+    // The actual budget check happens in tick() — this is a best-effort indicator
+
+    return reasons;
   }
 
   // ── Main Tick ─────────────────────────────────────────────────────────
@@ -432,6 +497,15 @@ export class Scheduler {
         details: String(err),
       });
     }
+
+    // Emit blocking reasons for todo/backlog epics
+    const blockingReasons: Record<string, BlockingReason[]> = {};
+    const currentEpics = this.getAllEpics();
+    for (const epic of currentEpics.filter(e => e.column === 'todo' || e.column === 'backlog')) {
+      const r = this.getBlockingReasons(epic, currentEpics);
+      if (r.length > 0) blockingReasons[epic.id] = r;
+    }
+    engineBus.emit('scheduler:blockingReasons', { reasons: blockingReasons });
 
     return actions;
   }

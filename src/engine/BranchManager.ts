@@ -92,6 +92,11 @@ export class BranchManager {
     return null
   }
 
+  static computeWorktreePath(repoPath: string, slug: string): string {
+    const parentDir = repoPath.replace(/\/[^/]+\/?$/, '')
+    return `${parentDir}/.angy-worktrees/${slug}`
+  }
+
   static epicTitleToSlug(title: string): string {
     return title
       .toLowerCase()
@@ -101,6 +106,115 @@ export class BranchManager {
       .replace(/^-|-$/g, '')
       .slice(0, 40)
       || 'untitled'
+  }
+
+  // ── Branch listing & creation (no checkout) ────────────────────────
+
+  async listBranches(repoPath: string): Promise<string[]> {
+    try {
+      const result = await this.runGit(repoPath, ['branch', '--list'])
+      if (result.code !== 0) {
+        console.warn(`[BranchManager] listBranches failed: ${result.stderr}`)
+        return []
+      }
+      return result.stdout
+        .split('\n')
+        .map((line) => line.replace(/^\*?\s*/, '').trim())
+        .filter(Boolean)
+    } catch (err) {
+      console.warn(`[BranchManager] listBranches error:`, err)
+      return []
+    }
+  }
+
+  async createBranch(repoPath: string, name: string, base: string): Promise<boolean> {
+    try {
+      const result = await this.runGit(repoPath, ['branch', name, base])
+      if (result.code !== 0) {
+        console.warn(`[BranchManager] createBranch failed: ${result.stderr}`)
+        return false
+      }
+      return true
+    } catch (err) {
+      console.warn(`[BranchManager] createBranch failed:`, err)
+      return false
+    }
+  }
+
+  // ── Worktree operations ───────────────────────────────────────────
+
+  async ensureExcludeEntry(repoPath: string, worktreePath: string): Promise<void> {
+    try {
+      const excludePath = `${repoPath}/.git/info/exclude`
+      const entry = worktreePath
+      const result = await Command.create('cat', [excludePath]).execute()
+      const content = result.stdout || ''
+      if (!content.includes(entry)) {
+        await Command.create('sh', ['-c', `mkdir -p "${repoPath}/.git/info" && echo "${entry}" >> "${excludePath}"`]).execute()
+      }
+    } catch {
+      // Non-fatal — exclude file may not exist yet
+    }
+  }
+
+  async createWorktree(
+    repoPath: string,
+    worktreePath: string,
+    branchName: string,
+    baseBranch: string | null,
+  ): Promise<boolean> {
+    try {
+      const args = ['worktree', 'add', '-b', branchName, worktreePath, baseBranch ?? 'HEAD']
+      const result = await this.runGit(repoPath, args)
+      if (result.code !== 0) {
+        console.warn(`[BranchManager] createWorktree failed: ${result.stderr}`)
+        return false
+      }
+      console.log(`[BranchManager] createWorktree: ${worktreePath} branch=${branchName}`)
+      await this.ensureExcludeEntry(repoPath, worktreePath)
+      return true
+    } catch (err) {
+      console.warn(`[BranchManager] createWorktree error:`, err)
+      return false
+    }
+  }
+
+  async removeWorktree(repoPath: string, worktreePath: string): Promise<boolean> {
+    try {
+      console.log(`[BranchManager] removeWorktree: ${worktreePath}`)
+      const result = await this.runGit(repoPath, ['worktree', 'remove', '--force', worktreePath])
+      if (result.code !== 0) {
+        console.warn(`[BranchManager] removeWorktree failed: ${result.stderr}`)
+        return false
+      }
+      await this.runGit(repoPath, ['worktree', 'prune'])
+      return true
+    } catch (err) {
+      console.warn(`[BranchManager] removeWorktree error:`, err)
+      return false
+    }
+  }
+
+  async listWorktrees(repoPath: string): Promise<string[]> {
+    try {
+      const result = await this.runGit(repoPath, ['worktree', 'list', '--porcelain'])
+      if (result.code !== 0) return []
+      return result.stdout
+        .split('\n')
+        .filter((line) => line.startsWith('worktree '))
+        .map((line) => line.replace('worktree ', ''))
+    } catch {
+      return []
+    }
+  }
+
+  async pruneWorktrees(repoPath: string): Promise<void> {
+    try {
+      console.log(`[BranchManager] pruneWorktrees: ${repoPath}`)
+      await this.runGit(repoPath, ['worktree', 'prune'])
+    } catch (err) {
+      console.warn(`[BranchManager] pruneWorktrees error:`, err)
+    }
   }
 
   // ── Safety checkpoint ───────────────────────────────────────────────
@@ -221,6 +335,10 @@ export class BranchManager {
       if (!repo) continue
 
       if (await this.isGitRepo(repo.path)) {
+        // Remove worktree first if one exists for this branch
+        if (branch.worktreePath) {
+          await this.removeWorktree(repo.path, branch.worktreePath)
+        }
         try {
           await this.runGit(repo.path, ['branch', '-D', branch.branchName])
         } catch (err) {

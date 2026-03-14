@@ -90,6 +90,8 @@ export interface Epic {
   targetRepoIds: string[];
   pipelineType: EpicPipelineType;
   useGitBranch: boolean;
+  useWorktree: boolean;
+  baseBranch: string | null;
   dependsOn: string[];
   rejectionCount: number;
   rejectionFeedback: string;
@@ -117,12 +119,22 @@ export interface EpicBranch {
   branchName: string;
   baseBranch: string;
   status: 'active' | 'merged' | 'deleted' | 'tracking';
+  worktreePath: string | null;
 }
 
 export interface RepoLock {
   repoId: string;
   epicId: string;
   acquiredAt: string;
+}
+
+export type BlockingReasonType = 'runAfter' | 'dependency' | 'repoLock' | 'concurrency' | 'projectConcurrency' | 'budget';
+
+export interface BlockingReason {
+  type: BlockingReasonType;
+  label: string;           // Human-readable, e.g. "Waiting for 'Auth Refactor' to finish"
+  relatedEpicId?: string;  // For runAfter, dependency, repoLock
+  relatedRepoId?: string;  // For repoLock only
 }
 
 // ── Scheduler ───────────────────────────────────────────────────────────────
