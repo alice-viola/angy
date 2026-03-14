@@ -2,13 +2,11 @@
   <nav class="w-14 flex-shrink-0 bg-base border-r border-border-standard flex flex-col items-center py-3 gap-1">
     <!-- Logo -->
     <button
-      class="w-8 h-8 rounded-lg bg-gradient-to-br from-ember-500 to-ember-600 flex items-center justify-center mb-4 hover:opacity-80 transition-opacity"
+      class="w-8 h-8 mb-4 hover:opacity-80 transition-opacity"
       title="Home (⌘1)"
       @click="ui.navigateHome()"
     >
-      <svg class="w-4 h-4 text-[var(--bg-base)]" fill="currentColor" viewBox="0 0 24 24">
-        <path fill-rule="evenodd" d="M14.615 1.595a.75.75 0 01.359.852L12.982 9.75h7.268a.75.75 0 01.548 1.262l-10.5 11.25a.75.75 0 01-1.272-.71l1.992-7.302H3.75a.75.75 0 01-.548-1.262l10.5-11.25a.75.75 0 01.913-.143z" clip-rule="evenodd" />
-      </svg>
+      <img src="/angy-new-logo.png" class="w-8 h-8 rounded-lg" alt="Angy" />
     </button>
 
     <!-- Projects -->
@@ -63,6 +61,22 @@
       <div v-if="ui.viewMode === 'code'" class="absolute left-0 top-[25%] bottom-[25%] w-[3px] rounded-r-[3px] bg-gradient-to-b from-[#f59e0b] to-[#ea580c]"></div>
       <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" />
+      </svg>
+    </button>
+
+    <!-- Analytics -->
+    <button
+      @click="ui.switchToMode('analytics')"
+      class="w-10 h-10 rounded-lg flex items-center justify-center relative transition-all duration-150 ease-in-out"
+      :class="ui.viewMode === 'analytics' ? 'text-ember-500' : 'text-txt-muted hover:text-txt-secondary'"
+      title="Analytics"
+    >
+      <span
+        v-if="ui.viewMode === 'analytics'"
+        class="absolute left-0 top-[25%] bottom-[25%] w-[3px] rounded-r-[3px] bg-gradient-to-b from-[#f59e0b] to-[#ea580c]"
+      />
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
       </svg>
     </button>
 

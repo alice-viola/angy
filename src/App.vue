@@ -2,6 +2,7 @@
   <AppShell>
     <!-- Top-level view routing based on viewMode -->
     <HomeView v-if="ui.viewMode === 'home'" />
+    <AnalyticsView v-else-if="ui.viewMode === 'analytics'" />
     <KanbanView v-else-if="ui.viewMode === 'kanban'" ref="kanbanViewRef" />
 
     <!-- Agents view: new 3-panel layout -->
@@ -89,6 +90,7 @@ import SettingsDialog from './components/settings/SettingsDialog.vue';
 import NotificationToast from './components/home/NotificationToast.vue';
 import AgentsView from './components/agents/AgentsView.vue';
 import CodeView from './components/code/CodeView.vue';
+import AnalyticsView from './components/analytics/AnalyticsView.vue';
 import { useUiStore } from './stores/ui';
 import { useThemeStore } from './stores/theme';
 import { useSessionsStore, getDatabase, initSessionEngines } from './stores/sessions';

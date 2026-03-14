@@ -54,7 +54,7 @@
 
     <!-- Children area -->
     <div
-      class="tree-children ml-4 pl-4 border-l-2 mt-2 space-y-3 pb-1"
+      class="tree-children ml-4 pl-4 border-l-2 mt-2 space-y-4 pb-1"
       :class="borderClass"
     >
       <template v-for="(block, i) in messageBlocks" :key="i">
@@ -103,7 +103,7 @@
         />
 
         <!-- ── User message / task prompt (collapsed by default, markdown rendered) ── -->
-        <details v-else-if="block.type === 'user'" class="group">
+        <details v-else-if="block.type === 'user'" class="group my-2">
           <summary class="flex items-center gap-2 cursor-pointer">
             <div class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-purple-500/[0.06] border border-purple-500/10 group-hover:border-purple-500/20 transition-colors">
               <svg class="w-2.5 h-2.5 text-purple-400 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
@@ -124,12 +124,16 @@
         </div>
       </template>
 
-      <!-- Empty state -->
+      <!-- Empty state / streaming indicator -->
       <div
         v-if="messageBlocks.length === 0"
         class="flex flex-col items-center justify-center py-4 text-center"
       >
-        <span class="text-[11px] text-txt-muted">No messages yet</span>
+        <template v-if="agent.status === 'working'">
+          <WaveBar :count="3" color="teal" />
+          <span class="text-[10px] text-teal mt-1.5">Generating...</span>
+        </template>
+        <span v-else class="text-[11px] text-txt-muted">No messages yet</span>
       </div>
     </div>
   </details>

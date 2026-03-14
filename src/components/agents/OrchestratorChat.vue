@@ -46,7 +46,7 @@
     <!-- Scrollable hierarchical conversation -->
     <div
       ref="scrollEl"
-      class="flex-1 overflow-y-auto px-5 py-4 space-y-3"
+      class="flex-1 overflow-y-auto px-5 py-4 space-y-5"
     >
       <!-- No session selected -->
       <div v-if="!sessionId" class="flex flex-col items-center justify-center h-full text-center px-6">
@@ -133,11 +133,17 @@
 
       <!-- Empty conversation -->
       <div v-else class="flex flex-col items-center justify-center h-full text-center px-6">
-        <svg class="w-6 h-6 mb-2 opacity-30 text-txt-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
-          <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-        </svg>
-        <span class="text-[11px] text-txt-muted">No messages yet</span>
-        <span class="text-[10px] text-txt-faint mt-1">Send a message to get started</span>
+        <template v-if="isProcessing">
+          <div class="w-6 h-6 border-2 border-teal border-t-transparent rounded-full animate-spin mb-2" />
+          <span class="text-[11px] text-txt-muted">Starting agents...</span>
+        </template>
+        <template v-else>
+          <svg class="w-6 h-6 mb-2 opacity-30 text-txt-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+          </svg>
+          <span class="text-[11px] text-txt-muted">No messages yet</span>
+          <span class="text-[10px] text-txt-faint mt-1">Send a message to get started</span>
+        </template>
       </div>
     </div>
 
@@ -151,11 +157,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { useFleetStore, type HierarchicalAgent } from '../../stores/fleet';
 import { useSessionsStore, getDatabase } from '../../stores/sessions';
 import { useProjectsStore } from '../../stores/projects';
 import { useEpicStore } from '../../stores/epics';
+import { engineBus } from '../../engine/EventBus';
 import type { MessageRecord } from '../../engine/types';
 import { renderMarkdown } from '../../utils/renderMarkdown';
 import TreeBranch from './TreeBranch.vue';
@@ -193,11 +200,46 @@ const epicStore = useEpicStore();
 const scrollEl = ref<HTMLElement | null>(null);
 const loading = ref(false);
 
+// ── Per-child streaming state ────────────────────────────────────────────
+// Tracks in-progress text/thinking for each child session so we can
+// update the sessionsStore reactively as HeadlessHandle streams output.
+
+interface ChildStreamState {
+  turnCounter: number;
+  currentText: string;
+  thinkingText: string;
+}
+
+const childStreamStates = new Map<string, ChildStreamState>();
+
+function getChildStreamState(sessionId: string): ChildStreamState {
+  let s = childStreamStates.get(sessionId);
+  if (!s) {
+    const existing = sessionsStore.getMessages(sessionId);
+    const maxTurn = existing.reduce((max, m) => Math.max(max, m.turnId ?? 0), 0);
+    s = { turnCounter: maxTurn, currentText: '', thinkingText: '' };
+    childStreamStates.set(sessionId, s);
+  }
+  return s;
+}
+
+async function loadChildMessagesFromDb(sessionIds: string[]) {
+  if (sessionIds.length === 0) return;
+  const db = getDatabase();
+  await Promise.all(
+    sessionIds.map(async (sid) => {
+      const msgs = await db.loadMessages(sid);
+      if (msgs.length > 0) {
+        sessionsStore.setMessages(sid, msgs);
+      }
+    }),
+  );
+}
+
+// Load orchestrator + child messages when the selected session changes
 watch(() => props.sessionId, async (sessionId) => {
   if (!sessionId) return;
-
-  const needsLoad = sessionsStore.getMessages(sessionId).length === 0;
-  if (!needsLoad) return;
+  childStreamStates.clear();
 
   loading.value = true;
   try {
@@ -211,16 +253,7 @@ watch(() => props.sessionId, async (sessionId) => {
     const children = fleetStore.hierarchicalAgents.filter(
       (a) => a.parentSessionId === sessionId,
     );
-    await Promise.all(
-      children.map(async (child) => {
-        if (sessionsStore.getMessages(child.sessionId).length === 0) {
-          const childMsgs = await db.loadMessages(child.sessionId);
-          if (childMsgs.length > 0) {
-            sessionsStore.setMessages(child.sessionId, childMsgs);
-          }
-        }
-      }),
-    );
+    await loadChildMessagesFromDb(children.map(c => c.sessionId));
   } finally {
     loading.value = false;
   }
@@ -247,6 +280,111 @@ const childAgents = computed(() =>
     (a) => a.parentSessionId === props.sessionId,
   ),
 );
+
+const childSessionIdSet = computed(() =>
+  new Set(childAgents.value.map(a => a.sessionId)),
+);
+
+// ── Watch for late-arriving children ──────────────────────────────────────
+// Children are created AFTER the orchestrator, so the initial load may
+// miss them. Whenever a new child appears, load its messages from DB.
+
+const knownChildIds = ref<Set<string>>(new Set());
+
+watch(
+  () => childAgents.value.map(a => a.sessionId),
+  async (ids) => {
+    const newIds = ids.filter(id => !knownChildIds.value.has(id));
+    knownChildIds.value = new Set(ids);
+    if (newIds.length > 0) {
+      await loadChildMessagesFromDb(newIds);
+    }
+  },
+);
+
+// ── Headless streaming bridge ────────────────────────────────────────────
+// HeadlessHandle emits events on engineBus. We listen and route them
+// into the sessionsStore so TreeBranch can render live output.
+
+function isRelevantChild(sessionId: string): boolean {
+  return childSessionIdSet.value.has(sessionId);
+}
+
+function onTextDelta({ sessionId, text }: { sessionId: string; text: string }) {
+  if (!isRelevantChild(sessionId)) return;
+
+  const state = getChildStreamState(sessionId);
+  state.currentText += text;
+
+  const content = state.thinkingText
+    ? `<thinking>${state.thinkingText}</thinking>\n${state.currentText}`
+    : state.currentText;
+
+  const msgs = sessionsStore.getMessages(sessionId);
+  const last = msgs[msgs.length - 1];
+  if (last?.role === 'assistant' && !last.toolName && last.turnId === state.turnCounter) {
+    last.content = content;
+  } else {
+    sessionsStore.addMessage(sessionId, {
+      sessionId,
+      role: 'assistant',
+      content,
+      turnId: state.turnCounter,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+  }
+}
+
+function onToolUse({ sessionId, toolName, summary, toolInput }: {
+  sessionId: string; toolName: string; summary: string; toolInput?: Record<string, any>;
+}) {
+  if (!isRelevantChild(sessionId)) return;
+
+  const state = getChildStreamState(sessionId);
+  state.currentText = '';
+  state.thinkingText = '';
+
+  sessionsStore.addMessage(sessionId, {
+    sessionId,
+    role: 'tool',
+    content: summary,
+    toolName,
+    toolInput: toolInput ? JSON.stringify(toolInput) : undefined,
+    turnId: state.turnCounter,
+    timestamp: Math.floor(Date.now() / 1000),
+  });
+}
+
+function onThinkingDelta({ sessionId, text }: { sessionId: string; text: string }) {
+  if (!isRelevantChild(sessionId)) return;
+  getChildStreamState(sessionId).thinkingText += text;
+}
+
+async function onTurnDone({ sessionId }: { sessionId: string }) {
+  if (!isRelevantChild(sessionId) && sessionId !== props.sessionId) return;
+
+  // Reset streaming state and reload canonical data from DB
+  childStreamStates.delete(sessionId);
+
+  const db = getDatabase();
+  const msgs = await db.loadMessages(sessionId);
+  sessionsStore.setMessages(sessionId, msgs);
+}
+
+onMounted(() => {
+  engineBus.on('agent:textDelta', onTextDelta);
+  engineBus.on('agent:toolUse', onToolUse);
+  engineBus.on('agent:thinkingDelta', onThinkingDelta);
+  engineBus.on('agent:turnDone', onTurnDone);
+});
+
+onUnmounted(() => {
+  engineBus.off('agent:textDelta', onTextDelta);
+  engineBus.off('agent:toolUse', onToolUse);
+  engineBus.off('agent:thinkingDelta', onThinkingDelta);
+  engineBus.off('agent:turnDone', onTurnDone);
+  childStreamStates.clear();
+});
 
 const epicInfo = computed(() => {
   const agent = selectedAgent.value;
@@ -405,17 +543,22 @@ const timeline = computed((): TimelineItem[] => {
   return items;
 });
 
-watch(
-  () => messages.value.length,
-  () => {
-    nextTick(() => {
-      scrollEl.value?.scrollTo({
-        top: scrollEl.value.scrollHeight,
-        behavior: 'smooth',
-      });
+const totalMessageCount = computed(() => {
+  let count = messages.value.length;
+  for (const agent of childAgents.value) {
+    count += sessionsStore.getMessages(agent.sessionId).length;
+  }
+  return count;
+});
+
+watch(totalMessageCount, () => {
+  nextTick(() => {
+    scrollEl.value?.scrollTo({
+      top: scrollEl.value.scrollHeight,
+      behavior: 'smooth',
     });
-  },
-);
+  });
+});
 </script>
 
 <style scoped>

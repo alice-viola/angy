@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/angylogo.png" width="96" alt="Angy logo" />
+  <img src="public/angy-new-logo.png" width="96" alt="Angy logo" />
 </p>
 
 <h1 align="center">Angy</h1>
