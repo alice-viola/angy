@@ -7,10 +7,10 @@
           <slot name="actions" />
         </template>
       </GlobalTopBar>
-      <div class="flex-1 min-h-0 overflow-hidden">
+      <div class="flex-1 min-h-0 overflow-hidden pb-7">
         <slot />
       </div>
-      <StatusBar />
+      <StatusTicker />
     </div>
   </div>
 </template>
@@ -18,5 +18,5 @@
 <script setup lang="ts">
 import NavRail from './NavRail.vue';
 import GlobalTopBar from './GlobalTopBar.vue';
-import StatusBar from './StatusBar.vue';
+import StatusTicker from '@/components/layout/StatusTicker.vue';
 </script>

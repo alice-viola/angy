@@ -5,6 +5,10 @@ import { useSessionsStore } from './sessions';
 import { useEpicStore } from './epics';
 import { useProjectsStore } from './projects';
 
+// ── Constants ───────────────────────────────────────────────────────────
+
+export const PROJECT_COLORS = ['#f59e0b', '#10b981', '#22d3ee', '#cba6f7', '#f38ba8', '#a6e3a1', '#f9e2af', '#FF6B8A'];
+
 // ── Fleet Store ─────────────────────────────────────────────────────────
 
 export const useFleetStore = defineStore('fleet', () => {
@@ -157,9 +161,19 @@ export const useFleetStore = defineStore('fleet', () => {
     }
   }
 
-  // ── Project-grouped agents ────────────────────────────────────────
+  // ── Ticker getters ───────────────────────────────────────────────
 
-  const PROJECT_COLORS = ['#f59e0b', '#10b981', '#22d3ee', '#cba6f7', '#f38ba8', '#a6e3a1', '#f9e2af', '#FF6B8A'];
+  const recentActivities = computed(() =>
+    agents.value
+      .filter(a => a.activity !== '')
+      .map(a => ({ name: a.title, status: a.status, activity: a.activity }))
+  );
+
+  const activeCount = computed(() =>
+    agents.value.filter(a => a.status === 'working').length
+  );
+
+  // ── Project-grouped agents ────────────────────────────────────────
 
   /** Agents grouped by project, with '__orchestrators__' for unattached orchestrators */
   const agentsGroupedByProject = computed(() => {
@@ -228,6 +242,8 @@ export const useFleetStore = defineStore('fleet', () => {
     agentsByProject,
     activeAgentsByProject,
     agentsGroupedByProject,
+    recentActivities,
+    activeCount,
     // Actions
     childrenOf,
     rebuildFromSessions,
