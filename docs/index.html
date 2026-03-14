@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Angy — AI Agent Orchestration</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ── Navbar ─────────────────────────────────────────────────────────────── -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <a href="#" class="navbar-logo">
+        <img src="img/angy-new-logo.png" alt="Angy logo">
+        <span class="navbar-logo-name">Angy</span>
+      </a>
+      <a href="https://github.com/alice-viola/angy" target="_blank" rel="noopener noreferrer" class="btn-primary">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        View on GitHub
+      </a>
+    </div>
+  </nav>
+
+  <!-- ── Hero ──────────────────────────────────────────────────────────────── -->
+  <section id="hero" class="hero">
+    <div class="container">
+      <div class="hero-eyebrow">
+        <span class="badge badge-ember">Open Source</span>
+        <span class="badge badge-teal">AI-Powered</span>
+      </div>
+      <h1 class="hero-title">
+        Orchestrate AI agents<br>
+        <span class="hero-title-accent">at epic scale</span>
+      </h1>
+      <p class="hero-tagline">
+        Angy is a multi-agent orchestration platform that breaks complex software goals into structured epics, assigns specialist AI agents, and ships code — autonomously.
+      </p>
+      <div class="hero-actions">
+        <a href="https://github.com/alice-viola/angy" target="_blank" rel="noopener noreferrer" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          Get Started on GitHub
+        </a>
+        <a href="#features" class="btn-ghost">See Features</a>
+      </div>
+      <div class="hero-screenshot">
+        <img src="img/overview.png" alt="Angy overview screenshot">
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Feature Grid ───────────────────────────────────────────────────────── -->
+  <section id="features" class="section">
+    <div class="container">
+      <h2 class="section-title">Everything you need to ship with AI</h2>
+      <p class="section-subtitle">A complete platform for defining, orchestrating, and reviewing AI-driven development — from goal to merged PR.</p>
+      <div class="features-grid">
+        <div class="feature-card card-lift">
+          <span class="feature-icon" aria-hidden="true">🗂️</span>
+          <h3 class="feature-title">Kanban Pipeline</h3>
+          <p class="feature-desc">Visualize every epic and task across columns — Backlog, In Progress, Review, Done. Drag, reprioritize, and track progress at a glance.</p>
+        </div>
+        <div class="feature-card card-lift">
+          <span class="feature-icon" aria-hidden="true">🤖</span>
+          <h3 class="feature-title">Agent Fleet</h3>
+          <p class="feature-desc">Architect, Implementer, Reviewer, and Tester agents collaborate in parallel. Each specialist handles its role autonomously within a scoped epic branch.</p>
+        </div>
+        <div class="feature-card card-lift">
+          <span class="feature-icon" aria-hidden="true">💻</span>
+          <h3 class="feature-title">Code View</h3>
+          <p class="feature-desc">Inspect live agent output, diffs, and file changes directly in the UI. Full syntax highlighting and real-time streaming as agents write code.</p>
+        </div>
+        <div class="feature-card card-lift">
+          <span class="feature-icon" aria-hidden="true">⏱️</span>
+          <h3 class="feature-title">Scheduler</h3>
+          <p class="feature-desc">Queue epics, set priorities, and let the scheduler orchestrate agents across projects automatically — even while you sleep.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── How It Works ───────────────────────────────────────────────────────── -->
+  <section id="how-it-works" class="section">
+    <div class="container">
+      <h2 class="section-title">How It Works</h2>
+      <p class="section-subtitle">Define a goal. Angy handles the rest — planning, implementing, reviewing, and testing through a structured multi-agent pipeline.</p>
+      <div class="pipeline">
+        <div class="pipeline-step">
+          <div class="pipeline-step-num">01</div>
+          <div class="pipeline-step-title">Goal</div>
+          <div class="pipeline-step-desc">Describe what you want to build in plain language</div>
+        </div>
+        <div class="pipeline-arrow" aria-hidden="true">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-step-num">02</div>
+          <div class="pipeline-step-title">Architect</div>
+          <div class="pipeline-step-desc">Plans the implementation, identifies files, defines scope</div>
+        </div>
+        <div class="pipeline-arrow" aria-hidden="true">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-step-num">03</div>
+          <div class="pipeline-step-title">Implementer</div>
+          <div class="pipeline-step-desc">Writes the code on an isolated epic branch</div>
+        </div>
+        <div class="pipeline-arrow" aria-hidden="true">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-step-num">04</div>
+          <div class="pipeline-step-title">Reviewer</div>
+          <div class="pipeline-step-desc">Audits logic, security, and correctness</div>
+        </div>
+        <div class="pipeline-arrow" aria-hidden="true">→</div>
+        <div class="pipeline-step">
+          <div class="pipeline-step-num">05</div>
+          <div class="pipeline-step-title">Tester</div>
+          <div class="pipeline-step-desc">Writes and runs tests, validates coverage</div>
+        </div>
+        <div class="pipeline-arrow" aria-hidden="true">→</div>
+        <div class="pipeline-step card-glow-active">
+          <div class="pipeline-step-num">✓</div>
+          <div class="pipeline-step-title">Done</div>
+          <div class="pipeline-step-desc">PR ready for merge with full audit trail</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Kanban Section ────────────────────────────────────────────────────── -->
+  <section id="kanban" class="section">
+    <div class="container">
+      <div class="screenshot-section">
+        <div class="screenshot-text">
+          <span class="badge badge-ember" style="margin-bottom:16px;display:inline-flex;">Epic Flow</span>
+          <h2 class="section-title">Visual Kanban for every epic</h2>
+          <p class="section-subtitle">Track each epic as it moves through the pipeline. The Kanban board gives you a real-time view of agent activity, blockers, and progress across all your projects simultaneously.</p>
+          <ul style="color:var(--text-secondary);font-size:0.9375rem;line-height:2;padding-left:0;list-style:none;">
+            <li>✦ &nbsp;Drag epics between stages manually or let the scheduler drive them</li>
+            <li>✦ &nbsp;Color-coded agent status indicators per card</li>
+            <li>✦ &nbsp;Inline preview of latest agent output</li>
+            <li>✦ &nbsp;Filter by project, agent type, or priority</li>
+          </ul>
+        </div>
+        <div class="screenshot-image">
+          <img src="img/kanban.png" alt="Kanban board screenshot">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Agent Fleet Section ───────────────────────────────────────────────── -->
+  <section id="agents" class="section">
+    <div class="container">
+      <div class="screenshot-section reverse">
+        <div class="screenshot-text">
+          <span class="badge badge-mauve" style="margin-bottom:16px;display:inline-flex;">Specialist Roles</span>
+          <h2 class="section-title">A fleet of specialist AI agents</h2>
+          <p class="section-subtitle">Each agent is a Claude subprocess with a defined role, scoped context, and clear deliverables. Agents collaborate on a shared epic branch without stepping on each other.</p>
+          <ul style="color:var(--text-secondary);font-size:0.9375rem;line-height:2;padding-left:0;list-style:none;">
+            <li><span style="color:var(--accent-mauve);font-weight:600;">Architect</span> &nbsp;— Plans, decomposes, and defines file ownership</li>
+            <li><span style="color:var(--accent-blue);font-weight:600;">Implementer</span> &nbsp;— Writes code from the plan</li>
+            <li><span style="color:var(--accent-teal);font-weight:600;">Reviewer</span> &nbsp;— Audits quality, security, correctness</li>
+            <li><span style="color:var(--accent-ember);font-weight:600;">Tester</span> &nbsp;— Writes tests and validates behaviour</li>
+          </ul>
+        </div>
+        <div class="screenshot-image">
+          <img src="img/agents.png" alt="Agent fleet screenshot">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Projects Section ──────────────────────────────────────────────────── -->
+  <section id="projects" class="section">
+    <div class="container">
+      <div class="screenshot-section">
+        <div class="screenshot-text">
+          <span class="badge badge-blue" style="margin-bottom:16px;display:inline-flex;">Multi-Project</span>
+          <h2 class="section-title">Manage all your projects in one place</h2>
+          <p class="section-subtitle">Angy supports multiple repositories and projects simultaneously. Switch between codebases, assign epics per project, and monitor agent activity across your entire portfolio.</p>
+          <ul style="color:var(--text-secondary);font-size:0.9375rem;line-height:2;padding-left:0;list-style:none;">
+            <li>✦ &nbsp;Per-project epic queues and history</li>
+            <li>✦ &nbsp;Independent git branches per epic</li>
+            <li>✦ &nbsp;Unified dashboard across all repositories</li>
+            <li>✦ &nbsp;Project-level scheduler configuration</li>
+          </ul>
+        </div>
+        <div class="screenshot-image">
+          <img src="img/projects.png" alt="Projects view screenshot">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── Code View Section ─────────────────────────────────────────────────── -->
+  <section id="code" class="section">
+    <div class="container">
+      <div class="screenshot-section reverse">
+        <div class="screenshot-text">
+          <span class="badge badge-teal" style="margin-bottom:16px;display:inline-flex;">Live Output</span>
+          <h2 class="section-title">Watch agents write code in real time</h2>
+          <p class="section-subtitle">The Code View streams agent output as it happens — file edits, diffs, shell commands, and test results. Full syntax highlighting powered by JetBrains Mono.</p>
+          <ul style="color:var(--text-secondary);font-size:0.9375rem;line-height:2;padding-left:0;list-style:none;">
+            <li>✦ &nbsp;Real-time streaming of agent tool calls</li>
+            <li>✦ &nbsp;Diff view for every file modified</li>
+            <li>✦ &nbsp;Shell command output and exit codes</li>
+            <li>✦ &nbsp;Full session replay per epic</li>
+          </ul>
+        </div>
+        <div class="screenshot-image">
+          <img src="img/code.png" alt="Code view screenshot">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr class="divider">
+
+  <!-- ── GitHub CTA ─────────────────────────────────────────────────────────── -->
+  <section id="cta" class="section">
+    <div class="container">
+      <div class="cta-box">
+        <h2 class="cta-title">Start orchestrating today</h2>
+        <p class="cta-subtitle">Angy is open source and free to self-host. Clone the repo, configure your Claude API key, and run your first epic in minutes.</p>
+        <a href="https://github.com/alice-viola/angy" target="_blank" rel="noopener noreferrer" class="btn-primary">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+          </svg>
+          View on GitHub
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Footer ────────────────────────────────────────────────────────────── -->
+  <footer class="footer">
+    <div class="footer-inner">
+      <span>© 2025 Angy — v0.1.0</span>
+      <span>Released under the <a href="https://github.com/alice-viola/angy/blob/master/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a></span>
+      <a href="https://github.com/alice-viola/angy" target="_blank" rel="noopener noreferrer">github.com/alice-viola/angy</a>
+    </div>
+  </footer>
+
+</body>
+</html>
