@@ -26,7 +26,7 @@
       <p class="text-sm text-txt-primary font-semibold leading-snug mb-1.5">{{ epic.title }}</p>
 
       <!-- Description -->
-      <p v-if="epic.description" class="text-[11px] text-txt-muted leading-relaxed mb-2">{{ epic.description }}</p>
+      <p v-if="epic.description" class="text-[11px] text-txt-muted leading-relaxed mb-2">{{ epic.description.length > 200 ? epic.description.slice(0, 200) + '…' : epic.description }}</p>
 
       <!-- Branch -->
       <div v-if="actions.branchName.value" class="flex items-center gap-1 mb-3">
