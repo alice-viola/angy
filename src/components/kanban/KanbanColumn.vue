@@ -169,9 +169,14 @@ function onDrop(e: DragEvent) {
   const epicId = e.dataTransfer!.getData('text/plain');
   if (!epicId) return;
 
+  const epic = epicStore.epicById(epicId);
   const targetColumn = props.boardColumn.dropTarget;
+  if (!epic || epic.column === targetColumn) return;
+
   if (targetColumn === 'in-progress') {
     engineBus.emit('epic:requestStart', { epicId });
+  } else if (epic.column === 'in-progress') {
+    engineBus.emit('epic:requestStop', { epicId, targetColumn });
   } else {
     epicStore.moveEpic(epicId, targetColumn);
   }
