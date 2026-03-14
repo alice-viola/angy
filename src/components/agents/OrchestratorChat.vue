@@ -149,10 +149,14 @@
 
     <!-- Input bar -->
     <ChatInputBar
+      v-if="!isAutoSpawned"
       :processing="isProcessing"
       @send="(msg: string, imgs: any[]) => $emit('send', msg, imgs)"
       @stop="$emit('stop')"
     />
+    <div v-else class="py-3 text-center text-[11px] text-txt-muted border-t border-border-subtle">
+      This agent is managed by the Scheduler
+    </div>
   </div>
 </template>
 
@@ -270,6 +274,11 @@ const isOrchestrator = computed(() =>
 const isProcessing = computed(() =>
   selectedAgent.value?.status === 'working',
 );
+
+const isAutoSpawned = computed(() => {
+  const session = sessionsStore.sessions.get(props.sessionId);
+  return !!session?.epicId;
+});
 
 const messages = computed((): MessageRecord[] =>
   sessionsStore.getMessages(props.sessionId),
