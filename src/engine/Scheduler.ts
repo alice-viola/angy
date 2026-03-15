@@ -56,6 +56,10 @@ export class Scheduler {
     return Scheduler.instance;
   }
 
+  static resetInstance(): void {
+    Scheduler.instance = null;
+  }
+
   // ── Configuration ──────────────────────────────────────────────────────
 
   setPool(pool: OrchestratorPool): void {

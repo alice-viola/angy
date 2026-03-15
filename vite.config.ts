@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
@@ -25,5 +26,17 @@ export default defineConfig({
   // Monaco editor worker bundling
   optimizeDeps: {
     include: ["monaco-editor"],
+  },
+
+  test: {
+    environment: 'happy-dom',
+    globals: true,
+    setupFiles: ['tests/mocks/tauri.ts'],
+    include: ['tests/**/*.test.ts'],
+    coverage: {
+      provider: 'v8',
+      include: ['src/engine/**', 'src/composables/**'],
+      exclude: ['src/components/**', 'src/stores/**'],
+    },
   },
 });

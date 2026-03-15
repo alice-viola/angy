@@ -1,0 +1,37 @@
+import type { Epic } from '@/engine/KosTypes';
+
+export function makeEpic(overrides: Partial<Epic> = {}): Epic {
+  return {
+    id: crypto.randomUUID(),
+    projectId: 'proj-1',
+    title: 'Test Epic',
+    description: '',
+    acceptanceCriteria: '',
+    column: 'todo',
+    priorityHint: 'medium',
+    complexity: 'medium',
+    pipelineType: 'hybrid',
+    model: '',
+    targetRepoIds: [],
+    dependsOn: [],
+    rejectionCount: 0,
+    rejectionFeedback: '',
+    lastAttemptFiles: [],
+    lastValidationResults: [],
+    lastArchitectPlan: '',
+    computedScore: 0,
+    rootSessionId: null,
+    costTotal: 0,
+    runAfter: null,
+    useWorktree: false,
+    useGitBranch: false,
+    baseBranch: null,
+    startedAt: null,
+    completedAt: null,
+    suspendedAt: null,
+    parallelAgentCount: 1,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
