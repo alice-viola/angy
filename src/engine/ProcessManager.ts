@@ -186,14 +186,17 @@ export class ProcessManager {
     });
 
     proc.streamParser.events.on('thinkingStarted', () => {
+      this.buffer.appendAssistantDelta(sessionId, '<thinking>');
       handle.setThinking(sessionId, true);
     });
 
     proc.streamParser.events.on('thinkingDelta', (text) => {
+      this.buffer.appendAssistantDelta(sessionId, text);
       handle.appendThinkingDelta(sessionId, text);
     });
 
     proc.streamParser.events.on('thinkingStopped', () => {
+      this.buffer.appendAssistantDelta(sessionId, '</thinking>\n');
       handle.setThinking(sessionId, false);
     });
 

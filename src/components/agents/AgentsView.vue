@@ -157,7 +157,24 @@ const storeHandle: AgentHandle = {
   },
 
   appendThinkingDelta(sessionId: string, text: string) {
-    getStreamState(sessionId).thinkingText += text;
+    const state = getStreamState(sessionId);
+    state.thinkingText += text;
+
+    const content = `<thinking>${state.thinkingText}</thinking>`;
+    const msgs = sessionsStore.getMessages(sessionId);
+    const last = msgs[msgs.length - 1];
+    if (last?.role === 'assistant' && !last.toolName && last.turnId === state.turnCounter) {
+      last.content = content;
+    } else {
+      const msg: MessageRecord = {
+        sessionId,
+        role: 'assistant',
+        content,
+        turnId: state.turnCounter,
+        timestamp: Math.floor(Date.now() / 1000),
+      };
+      sessionsStore.addMessage(sessionId, msg);
+    }
   },
 
   addToolUse(sessionId: string, toolName: string, summary: string, toolInput?: Record<string, any>) {

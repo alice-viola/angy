@@ -46,7 +46,7 @@
     <!-- Scrollable hierarchical conversation -->
     <div
       ref="scrollEl"
-      class="flex-1 overflow-y-auto px-5 py-4 space-y-5"
+      class="flex-1 overflow-y-auto px-5 py-4 space-y-6"
     >
       <!-- No session selected -->
       <div v-if="!sessionId" class="flex flex-col items-center justify-center h-full text-center px-6">
@@ -68,10 +68,13 @@
 
           <!-- ── Text message (user or assistant) ── -->
           <div v-if="item.type === 'orchestrator-message'" class="tree-node anim-fade-in">
-            <!-- User message: card with orange border -->
+            <!-- User message: left accent bar -->
             <template v-if="item.message!.role === 'user'">
-              <div class="rounded-lg border border-ember-500/40 bg-ember-500/[0.04] px-4 py-3">
-                <span v-if="item.message!.timestamp" class="block text-[10px] text-txt-faint mb-1.5 text-right">{{ relativeTime(item.message!.timestamp) }}</span>
+              <div class="border-l-[3px] border-ember-500/60 rounded-r-lg pl-4 pr-4 py-2.5">
+                <div class="flex items-center gap-2 mb-1.5">
+                  <span class="text-xs font-medium text-ember-400">You</span>
+                  <span v-if="item.message!.timestamp" class="text-[10px] text-txt-faint">{{ relativeTime(item.message!.timestamp) }}</span>
+                </div>
                 <div
                   v-if="getTextContent(item.message!.content)"
                   class="md-content text-[13px] text-txt-primary leading-relaxed"
@@ -82,17 +85,28 @@
             <!-- Assistant message: content only, no label -->
             <template v-else>
               <div class="space-y-2">
-                <details
-                  v-for="(think, ti) in getThinkingBlocks(item.message!.content)"
-                  :key="'think-' + ti"
-                  class="group"
-                >
-                  <summary class="flex items-center gap-2 cursor-pointer text-[11px] text-txt-faint hover:text-txt-secondary transition-colors">
-                    <svg class="w-2.5 h-2.5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
-                    Thinking
-                  </summary>
-                  <div class="mt-1.5 p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] text-[11px] text-txt-secondary font-mono whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">{{ think }}</div>
-                </details>
+                <!-- Live thinking: shown expanded while streaming -->
+                <template v-if="isThinkingLive(item)">
+                  <div
+                    v-for="(think, ti) in getThinkingBlocks(item.message!.content)"
+                    :key="'think-live-' + ti"
+                    class="p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] text-[11px] text-txt-secondary font-mono whitespace-pre-wrap max-h-96 overflow-y-auto leading-relaxed"
+                  >{{ think }}</div>
+                </template>
+                <!-- Completed thinking: collapsed -->
+                <template v-else>
+                  <details
+                    v-for="(think, ti) in getThinkingBlocks(item.message!.content)"
+                    :key="'think-' + ti"
+                    class="group"
+                  >
+                    <summary class="flex items-center gap-2 cursor-pointer text-[11px] text-txt-faint hover:text-txt-secondary transition-colors">
+                      <svg class="w-2.5 h-2.5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                      Thinking
+                    </summary>
+                    <div class="mt-1.5 p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] text-[11px] text-txt-secondary font-mono whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">{{ think }}</div>
+                  </details>
+                </template>
                 <div
                   v-if="getTextContent(item.message!.content)"
                   class="md-content text-[13px] text-txt-primary leading-relaxed"
@@ -431,7 +445,23 @@ function getThinkingBlocks(content: string): string[] {
 
 function getTextContent(content: string): string {
   if (!content) return '';
-  return content.replace(THINKING_RE, '').trim();
+  return content
+    .replace(THINKING_RE, '')
+    .replace(/<\/?thinking>/g, '')
+    .trim();
+}
+
+function isThinkingLive(item: TimelineItem): boolean {
+  if (!isProcessing.value) return false;
+  if (item.message?.role !== 'assistant') return false;
+  const thinkBlocks = getThinkingBlocks(item.message.content);
+  if (thinkBlocks.length === 0) return false;
+  const text = getTextContent(item.message.content);
+  if (text.length > 0) return false;
+  const assistantItems = timeline.value.filter(
+    i => i.type === 'orchestrator-message' && i.message?.role === 'assistant',
+  );
+  return assistantItems[assistantItems.length - 1] === item;
 }
 
 function renderMd(text: string): string {
