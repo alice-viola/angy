@@ -3,7 +3,7 @@
     <div
       v-for="(card, i) in cards"
       :key="card.label"
-      class="bg-surface rounded-lg border border-border-subtle px-3.5 py-3 card-lift anim-fade-in"
+      class="bg-window rounded-lg border border-border-subtle px-3.5 py-3 card-lift anim-fade-in"
       :style="{ animationDelay: `${i * 50}ms` }"
     >
       <div class="flex items-center gap-2 mb-1.5">

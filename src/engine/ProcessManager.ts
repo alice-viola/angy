@@ -53,6 +53,7 @@ function summarizeTool(toolName: string, input: Record<string, any>): string {
     case 'Agent':
       return input.description || 'subagent';
     case 'AskUserQuestion':
+    case 'mcp__c3p2-orchestrator__AskUserQuestion':
       return 'asking question';
     default:
       return toolName;
@@ -122,7 +123,8 @@ export class ProcessManager {
 
   /**
    * Send a tool result back to Claude for a given session.
-   * Creates a new ClaudeProcess that resumes the session and sends a tool_result envelope.
+   * If the process is still running (paused at a tool_use stop), writes directly to its stdin.
+   * Otherwise creates a new ClaudeProcess that resumes the session.
    */
   sendToolResult(
     sessionId: string,
@@ -133,7 +135,9 @@ export class ProcessManager {
   ): ClaudeProcess {
     const existing = this.processes.get(sessionId);
     if (existing?.isRunning()) {
-      existing.cancel();
+      // Process is alive and waiting for the tool_result — write directly to its stdin.
+      existing.writeToolResult(toolUseId, content);
+      return existing;
     }
 
     const proc = new ClaudeProcess();

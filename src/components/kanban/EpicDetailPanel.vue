@@ -13,7 +13,7 @@
       </div>
       <div v-else></div>
       <!-- Panel title -->
-      <span class="text-[11px] font-semibold text-mauve uppercase tracking-widest">
+      <span class="text-[11px] font-semibold text-ember-500 uppercase tracking-widest">
         {{ isNew ? 'New Epic' : 'Epic Details' }}
       </span>
       <!-- Close button -->
@@ -268,7 +268,7 @@
           <div class="space-y-1.5">
             <div class="text-[11px] text-txt-muted">Run after</div>
             <div v-if="draft.runAfter" class="dep-row">
-              <svg class="w-3.5 h-3.5 text-mauve flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <svg class="w-3.5 h-3.5 text-ember-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 12h15" />
               </svg>
               <span class="text-[12px] text-txt-secondary truncate">{{ runAfterTitle(draft.runAfter) }}</span>
@@ -377,7 +377,7 @@
           </div>
           <button
             class="btn-primary w-full"
-            style="background: var(--accent-mauve)"
+            style="background: linear-gradient(to right, var(--accent-ember), var(--accent-ember-600))"
             :disabled="prLoading"
             @click="createPR(epic.id, epic.projectId)"
           >
@@ -407,7 +407,7 @@
     <div v-if="epic" class="flex items-center px-5 h-[52px] flex-shrink-0 border-t border-border-subtle bg-surface gap-3">
       <button v-if="!isNew" @click="remove" class="delete-btn text-sm text-txt-muted">Delete</button>
       <div class="flex-1"></div>
-      <button @click="save" class="btn-primary" style="background: var(--accent-mauve); min-width: 100px">
+      <button @click="save" class="btn-primary" style="background: linear-gradient(to right, var(--accent-ember), var(--accent-ember-600)); min-width: 100px">
         {{ isNew ? 'Create' : 'Save' }}
       </button>
     </div>
@@ -727,7 +727,7 @@ async function reject() {
 }
 .title-input::placeholder { color: var(--text-faint); font-weight: 400; }
 .title-input:hover { border-bottom-color: var(--border-standard); }
-.title-input:focus { border-bottom-color: var(--accent-mauve); }
+.title-input:focus { border-bottom-color: var(--accent-ember); }
 
 .field-input {
   width: 100%;
@@ -742,7 +742,7 @@ async function reject() {
   font-family: 'Inter', sans-serif;
 }
 .field-input:hover { border-color: var(--border-standard); }
-.field-input:focus { border-color: var(--accent-mauve); box-shadow: 0 0 0 2px rgba(203,166,247,0.12); }
+.field-input:focus { border-color: var(--accent-ember); box-shadow: 0 0 0 2px rgba(245,158,11,0.12); }
 .field-input::placeholder { color: var(--text-faint); }
 .field-input:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -774,8 +774,8 @@ textarea.field-input {
   color-scheme: dark;
   cursor: pointer;
 }
-.field-input-dashed:hover { border-color: rgba(203,166,247,0.25); color: var(--text-secondary); }
-.field-input-dashed:focus { border-color: var(--accent-mauve); outline: none; }
+.field-input-dashed:hover { border-color: rgba(245,158,11,0.25); color: var(--text-secondary); }
+.field-input-dashed:focus { border-color: var(--accent-ember); outline: none; }
 
 .pipe-btn {
   flex: 1;
@@ -820,7 +820,7 @@ textarea.field-input {
   box-shadow: inset 0 0 20px -10px rgba(180,190,254,0.12);
 }
 .pipe-btn.suggested-ring {
-  box-shadow: 0 0 0 2px rgba(203, 166, 247, 0.25);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
 }
 
 .git-radio-dot {
@@ -832,8 +832,8 @@ textarea.field-input {
   transition: border-color 150ms, background 150ms;
 }
 .git-radio-dot.selected {
-  border-color: var(--accent-mauve);
-  background: var(--accent-mauve);
+  border-color: var(--accent-ember);
+  background: var(--accent-ember);
 }
 
 .dep-row {

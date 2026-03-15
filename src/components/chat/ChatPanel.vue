@@ -20,7 +20,7 @@
       class="flex-1 overflow-y-auto"
       v-show="activeMessages.length > 0 || isProcessing"
     >
-      <div class="max-w-[860px] mx-auto py-8 px-6 space-y-5">
+      <div class="max-w-[860px] mx-auto py-8 px-6 space-y-3">
         <SectionTip tipId="pipeline-modes" title="Chat">
           Single agent chat. Use Kanban epics for orchestrated multi-agent pipelines.
         </SectionTip>
@@ -110,7 +110,7 @@ import { useUiStore } from '../../stores/ui';
 import { useProjectsStore } from '../../stores/projects';
 import { useEpicStore } from '../../stores/epics';
 import { ClaudeProcess } from '../../engine/ClaudeProcess';
-import { sendMessageToEngine, sendToolResultToEngine, cancelProcess, type ChatPanelHandle } from '../../composables/useEngine';
+import { sendMessageToEngine, cancelProcess, type ChatPanelHandle } from '../../composables/useEngine';
 import type { AgentStatus, AttachedContext, AttachedImage, MessageRecord } from '../../engine/types';
 import { engineBus } from '../../engine/EventBus';
 import { useOrchestrator } from '../../composables/useOrchestrator';
@@ -254,7 +254,7 @@ const groupedMessages = computed((): GroupedItem[] => {
   for (let i = 0; i < msgs.length; i++) {
     const msg = msgs[i];
     if (msg.role === 'tool') {
-      if (msg.toolName === 'AskUserQuestion') {
+      if (msg.toolName === 'AskUserQuestion' || msg.toolName === 'mcp__c3p2-orchestrator__AskUserQuestion') {
         flushGroup();
         result.push({ type: 'question', msg, id: msg.id });
         continue;
@@ -845,7 +845,7 @@ function extractOptions(toolInput: Record<string, any>): string[] {
   return [];
 }
 
-function onQuestionAnswer(msg: ChatMsg, answer: string) {
+async function onQuestionAnswer(msg: ChatMsg, answer: string) {
   msg.questionAnswered = true;
   const sid = activeSessionId.value;
   if (!sid) return;
@@ -857,20 +857,14 @@ function onQuestionAnswer(msg: ChatMsg, answer: string) {
   state.isProcessing = true;
   state.isThinking = true;
 
-  // Send the answer as a tool result back to the Claude process
-  const toolUseId = msg.toolId;
-  const resumeId = state.realClaudeSessionId;
-  if (!toolUseId || !resumeId) {
-    console.warn('Cannot send tool result: missing toolUseId or resumeSessionId');
-    return;
+  // The claude process is still running, blocked in the MCP server waiting for the answer file.
+  // Write the answer file so the MCP handler can return it to Claude and resume the session.
+  try {
+    const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+    await writeTextFile('/tmp/angy_answer.json', JSON.stringify({ answer }));
+  } catch (e) {
+    console.warn('Cannot write answer file:', e);
   }
-
-  sendToolResultToEngine(sid, toolUseId, answer, chatPanelHandle, {
-    workingDir: ui.workspacePath || '.',
-    mode: currentMode.value,
-    model: ui.currentModel,
-    resumeSessionId: resumeId,
-  });
 }
 
 // Load a message from the database into a session's state

@@ -56,7 +56,7 @@ import { ref, computed, nextTick } from 'vue';
 import { useFleetStore } from '../../stores/fleet';
 import { useSessionsStore, getDatabase, getSessionManager } from '../../stores/sessions';
 import { useUiStore } from '../../stores/ui';
-import { sendMessageToEngine, sendToolResultToEngine, cancelProcess } from '../../composables/useEngine';
+import { sendMessageToEngine, cancelProcess } from '../../composables/useEngine';
 import { engineBus } from '../../engine/EventBus';
 import type { AgentHandle, MessageRecord, AttachedImage } from '../../engine/types';
 import AgentsHeader from './AgentsHeader.vue';
@@ -290,25 +290,20 @@ function onStop() {
   }
 }
 
-async function onQuestionAnswered(toolUseId: string, answer: string) {
+async function onQuestionAnswered(_toolUseId: string, answer: string) {
   const sid = selectedAgentId.value;
   if (!sid) return;
 
-  const info = sessionsStore.sessions.get(sid);
-  const resumeSessionId = info?.claudeSessionId;
-  if (!resumeSessionId) {
-    console.warn('[AgentsView] Cannot answer question: no claudeSessionId for', sid);
-    return;
-  }
-
   fleetStore.updateAgent({ sessionId: sid, status: 'working', activity: 'Answering question...' });
 
-  sendToolResultToEngine(sid, toolUseId, answer, storeHandle, {
-    workingDir: info?.workspace || ui.workspacePath || '.',
-    mode: info?.mode || 'agent',
-    model: ui.currentModel,
-    resumeSessionId,
-  });
+  // The claude process is still running, blocked in the MCP server waiting for the answer file.
+  // Write the answer file so the MCP handler can return it to Claude and resume the session.
+  try {
+    const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+    await writeTextFile('/tmp/angy_answer.json', JSON.stringify({ answer }));
+  } catch (e) {
+    console.error('[AgentsView] Failed to write answer file:', e);
+  }
 }
 
 function onApprove() {

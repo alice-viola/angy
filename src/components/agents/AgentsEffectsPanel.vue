@@ -21,7 +21,7 @@
         :key="tab.id"
         class="flex items-center gap-1 text-[10px] px-3 py-2 transition-colors"
         :class="activeTab === tab.id
-          ? 'text-txt-primary border-b-2 border-ember-500'
+          ? 'text-ember-500 border-b-2 border-ember-500'
           : 'text-txt-muted hover:text-txt-secondary'"
         @click="activeTab = tab.id"
       >

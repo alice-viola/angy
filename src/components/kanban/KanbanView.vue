@@ -6,11 +6,59 @@
     <!-- Two-row header -->
     <header class="flex-shrink-0 bg-window/50 border-b border-border-subtle">
       <!-- Row 1: title, subtitle, filter input, actions -->
-      <div class="h-12 flex items-center px-5 gap-3">
+      <div class="relative h-12 flex items-center px-5 gap-3">
         <span class="text-sm font-semibold text-txt-primary">Board</span>
         <span class="text-xs text-txt-muted">
           {{ epicCount }} epic{{ epicCount !== 1 ? 's' : '' }} across {{ activeProjectCount }} active project{{ activeProjectCount !== 1 ? 's' : '' }}
         </span>
+
+        <!-- Git tools — centered -->
+        <div class="absolute left-1/2 -translate-x-1/2 flex items-center gap-3">
+          <!-- Git Tree -->
+          <button
+            class="text-txt-muted hover:text-txt-primary transition-colors"
+            title="Git branch tree"
+            @click="showGitTree = true"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="6" y1="3" x2="6" y2="15" />
+              <circle cx="18" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M18 9a9 9 0 0 1-9 9" />
+            </svg>
+          </button>
+
+          <!-- Git Ops -->
+          <button
+            class="text-txt-muted hover:text-txt-primary transition-colors"
+            title="Toggle git status panel"
+            @click="showGitOps = !showGitOps"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 3v12" />
+              <circle cx="18" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M18 9a9 9 0 0 1-9 9" />
+            </svg>
+          </button>
+
+          <!-- Merge Epics -->
+          <button
+            class="text-txt-muted hover:text-txt-primary transition-colors"
+            :class="mergeMode ? 'text-[var(--accent-teal)]' : ''"
+            title="Toggle merge mode"
+            @click="toggleMergeMode"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="18" r="3" />
+              <circle cx="6" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M6 9v3a6 6 0 0 0 6 6h3" />
+              <path d="M6 9v9" />
+            </svg>
+          </button>
+        </div>
+
         <div class="flex-1" />
 
         <!-- Search input -->
@@ -26,26 +74,6 @@
           />
         </div>
 
-        <!-- Add Epic -->
-        <button
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-base bg-gradient-to-r from-ember-500 to-ember-600 hover:brightness-110 transition"
-          @click="addEpic"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Add Epic
-        </button>
-
-        <!-- Schedule Now -->
-        <button
-          class="text-xs text-txt-muted hover:text-txt-secondary transition-colors px-2 py-1.5"
-          title="Trigger scheduler tick"
-          @click="onScheduleNow"
-        >
-          Schedule Now
-        </button>
-
         <!-- Scheduler toggle -->
         <button
           class="relative w-9 h-5 rounded-full transition-colors"
@@ -59,56 +87,29 @@
           />
         </button>
 
-        <!-- Separator -->
-        <div class="w-px h-4 bg-border-subtle" />
-
-        <!-- Git Tree -->
+        <!-- Schedule Now -->
         <button
-          class="text-txt-muted hover:text-txt-primary transition-colors"
-          title="Git branch tree"
-          @click="showGitTree = true"
+          class="text-xs text-txt-muted hover:text-txt-secondary transition-colors px-2 py-1.5"
+          title="Trigger scheduler tick"
+          @click="onScheduleNow"
         >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="6" y1="3" x2="6" y2="15" />
-            <circle cx="18" cy="6" r="3" />
-            <circle cx="6" cy="18" r="3" />
-            <path d="M18 9a9 9 0 0 1-9 9" />
-          </svg>
+          Schedule Now
         </button>
 
-        <!-- Git Ops -->
+        <!-- Add Epic -->
         <button
-          class="text-txt-muted hover:text-txt-primary transition-colors"
-          title="Toggle git status panel"
-          @click="showGitOps = !showGitOps"
+          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-base bg-gradient-to-r from-ember-500 to-ember-600 hover:brightness-110 transition"
+          @click="addEpic"
         >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M6 3v12" />
-            <circle cx="18" cy="6" r="3" />
-            <circle cx="6" cy="18" r="3" />
-            <path d="M18 9a9 9 0 0 1-9 9" />
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
-        </button>
-
-        <!-- Merge Epics -->
-        <button
-          class="text-txt-muted hover:text-txt-primary transition-colors"
-          :class="mergeMode ? 'text-[var(--accent-teal)]' : ''"
-          title="Toggle merge mode"
-          @click="toggleMergeMode"
-        >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="18" cy="18" r="3" />
-            <circle cx="6" cy="6" r="3" />
-            <circle cx="6" cy="18" r="3" />
-            <path d="M6 9v3a6 6 0 0 0 6 6h3" />
-            <path d="M6 9v9" />
-          </svg>
+          Add Epic
         </button>
       </div>
 
       <!-- Row 2: Project filter chips -->
-      <div class="h-9 flex items-center px-5 border-t border-border-subtle">
+      <div class="flex items-center px-4 py-2 border-t border-border-subtle">
         <ProjectFilterChips
           :selectedIds="filterStore.selectedProjectIds"
           :projects="chipProjects"

@@ -7,7 +7,7 @@
 
     <!-- Agents view: new 3-panel layout -->
     <AgentsView
-      v-else-if="ui.viewMode === 'agents' && ui.workspacePath"
+      v-else-if="ui.viewMode === 'agents'"
       @file-clicked="onFileClicked"
       @enter-mission-control="onEnterMissionControl"
     />

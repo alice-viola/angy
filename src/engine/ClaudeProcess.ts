@@ -75,6 +75,7 @@ export class ClaudeProcess {
   private agentName = '';
   private _completedNormally = false;
   private _specialistRole = '';
+  private _pendingAskUserQuestion = false;
   private readonly _instanceId = ++ClaudeProcess.instanceCounter;
 
   get sessionId(): string { return this._sessionId; }
@@ -131,7 +132,7 @@ export class ClaudeProcess {
       if (this._specialistRole && SPECIALIST_TOOLS[this._specialistRole]) {
         allowedTools = SPECIALIST_TOOLS[this._specialistRole];
       } else {
-        allowedTools = 'Bash,Read,Edit,Write,Glob,Grep,Task,AskUserQuestion';
+        allowedTools = 'Bash,Read,Edit,Write,Glob,Grep,Task,mcp__c3p2-orchestrator__AskUserQuestion';
       }
       args.push(
         '--permission-mode', 'bypassPermissions',
@@ -238,6 +239,7 @@ export class ClaudeProcess {
     this.stdoutBuffer = '';
     this.stderrBuffer = '';
     this._completedNormally = false;
+    this._pendingAskUserQuestion = false;
 
     const args = this.buildArguments();
     const env = await this.buildEnvironment();
@@ -278,6 +280,12 @@ export class ClaudeProcess {
 
     command.on('error', (error: string) => {
       this.events.emit('errorOccurred', error);
+    });
+
+    this.streamParser.events.on('toolUseStarted', (payload) => {
+      if (payload.toolName === 'AskUserQuestion' || payload.toolName === 'mcp__c3p2-orchestrator__AskUserQuestion') {
+        this._pendingAskUserQuestion = true;
+      }
     });
 
     this.streamParser.events.on('resultReady', (payload) => {
@@ -341,6 +349,7 @@ export class ClaudeProcess {
     this.stdoutBuffer = '';
     this.stderrBuffer = '';
     this._completedNormally = false;
+    this._pendingAskUserQuestion = false;
 
     const args = this.buildArguments();
     const env = await this.buildEnvironment();
@@ -417,6 +426,23 @@ export class ClaudeProcess {
       this.events.emit('errorOccurred',
         `Failed to start 'claude': ${err?.message ?? err}`);
     }
+  }
+
+  // ── Write tool result to running process ─────────────────────────────
+
+  async writeToolResult(toolUseId: string, content: string): Promise<void> {
+    if (!this.child) return;
+    this._pendingAskUserQuestion = false;
+    const envelope = {
+      type: 'user',
+      message: {
+        role: 'user',
+        content: [{ type: 'tool_result', tool_use_id: toolUseId, content }],
+      },
+    };
+    const json = JSON.stringify(envelope);
+    console.log('[Claude ← tool_result]', json);
+    await this.child.write(json + '\n');
   }
 
   // ── Rewind files ──────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-surface rounded-lg border border-border-subtle overflow-hidden">
+  <div class="bg-window rounded-lg border border-border-subtle overflow-hidden">
     <div class="px-3 py-2 border-b border-border-subtle">
       <span class="text-xs font-semibold text-txt-primary">By Complexity</span>
     </div>

@@ -1,62 +1,42 @@
 <template>
-  <div class="tool-group">
-    <!-- Header: expand/collapse arrow + summary -->
+  <div class="tool-group" :class="{ 'is-expanded': isExpanded }">
+    <!-- Header row -->
     <div
-      class="flex items-center gap-1.5 cursor-pointer select-none"
+      class="flex items-center gap-1.5 px-2.5 py-1.5 cursor-pointer select-none"
       @click="isExpanded = !isExpanded"
     >
       <svg class="w-2 h-2 text-txt-faint flex-shrink-0 transition-transform" :class="isExpanded ? 'rotate-90' : ''" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 2L5 4L3 6"/></svg>
-      <span class="text-[10px] leading-snug" v-html="summaryHtml" />
+      <span class="text-[10px] font-medium text-txt-secondary">{{ calls.length }} tool call{{ calls.length !== 1 ? 's' : '' }}</span>
+      <span class="text-[10px] text-txt-faint">· {{ toolSummary }}</span>
+      <span v-if="editCount > 0" class="text-[10px] ml-1" style="color:var(--accent-green)">— {{ editCount }} file(s) modified</span>
     </div>
 
-    <!-- Expanded detail view -->
-    <div v-if="isExpanded" class="mt-1 space-y-px ml-3.5">
+    <!-- Expanded rows -->
+    <div v-if="isExpanded" class="border-t border-white/5">
       <div v-for="(call, idx) in calls" :key="idx">
-        <!-- Tool row: name + file path / summary -->
-        <div class="flex items-center gap-1 text-[9px] py-0.5 flex-nowrap min-w-0">
-          <span class="font-mono text-ember-400 flex-shrink-0">{{ call.toolName }}</span>
+        <div class="flex items-center gap-2 px-2.5 py-1 flex-nowrap min-w-0">
+          <span class="font-mono text-[10px] text-ember-400 flex-shrink-0 w-10">{{ call.toolName }}</span>
           <span
             v-if="call.filePath"
-            class="text-txt-secondary font-mono cursor-pointer hover:text-[var(--accent-teal)] truncate"
+            class="text-[10px] text-txt-secondary font-mono cursor-pointer hover:text-[var(--accent-teal)] truncate"
             @click.stop="$emit('file-clicked', call.filePath!)"
           >{{ shortPath(call.filePath) }}</span>
-          <span
-            v-else-if="call.summary"
-            class="text-txt-faint font-mono truncate"
-          >{{ call.summary }}</span>
-          <!-- Compact diff stats for edits -->
+          <span v-else-if="call.summary" class="text-[10px] text-txt-faint font-mono truncate">{{ call.summary }}</span>
           <template v-if="call.isEdit && (call.oldString || call.newString)">
-            <span v-if="call.oldString" class="text-[var(--accent-red)] flex-shrink-0">-{{ lineCount(call.oldString) }}</span>
-            <span v-if="call.newString" class="text-[var(--accent-green)] flex-shrink-0">+{{ lineCount(call.newString) }}</span>
-            <button
-              class="text-txt-faint hover:text-txt-muted flex-shrink-0 ml-auto"
-              @click.stop="toggleDiff(idx)"
-              title="Toggle diff"
-            >
+            <span v-if="call.oldString" class="text-[10px] text-[var(--accent-red)] flex-shrink-0">-{{ lineCount(call.oldString) }}</span>
+            <span v-if="call.newString" class="text-[10px] text-[var(--accent-green)] flex-shrink-0">+{{ lineCount(call.newString) }}</span>
+            <button class="text-txt-faint hover:text-txt-muted flex-shrink-0 ml-auto" @click.stop="toggleDiff(idx)" title="Toggle diff">
               <svg class="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 3.5h6M2 6.5h4"/></svg>
             </button>
           </template>
         </div>
-
-        <!-- Compact diff (shown on demand) -->
+        <!-- Compact diff -->
         <div
           v-if="call.isEdit && expandedDiffs.has(idx) && (call.oldString || call.newString)"
-          class="diff-block rounded overflow-hidden font-mono text-[9px] leading-[14px] max-h-32 overflow-y-auto my-0.5"
+          class="diff-block mx-2.5 mb-1 rounded overflow-hidden font-mono text-[9px] leading-[14px] max-h-32 overflow-y-auto"
         >
-          <template v-if="call.oldString">
-            <div
-              v-for="(line, i) in limitedLines(call.oldString, false)"
-              :key="`old-${i}`"
-              class="px-1.5 diff-removed whitespace-pre"
-            >-{{ line }}</div>
-          </template>
-          <template v-if="call.newString">
-            <div
-              v-for="(line, i) in limitedLines(call.newString, true)"
-              :key="`new-${i}`"
-              class="px-1.5 diff-added whitespace-pre"
-            >+{{ line }}</div>
-          </template>
+          <div v-for="(line, i) in limitedLines(call.oldString ?? '', false)" :key="`old-${i}`" class="px-1.5 diff-removed whitespace-pre">-{{ line }}</div>
+          <div v-for="(line, i) in limitedLines(call.newString ?? '', true)" :key="`new-${i}`" class="px-1.5 diff-added whitespace-pre">+{{ line }}</div>
         </div>
       </div>
     </div>
@@ -123,27 +103,26 @@ const toolCounts = computed(() => {
 
 const editCount = computed(() => props.calls.filter(c => c.isEdit).length);
 
-const summaryHtml = computed(() => {
-  const parts = Object.entries(toolCounts.value).map(([name, count]) => {
-    return count > 1
-      ? `<b>${name}</b> x${count}`
-      : `<b>${name}</b>`;
-  });
-  const editNote = editCount.value > 0
-    ? ` &mdash; <span style="color:var(--accent-green)">${editCount.value} file(s) modified</span>`
-    : '';
-  const n = props.calls.length;
-  return `<span style="color:var(--text-muted)">${n} tool call${n !== 1 ? 's' : ''}:</span> ${parts.join(', ')}${editNote}`;
-});
+const toolSummary = computed(() =>
+  Object.entries(toolCounts.value)
+    .map(([name, count]) => count > 1 ? `${name} ×${count}` : name)
+    .join(', ')
+);
 </script>
 
 <style scoped>
 .tool-group {
-  background: var(--bg-raised);
-  border-left: 2px solid var(--accent-teal);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 6px;
-  padding: 6px 10px;
-  margin: 2px 0;
+  margin: 0;
+  overflow: hidden;
+  display: inline-block;
+  min-width: 0;
+  width: fit-content;
+}
+.tool-group.is-expanded {
+  display: block;
+  width: 100%;
 }
 .diff-block {
   background: rgba(255,255,255,0.015);

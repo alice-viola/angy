@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-surface rounded-lg border border-border-subtle p-3.5">
+  <div class="bg-window rounded-lg border border-border-subtle p-3.5">
     <div class="text-xs font-semibold text-txt-primary mb-2.5">Project Breakdown</div>
 
     <template v-if="analytics.projectSummaries.length > 0">

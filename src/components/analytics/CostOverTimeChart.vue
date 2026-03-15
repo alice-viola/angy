@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-surface rounded-lg border border-border-subtle p-3.5">
+  <div class="bg-window rounded-lg border border-border-subtle p-3.5">
     <div class="text-xs font-semibold text-txt-primary mb-2.5">Cost Over Time</div>
     <div class="relative h-40">
       <Line v-if="hasData" :data="chartData" :options="chartOptions" />

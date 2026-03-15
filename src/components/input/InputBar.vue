@@ -93,25 +93,30 @@
               {{ text.length }}
             </span>
             <slot name="footer-right" />
+            <!-- Send / Stop square button -->
             <button
               v-if="!processing"
               @click="send"
               :disabled="!canSend"
-              class="px-5 py-2 rounded-[var(--radius-md)] text-xs font-semibold transition-all"
-              :class="
-                canSend
-                  ? 'bg-[var(--accent-mauve)] text-[var(--bg-base)] hover:brightness-110 cursor-pointer'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-faint)] cursor-not-allowed border border-[var(--border-subtle)]'
-              "
+              class="w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0"
+              :class="canSend
+                ? 'bg-gradient-to-br from-ember-500 to-ember-600 hover:brightness-110 cursor-pointer'
+                : 'bg-[var(--bg-surface)] cursor-not-allowed border border-[var(--border-subtle)]'"
+              title="Send"
             >
-              Send
+              <svg class="w-3.5 h-3.5" :class="canSend ? 'text-white' : 'text-txt-faint'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 8h10M9 4l4 4-4 4" />
+              </svg>
             </button>
             <button
               v-else
               @click="$emit('stop')"
-              class="px-5 py-2 rounded-[var(--radius-md)] text-xs font-semibold bg-[color-mix(in_srgb,var(--accent-red)_15%,transparent)] text-[var(--accent-red)] border border-[color-mix(in_srgb,var(--accent-red)_30%,transparent)] hover:bg-[color-mix(in_srgb,var(--accent-red)_25%,transparent)] cursor-pointer transition-all"
+              class="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--accent-red)] hover:text-[var(--accent-red)] text-txt-faint cursor-pointer transition-all flex-shrink-0"
+              title="Stop"
             >
-              Stop
+              <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+                <rect x="2" y="2" width="8" height="8" rx="1.5" />
+              </svg>
             </button>
           </div>
         </div>

@@ -9,7 +9,7 @@
         <div
           class="dot"
           :class="[
-            index <= modelValue ? 'bg-mauve' : 'bg-raised-hover dot-empty',
+            index <= modelValue ? 'bg-ember-500' : 'bg-raised-hover dot-empty',
             isDotDisabled(index) ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer',
             disabled ? 'opacity-30 cursor-not-allowed' : ''
           ]"
@@ -57,6 +57,6 @@ function handleClick(index: number) {
 }
 
 .dot.dot-empty:not(.opacity-30):hover {
-  background-color: rgba(203, 166, 247, 0.3);
+  background-color: rgba(245, 158, 11, 0.3);
 }
 </style>

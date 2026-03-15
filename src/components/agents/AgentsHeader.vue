@@ -19,18 +19,6 @@
         Stop All
       </button>
 
-      <!-- +New Agent -->
-      <button
-        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-base bg-gradient-to-r from-ember-500 to-ember-600 hover:brightness-110 transition"
-        @click="$emit('new-agent')"
-        title="New agent"
-      >
-        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-        </svg>
-        New Agent
-      </button>
-
       <!-- Mission Control -->
       <button
         class="flex items-center gap-1 text-xs text-txt-muted hover:text-txt-primary px-2 py-1 rounded-md hover:bg-raised transition-colors"
@@ -43,6 +31,18 @@
           <rect x="1" y="9" width="6" height="6" rx="1" />
           <rect x="9" y="9" width="6" height="6" rx="1" />
         </svg>
+      </button>
+
+      <!-- +New Agent -->
+      <button
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-base bg-gradient-to-r from-ember-500 to-ember-600 hover:brightness-110 transition"
+        @click="$emit('new-agent')"
+        title="New agent"
+      >
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        </svg>
+        New Agent
       </button>
     </div>
 

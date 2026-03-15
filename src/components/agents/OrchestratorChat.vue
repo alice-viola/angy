@@ -583,7 +583,7 @@ const timeline = computed((): TimelineItem[] => {
   const msgs = messages.value;
   for (let i = 0; i < msgs.length; i++) {
     const msg = msgs[i];
-    if (msg.toolName === 'AskUserQuestion') {
+    if (msg.toolName === 'AskUserQuestion' || msg.toolName === 'mcp__c3p2-orchestrator__AskUserQuestion') {
       flushTools();
       items.push({
         type: 'question',

@@ -175,22 +175,26 @@
         <button
           v-if="processing"
           @click="$emit('stop')"
-          class="px-3 py-1.5 rounded-lg text-[11px] font-medium text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-colors cursor-pointer"
+          class="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--accent-red)] hover:text-[var(--accent-red)] text-txt-faint cursor-pointer transition-all flex-shrink-0"
+          title="Stop"
         >
-          Stop
+          <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+            <rect x="2" y="2" width="8" height="8" rx="1.5" />
+          </svg>
         </button>
         <button
           v-else
           @click="sendMessage"
           :disabled="!canSend"
-          class="px-4 py-1.5 rounded-lg text-[11px] font-medium transition-all"
-          :class="
-            canSend
-              ? 'bg-gradient-to-r from-ember-500 to-ember-600 text-base cursor-pointer hover:brightness-110'
-              : 'bg-raised text-txt-faint cursor-not-allowed'
-          "
+          class="w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0"
+          :class="canSend
+            ? 'bg-gradient-to-br from-ember-500 to-ember-600 hover:brightness-110 cursor-pointer'
+            : 'bg-[var(--bg-surface)] cursor-not-allowed border border-[var(--border-subtle)]'"
+          title="Send"
         >
-          Send
+          <svg class="w-3.5 h-3.5" :class="canSend ? 'text-white' : 'text-txt-faint'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 8h10M9 4l4 4-4 4" />
+          </svg>
         </button>
       </div>
     </div>
