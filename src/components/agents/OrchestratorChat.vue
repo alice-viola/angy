@@ -282,7 +282,12 @@ const isProcessing = computed(() =>
 
 const isAutoSpawned = computed(() => {
   const session = sessionsStore.sessions.get(props.sessionId);
-  return !!session?.epicId;
+  if (!session?.epicId) return false;
+  const epic = epicStore.epicById(session.epicId);
+  if (epic && (epic.pipelineType === 'investigate' || epic.pipelineType === 'plan')) {
+    return false;
+  }
+  return true;
 });
 
 const messages = computed((): MessageRecord[] =>

@@ -108,6 +108,7 @@ import { useSessionsStore, getDatabase } from '../../stores/sessions';
 import { useFleetStore } from '../../stores/fleet';
 import { useUiStore } from '../../stores/ui';
 import { useProjectsStore } from '../../stores/projects';
+import { useEpicStore } from '../../stores/epics';
 import { ClaudeProcess } from '../../engine/ClaudeProcess';
 import { sendMessageToEngine, sendToolResultToEngine, cancelProcess, type ChatPanelHandle } from '../../composables/useEngine';
 import type { AgentStatus, AttachedContext, AttachedImage, MessageRecord } from '../../engine/types';
@@ -167,6 +168,7 @@ const sessionsStore = useSessionsStore();
 const fleetStore = useFleetStore();
 const ui = useUiStore();
 const projectsStore = useProjectsStore();
+const epicStore = useEpicStore();
 const { autoProfiles } = useOrchestrator();
 
 // ── Selector state ──────────────────────────────────────────────────────
@@ -208,7 +210,12 @@ const isLoadingHistory = computed((): boolean => {
 const isAutoSpawned = computed((): boolean => {
   if (!activeSessionId.value) return false;
   const session = sessionsStore.sessions.get(activeSessionId.value);
-  return !!session?.epicId;
+  if (!session?.epicId) return false;
+  const epic = epicStore.epicById(session.epicId);
+  if (epic && (epic.pipelineType === 'investigate' || epic.pipelineType === 'plan')) {
+    return false;
+  }
+  return true;
 });
 
 function setLoadingHistory(sessionId: string, loading: boolean) {
