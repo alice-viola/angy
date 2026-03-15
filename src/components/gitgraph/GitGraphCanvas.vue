@@ -21,20 +21,35 @@
           transition: animateTransform ? 'transform 0.15s ease-out' : 'none',
         }"
       >
-        <!-- Branch lane labels at top -->
-        <text
+        <!-- Branch lane hover areas + labels -->
+        <g
           v-for="[branchName, lane] in branchLanes"
-          :key="'label-' + branchName"
-          :x="lane * LANE_WIDTH + LANE_WIDTH / 2"
-          :y="-8"
-          text-anchor="middle"
-          font-size="10"
-          font-weight="500"
-          :fill="branchColorForLane(branchName)"
-          class="select-none pointer-events-none"
+          :key="'lane-' + branchName"
+          @pointerenter="hoveredLane = lane"
+          @pointerleave="hoveredLane = null"
         >
-          {{ truncateBranch(branchName) }}
-        </text>
+          <!-- Invisible hit area covering the full lane height -->
+          <rect
+            :x="lane * LANE_WIDTH"
+            :y="-20"
+            :width="LANE_WIDTH"
+            :height="props.nodes.length * ROW_HEIGHT + 20"
+            fill="transparent"
+          />
+          <!-- Label shown only on hover -->
+          <text
+            v-if="hoveredLane === lane"
+            :x="lane * LANE_WIDTH + LANE_WIDTH / 2"
+            :y="-8"
+            text-anchor="middle"
+            font-size="10"
+            font-weight="500"
+            :fill="branchColorForLane(branchName)"
+            class="select-none pointer-events-none"
+          >
+            {{ truncateBranch(branchName) }}
+          </text>
+        </g>
 
         <!-- Edges -->
         <path
@@ -152,6 +167,7 @@ const panX = ref(20);
 const panY = ref(30);
 const animateTransform = ref(false);
 const hoveredHash = ref<string | null>(null);
+const hoveredLane = ref<number | null>(null);
 const dragging = ref(false);
 const lastPointer = ref({ x: 0, y: 0 });
 

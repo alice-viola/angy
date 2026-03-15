@@ -96,6 +96,17 @@
       </div>
     </div>
 
+    <!-- Project filter chips -->
+    <div class="flex-shrink-0 flex items-center px-4 py-2 border-b border-[var(--border-subtle)]">
+      <ProjectFilterChips
+        :selectedIds="filterStore.selectedProjectIds"
+        :projects="chipProjects"
+        popoverId="gitgraph-project-filter"
+        @toggle="onFilterToggle"
+        @remove="onFilterToggle"
+      />
+    </div>
+
     <!-- Empty states -->
     <div v-if="!projectId" class="flex-1 flex flex-col items-center justify-center text-center">
       <svg class="w-12 h-12 text-[var(--text-faint)] mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -105,7 +116,7 @@
         <path d="M18 9a9 9 0 0 1-9 9"/>
       </svg>
       <span class="text-xs text-[var(--text-muted)]">Select a project to view its git history</span>
-      <span class="text-[10px] text-[var(--text-faint)] mt-1">Use the project filter in the sidebar</span>
+      <span class="text-[10px] text-[var(--text-faint)] mt-1">Use the project filter above</span>
     </div>
 
     <div v-else-if="allRepos.length === 0" class="flex-1 flex flex-col items-center justify-center text-center">
@@ -183,6 +194,8 @@ import { useGitGraph } from '@/composables/useGitGraph';
 import GitGraphCanvas from './GitGraphCanvas.vue';
 import GitGraphLegend from './GitGraphLegend.vue';
 import GitGraphCommitDetail from './GitGraphCommitDetail.vue';
+import ProjectFilterChips from '@/components/common/ProjectFilterChips.vue';
+import { PROJECT_COLORS } from '@/stores/fleet';
 
 const gitStore = useGitStore();
 const projectsStore = useProjectsStore();
@@ -197,6 +210,18 @@ const showLegend = ref(false);
 const canvasRef = ref<InstanceType<typeof GitGraphCanvas> | null>(null);
 
 const projectId = computed(() => filterStore.selectedProjectIds[0] ?? null);
+
+const chipProjects = computed(() =>
+  projectsStore.projects.map((p, idx) => ({
+    id: p.id,
+    name: p.name,
+    color: PROJECT_COLORS[idx % PROJECT_COLORS.length],
+  })),
+);
+
+function onFilterToggle(id: string) {
+  filterStore.toggleProject(id);
+}
 
 const allRepos = computed(() => {
   if (!projectId.value) return [];

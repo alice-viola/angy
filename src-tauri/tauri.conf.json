@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/nicoh-at/tauri-schema/main/tauri.conf.json",
   "productName": "angy",
-  "version": "0.2.0",
+  "version": "0.2.5",
   "identifier": "com.angy.app",
   "build": {
     "frontendDist": "../dist",

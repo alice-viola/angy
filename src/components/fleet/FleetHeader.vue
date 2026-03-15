@@ -8,6 +8,13 @@
 
     <div class="flex gap-0.5">
       <button
+        @click="emit('new-agent')"
+        class="w-[26px] h-[26px] flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)] transition-colors"
+        title="New agent"
+      >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2v8M2 6h8"/></svg>
+      </button>
+      <button
         ref="menuBtnRef"
         @click.stop="toggleMenu"
         class="w-[26px] h-[26px] flex items-center justify-center rounded-full text-[var(--text-muted)] hover:bg-[var(--bg-raised)] hover:text-[var(--text-primary)] transition-colors"
@@ -57,6 +64,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 
 const emit = defineEmits<{
+  'new-agent': [];
   'delete-all': [];
   'delete-older': [];
   'keep-today': [];

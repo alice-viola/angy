@@ -56,6 +56,9 @@ import { ref, computed, nextTick } from 'vue';
 import { useFleetStore } from '../../stores/fleet';
 import { useSessionsStore, getDatabase, getSessionManager } from '../../stores/sessions';
 import { useUiStore } from '../../stores/ui';
+import { useEpicStore } from '../../stores/epics';
+import { useProjectsStore } from '../../stores/projects';
+import { useFilterStore } from '../../stores/filter';
 import { sendMessageToEngine, cancelProcess } from '../../composables/useEngine';
 import { engineBus } from '../../engine/EventBus';
 import type { AgentHandle, MessageRecord, AttachedImage } from '../../engine/types';
@@ -69,6 +72,9 @@ import CodeViewer from '../editor/CodeViewer.vue';
 const fleetStore = useFleetStore();
 const sessionsStore = useSessionsStore();
 const ui = useUiStore();
+const epicStore = useEpicStore();
+const projectsStore = useProjectsStore();
+const filterStore = useFilterStore();
 
 const emit = defineEmits<{
   'file-clicked': [filePath: string];
@@ -102,8 +108,13 @@ function onAgentSelected(sessionId: string) {
 }
 
 async function onNewAgent() {
-  const workspace = ui.workspacePath;
-  if (!workspace) return;
+  // Prefer the first repo of the active project so the session resolves to the
+  // correct project group in the fleet sidebar. Fall back to the global workspace.
+  const activeProjectId = filterStore.selectedProjectIds[0];
+  const projectRepo = activeProjectId
+    ? projectsStore.reposByProjectId(activeProjectId)[0]?.path
+    : null;
+  const workspace = projectRepo || ui.workspacePath || '.';
   const sessionId = await sessionsStore.createSession(workspace);
   fleetStore.rebuildFromSessions();
   fleetStore.selectAgent(sessionId);
@@ -273,11 +284,50 @@ async function onSend(message: string, images: AttachedImage[] = []) {
     ? images.map(img => ({ data: img.data, mediaType: `image/${img.format}` }))
     : undefined;
 
-  sendMessageToEngine(sid, message, storeHandle, {
+  // For orchestrator sessions (hybrid/fix/plan), the root session never runs Claude
+  // directly so claudeSessionId is never set. Try to restore the last child's
+  // Claude session so the follow-up has full context. Fall back to context injection
+  // if no child session is available.
+  let effectiveMessage = message;
+  let resumeSessionId = info?.claudeSessionId;
+
+  if (!resumeSessionId) {
+    const children = fleetStore.hierarchicalAgents.filter(a => a.parentSessionId === sid);
+    for (let i = children.length - 1; i >= 0; i--) {
+      const childInfo = sessionsStore.sessions.get(children[i].sessionId);
+      if (childInfo?.claudeSessionId) {
+        resumeSessionId = childInfo.claudeSessionId;
+        break;
+      }
+    }
+  }
+
+  if (!resumeSessionId && info?.epicId) {
+    const epic = epicStore.epicById(info.epicId);
+    if (epic) {
+      const parts: string[] = [];
+      parts.push(`# Epic: ${epic.title}`);
+      if (epic.description) parts.push(`## Description\n${epic.description}`);
+      if (epic.lastArchitectPlan) parts.push(`## Architect Plan\n${epic.lastArchitectPlan}`);
+      const priorMessages = sessionsStore.getMessages(sid).filter(
+        m => (m.role === 'user' || m.role === 'assistant') && !m.toolName,
+      );
+      if (priorMessages.length > 0) {
+        const history = priorMessages
+          .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+          .join('\n\n');
+        parts.push(`## Prior Conversation\n${history}`);
+      }
+      parts.push(`## User Follow-up\n${message}`);
+      effectiveMessage = parts.join('\n\n');
+    }
+  }
+
+  sendMessageToEngine(sid, effectiveMessage, storeHandle, {
     workingDir,
     mode: info?.mode || 'agent',
     model: ui.currentModel,
-    resumeSessionId: info?.claudeSessionId,
+    resumeSessionId,
     images: engineImages,
   });
 }
