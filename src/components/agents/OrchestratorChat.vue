@@ -68,47 +68,38 @@
 
           <!-- ── Text message (user or assistant) ── -->
           <div v-if="item.type === 'orchestrator-message'" class="tree-node anim-fade-in">
-            <div class="flex items-center gap-2 mb-1.5">
-              <!-- User message -->
-              <template v-if="item.message!.role === 'user'">
-                <div class="w-5 h-5 rounded-lg bg-ember-500/20 flex items-center justify-center flex-shrink-0">
-                  <svg class="w-2.5 h-2.5 text-ember-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
-                  </svg>
-                </div>
-                <span class="text-xs font-medium text-ember-400">You</span>
-              </template>
-              <!-- Assistant message -->
-              <template v-else>
-                <div class="w-5 h-5 rounded-lg bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                  <svg class="w-2.5 h-2.5 text-purple-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
-                  </svg>
-                </div>
-                <span class="text-xs font-medium text-purple-400">Claude</span>
-              </template>
-              <span v-if="item.message!.timestamp" class="text-[10px] text-txt-faint">{{ relativeTime(item.message!.timestamp) }}</span>
-            </div>
-            <div class="ml-7 space-y-2">
-              <!-- Thinking blocks (extracted, collapsible) -->
-              <details
-                v-for="(think, ti) in getThinkingBlocks(item.message!.content)"
-                :key="'think-' + ti"
-                class="group"
-              >
-                <summary class="flex items-center gap-2 cursor-pointer text-[11px] text-txt-faint hover:text-txt-secondary transition-colors">
-                  <svg class="w-2.5 h-2.5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
-                  Thinking
-                </summary>
-                <div class="mt-1.5 p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] text-[11px] text-txt-secondary font-mono whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">{{ think }}</div>
-              </details>
-              <!-- Text content (markdown rendered) -->
-              <div
-                v-if="getTextContent(item.message!.content)"
-                class="md-content text-[13px] text-txt-primary leading-relaxed"
-                v-html="renderMd(item.message!.content)"
-              />
-            </div>
+            <!-- User message: card with orange border -->
+            <template v-if="item.message!.role === 'user'">
+              <div class="rounded-lg border border-ember-500/40 bg-ember-500/[0.04] px-4 py-3">
+                <span v-if="item.message!.timestamp" class="block text-[10px] text-txt-faint mb-1.5 text-right">{{ relativeTime(item.message!.timestamp) }}</span>
+                <div
+                  v-if="getTextContent(item.message!.content)"
+                  class="md-content text-[13px] text-txt-primary leading-relaxed"
+                  v-html="renderMd(item.message!.content)"
+                />
+              </div>
+            </template>
+            <!-- Assistant message: content only, no label -->
+            <template v-else>
+              <div class="space-y-2">
+                <details
+                  v-for="(think, ti) in getThinkingBlocks(item.message!.content)"
+                  :key="'think-' + ti"
+                  class="group"
+                >
+                  <summary class="flex items-center gap-2 cursor-pointer text-[11px] text-txt-faint hover:text-txt-secondary transition-colors">
+                    <svg class="w-2.5 h-2.5 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>
+                    Thinking
+                  </summary>
+                  <div class="mt-1.5 p-2.5 rounded-lg bg-white/[0.02] border border-white/[0.04] text-[11px] text-txt-secondary font-mono whitespace-pre-wrap max-h-64 overflow-y-auto leading-relaxed">{{ think }}</div>
+                </details>
+                <div
+                  v-if="getTextContent(item.message!.content)"
+                  class="md-content text-[13px] text-txt-primary leading-relaxed"
+                  v-html="renderMd(item.message!.content)"
+                />
+              </div>
+            </template>
           </div>
 
           <!-- ── Orchestrator tool calls (grouped summary with diffs) ── -->
@@ -518,14 +509,6 @@ const timeline = computed((): TimelineItem[] => {
 
     // Skip bare tool-result messages (role='tool' without toolName)
     if (msg.role === 'tool') continue;
-
-    // Skip short assistant narration between tool calls (mid-sequence only)
-    if (msg.role === 'assistant' && pendingTools.length > 0) {
-      const text = getTextContent(msg.content);
-      if (text.length < 200) {
-        continue;
-      }
-    }
 
     flushTools();
 
