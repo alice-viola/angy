@@ -17,6 +17,8 @@
       v-else-if="ui.viewMode === 'code' && ui.workspacePath"
     />
 
+    <GitGraphView v-else-if="ui.viewMode === 'git-graph'" />
+
     <!-- Workspace-dependent views: show selector until a workspace is chosen -->
     <WorkspaceSelector v-else-if="!ui.workspacePath" />
 
@@ -91,6 +93,7 @@ import NotificationToast from './components/home/NotificationToast.vue';
 import AgentsView from './components/agents/AgentsView.vue';
 import CodeView from './components/code/CodeView.vue';
 import AnalyticsView from './components/analytics/AnalyticsView.vue';
+import GitGraphView from './components/gitgraph/GitGraphView.vue';
 import { useUiStore } from './stores/ui';
 import { useThemeStore } from './stores/theme';
 import { useSessionsStore, getDatabase, initSessionEngines } from './stores/sessions';

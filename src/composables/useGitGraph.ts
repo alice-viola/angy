@@ -24,6 +24,8 @@ export interface GitGraphNode {
   color: string;
   isMasterBranch: boolean;
   isEpicBranch: boolean;
+  epicId?: string;
+  epicTitle?: string;
 }
 
 export interface GitGraphEdge {
@@ -75,7 +77,10 @@ function isEpicBranch(name: string): boolean {
 
 // ── Composable ────────────────────────────────────────────────────────────
 
-export function useGitGraph(commits: Ref<GitCommitEntry[]>) {
+export function useGitGraph(
+  commits: Ref<GitCommitEntry[]>,
+  epicBranchInfo?: Ref<Map<string, { epicId: string; epicTitle: string }>>
+) {
   const layoutData = computed(() => {
     const list = commits.value;
     if (list.length === 0) {
@@ -173,6 +178,10 @@ export function useGitGraph(commits: Ref<GitCommitEntry[]>) {
       const lane = branch !== undefined ? (branchLane.get(branch) ?? defaultLane) : defaultLane;
       const color = branch !== undefined ? (branchColorMap.get(branch) ?? defaultColor) : defaultColor;
 
+      const epicInfo = branch !== undefined && epicBranchInfo?.value
+        ? epicBranchInfo.value.get(branch)
+        : undefined;
+
       nodes.push({
         commit,
         x: lane,
@@ -180,6 +189,7 @@ export function useGitGraph(commits: Ref<GitCommitEntry[]>) {
         color,
         isMasterBranch: branch !== undefined ? isMasterOrMain(branch) : true,
         isEpicBranch: branch !== undefined ? isEpicBranch(branch) : false,
+        ...(epicInfo && { epicId: epicInfo.epicId, epicTitle: epicInfo.epicTitle }),
       });
     }
 

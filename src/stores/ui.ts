@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import { useFilterStore } from '@/stores/filter';
 
-export type ViewMode = 'home' | 'kanban' | 'agents' | 'code' | 'mission-control' | 'analytics';
+export type ViewMode = 'home' | 'kanban' | 'agents' | 'code' | 'mission-control' | 'analytics' | 'git-graph';
 
 export interface AppNotification {
   id: string

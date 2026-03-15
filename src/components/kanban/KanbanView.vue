@@ -18,7 +18,7 @@
           <button
             class="text-txt-muted hover:text-txt-primary transition-colors"
             title="Git branch tree"
-            @click="showGitTree = true"
+            @click="ui.switchToMode('git-graph')"
           >
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="6" y1="3" x2="6" y2="15" />
@@ -182,12 +182,6 @@
       @save="onSchedulerConfigSaved"
     />
 
-    <!-- Git tree dialog -->
-    <GitTreeDialog
-      :visible="showGitTree"
-      @close="showGitTree = false"
-    />
-
     <!-- Merge epics dialog -->
     <MergeEpicsDialog
       :visible="showMergeDialog"
@@ -213,7 +207,6 @@ import type { BoardColumn } from './KanbanColumn.vue';
 import EpicDetailPanel from './EpicDetailPanel.vue';
 import ProjectFilterChips from '@/components/common/ProjectFilterChips.vue';
 import SchedulerConfigDialog from './SchedulerConfigDialog.vue';
-import GitTreeDialog from './GitTreeDialog.vue';
 import GitOpsPanel from './GitOpsPanel.vue';
 import MergeEpicsDialog from './MergeEpicsDialog.vue';
 
@@ -236,7 +229,6 @@ const gitOpsPanelRef = ref<InstanceType<typeof GitOpsPanel> | null>(null);
 const selectedEpicId = ref<string | null>(null);
 const isNewEpic = ref(false);
 const showSchedulerConfig = ref(false);
-const showGitTree = ref(false);
 const showGitOps = ref(false);
 const mergeMode = ref(false);
 const selectedEpicIds = ref<string[]>([]);
@@ -403,7 +395,6 @@ function onMergeComplete() {
 defineExpose({
   addEpic,
   scheduleNow: onScheduleNow,
-  openGitTree: () => { showGitTree.value = true },
   openSchedulerConfig: () => { showSchedulerConfig.value = true },
   toggleGitOps: () => { showGitOps.value = !showGitOps.value },
   toggleMergeMode,

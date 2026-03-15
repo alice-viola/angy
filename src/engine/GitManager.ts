@@ -33,6 +33,7 @@ export interface GitCommitEntry {
   subject: string;
   author: string;
   relativeDate: string;
+  authorDate: string;
 }
 
 // ── Events ─────────────────────────────────────────────────────────────────
@@ -398,7 +399,7 @@ export class GitManager {
         const cmd = Command.create('git', [
           '-C', workDir,
           'log', '--all',
-          '--format=%H\x1e%h\x1e%P\x1e%D\x1e%s\x1e%an\x1e%ar',
+          '--format=%H\x1e%h\x1e%P\x1e%D\x1e%s\x1e%an\x1e%ar\x1e%aI',
           '--topo-order',
           `--max-count=${maxCount}`,
         ]);
@@ -409,7 +410,7 @@ export class GitManager {
         const commits: GitCommitEntry[] = [];
         for (const line of output.stdout.split('\n').filter(l => l.length > 0)) {
           const fields = line.split('\x1e');
-          if (fields.length < 7) continue;
+          if (fields.length < 8) continue;
           commits.push({
             hash: fields[0],
             shortHash: fields[1],
@@ -418,6 +419,7 @@ export class GitManager {
             subject: fields[4],
             author: fields[5],
             relativeDate: fields[6],
+            authorDate: fields[7],
           });
         }
         this.events.emit('logReady', { commits });

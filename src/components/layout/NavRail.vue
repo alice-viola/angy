@@ -80,6 +80,22 @@
       </svg>
     </button>
 
+    <!-- Git Graph -->
+    <button
+      class="w-10 h-10 rounded-lg flex items-center justify-center relative transition-all duration-150 ease-in-out"
+      :class="ui.viewMode === 'git-graph' ? 'text-ember-500' : 'text-txt-muted hover:text-txt-secondary'"
+      title="Git Graph"
+      @click="ui.switchToMode('git-graph')"
+    >
+      <div v-if="ui.viewMode === 'git-graph'" class="absolute left-0 top-[25%] bottom-[25%] w-[3px] rounded-r-[3px] bg-gradient-to-b from-[#f59e0b] to-[#ea580c]"></div>
+      <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="6" y1="3" x2="6" y2="15"/>
+        <circle cx="18" cy="6" r="3"/>
+        <circle cx="6" cy="18" r="3"/>
+        <path d="M18 9a9 9 0 0 1-9 9"/>
+      </svg>
+    </button>
+
     <!-- Spacer -->
     <div class="flex-1"></div>
 
