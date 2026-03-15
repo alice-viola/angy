@@ -75,6 +75,7 @@ export class ClaudeProcess {
   private agentName = '';
   private _completedNormally = false;
   private _specialistRole = '';
+  // @ts-ignore TS6133 – written by event handlers, read externally via duck-typing
   private _pendingAskUserQuestion = false;
   private readonly _instanceId = ++ClaudeProcess.instanceCounter;
 
