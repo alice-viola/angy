@@ -343,7 +343,7 @@ describe('GeminiAdapter', () => {
     );
 
     expect(events).toEqual([
-      { type: 'message_end', stop_reason: 'error', usage: { input: 0, output: 0 } },
+      { type: 'message_end', stop_reason: 'error', usage: { input: 0, output: 0 }, error: 'quota exceeded' },
     ]);
   });
 
@@ -369,7 +369,7 @@ describe('GeminiAdapter', () => {
     );
 
     expect(events).toEqual([
-      { type: 'message_end', stop_reason: 'error', usage: { input: 0, output: 0 } },
+      { type: 'message_end', stop_reason: 'error', usage: { input: 0, output: 0 }, error: 'stream died' },
     ]);
   });
 

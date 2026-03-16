@@ -76,7 +76,7 @@ export class AgentLoop {
     });
 
     const session = this.sessionStore.createSession({
-      id: nanoid(),
+      id: this.options.sessionId ?? nanoid(),
       goal,
       provider: this.providerName,
       model: this.model,

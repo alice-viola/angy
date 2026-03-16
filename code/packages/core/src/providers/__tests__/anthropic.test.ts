@@ -232,7 +232,7 @@ describe('AnthropicAdapter', () => {
     );
 
     expect(events).toEqual([
-      { type: 'message_end', stop_reason: 'error', usage: { input: 0, output: 0 } },
+      { type: 'message_end', stop_reason: 'error', usage: { input: 0, output: 0 }, error: 'rate limited' },
     ]);
   });
 
@@ -259,7 +259,7 @@ describe('AnthropicAdapter', () => {
     );
 
     expect(events).toEqual([
-      { type: 'message_end', stop_reason: 'error', usage: { input: 0, output: 0 } },
+      { type: 'message_end', stop_reason: 'error', usage: { input: 0, output: 0 }, error: 'stream broke' },
     ]);
   });
 });
