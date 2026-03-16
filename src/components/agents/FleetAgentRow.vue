@@ -97,6 +97,12 @@
         >
           Copy Chat ID
         </button>
+        <button
+          class="w-full text-left px-3 py-2 text-[11px] text-txt-secondary hover:bg-white/[0.05] transition-colors"
+          @click="exportChat"
+        >
+          Export chat
+        </button>
         <div class="h-px bg-border-subtle my-0.5" />
         <button
           class="w-full text-left px-3 py-2 text-[11px] text-red-400 hover:bg-white/[0.05] transition-colors"
@@ -123,6 +129,7 @@ const emit = defineEmits<{
   'delete': [sessionId: string];
   'rename': [sessionId: string, newTitle: string];
   'favorite-toggle': [sessionId: string];
+  'export-chat': [sessionId: string];
 }>();
 
 // ── Avatar ───────────────────────────────────────────────────────────
@@ -218,6 +225,11 @@ function toggleFavorite() {
 function copyChatId() {
   closeContextMenu();
   navigator.clipboard.writeText(props.agent.sessionId);
+}
+
+function exportChat() {
+  closeContextMenu();
+  emit('export-chat', props.agent.sessionId);
 }
 
 function deleteAgent() {

@@ -118,6 +118,7 @@
               @delete="onDeleteAgent"
               @rename="onRenameAgent"
               @favorite-toggle="onFavoriteToggle"
+              @export-chat="onExportChat"
             />
           </div>
         </div>
@@ -149,7 +150,7 @@ import { useFleetStore } from '../../stores/fleet';
 import { useFilterStore } from '../../stores/filter';
 import { useEpicStore } from '../../stores/epics';
 import { useProjectsStore } from '../../stores/projects';
-import { useSessionsStore } from '../../stores/sessions';
+import { useSessionsStore, getDatabase } from '../../stores/sessions';
 import type { HierarchicalAgent } from '../../stores/fleet';
 import FleetAgentRow from './FleetAgentRow.vue';
 
@@ -319,6 +320,66 @@ function onRenameAgent(sessionId: string, newTitle: string) {
 function onFavoriteToggle(sessionId: string) {
   sessionsStore.toggleFavorite(sessionId);
   fleetStore.rebuildFromSessions();
+}
+
+async function onExportChat(sessionId: string) {
+  const db = getDatabase();
+  const sessionInfo = sessionsStore.sessions.get(sessionId);
+  if (!sessionInfo) return;
+
+  // Collect all session IDs: root + all descendants (recursive)
+  const allSessionIds = [sessionId];
+  function collectChildren(parentId: string) {
+    for (const agent of fleetStore.hierarchicalAgents) {
+      if (agent.parentSessionId === parentId) {
+        allSessionIds.push(agent.sessionId);
+        collectChildren(agent.sessionId);
+      }
+    }
+  }
+  collectChildren(sessionId);
+
+  // Load messages for all sessions from DB in parallel
+  const sessions = await Promise.all(
+    allSessionIds.map(async (sid) => {
+      const info = sessionsStore.sessions.get(sid);
+      const msgs = await db.loadMessages(sid);
+      return {
+        sessionId: sid,
+        title: info?.title ?? '',
+        mode: info?.mode ?? '',
+        parentSessionId: info?.parentSessionId ?? null,
+        messages: msgs.map(m => ({
+          role: m.role,
+          content: m.content,
+          turnId: m.turnId,
+          toolName: m.toolName || undefined,
+          toolInput: m.toolInput || undefined,
+          toolId: m.toolId || undefined,
+          timestamp: m.timestamp,
+        })),
+      };
+    }),
+  );
+
+  const exportData = {
+    exportedAt: new Date().toISOString(),
+    rootSessionId: sessionId,
+    sessions,
+  };
+
+  const { save } = await import('@tauri-apps/plugin-dialog');
+  const { writeTextFile } = await import('@tauri-apps/plugin-fs');
+
+  const safeName = (sessionInfo.title || 'chat').replace(/[^a-z0-9_-]/gi, '_').substring(0, 40);
+  const path = await save({
+    defaultPath: `${safeName}.json`,
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+
+  if (path) {
+    await writeTextFile(path, JSON.stringify(exportData, null, 2));
+  }
 }
 
 // ── Bulk actions (three-dot menu) ────────────────────────────────────
