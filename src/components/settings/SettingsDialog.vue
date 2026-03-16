@@ -144,9 +144,7 @@
                   <span class="text-[11px] text-[var(--text-muted)]">Latest version</span>
                   <span
                     class="text-[11px] font-mono"
-                    :class="remoteVersion && localVersion && remoteVersion !== localVersion
-                      ? 'text-[var(--accent-yellow)]'
-                      : 'text-[var(--text-secondary)]'"
+                    :class="updateAvailable ? 'text-[var(--accent-yellow)]' : 'text-[var(--text-secondary)]'"
                   >{{ remoteVersion ?? '—' }}</span>
                 </div>
               </div>
@@ -266,7 +264,7 @@ import { getModKey } from '@/engine/platform';
 import { ProfileManager, type PersonalityProfile } from '../../engine/ProfileManager';
 import { Scheduler } from '../../engine/Scheduler';
 import InfoTip from '@/components/common/InfoTip.vue';
-import { localVersion, remoteVersion } from '@/composables/useVersionCheck';
+import { localVersion, remoteVersion, updateAvailable } from '@/composables/useVersionCheck';
 
 
 const props = defineProps<{ visible: boolean }>();

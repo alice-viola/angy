@@ -1,5 +1,6 @@
 import { ref } from 'vue';
 import { getVersion } from '@tauri-apps/api/app';
+import { Command } from '@tauri-apps/plugin-shell';
 import { useUiStore } from '@/stores/ui';
 
 const REMOTE_PACKAGE_URL = 'https://raw.githubusercontent.com/alice-viola/angy/master/package.json';
@@ -8,6 +9,7 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 // Module-level reactive state so any component can read the versions
 export const localVersion = ref<string | null>(null);
 export const remoteVersion = ref<string | null>(null);
+export const updateAvailable = ref(false);
 
 /** Compare semver strings. Returns true if remote > local. */
 function isNewer(local: string, remote: string): boolean {
@@ -21,9 +23,10 @@ function isNewer(local: string, remote: string): boolean {
 
 async function fetchRemoteVersion(): Promise<string | null> {
   try {
-    const res = await fetch(REMOTE_PACKAGE_URL, { cache: 'no-store' });
-    if (!res.ok) return null;
-    const json = await res.json();
+    // Use curl via the shell plugin to bypass Tauri's webview HTTP cache
+    const result = await Command.create('exec-sh', ['-c', `curl -sf --max-time 10 '${REMOTE_PACKAGE_URL}'`]).execute();
+    if (result.code !== 0 || !result.stdout) return null;
+    const json = JSON.parse(result.stdout);
     return typeof json.version === 'string' ? json.version : null;
   } catch {
     return null;
@@ -38,8 +41,9 @@ async function checkOnce(local: string) {
   const fetched = await fetchRemoteVersion();
   if (!fetched) return;
   remoteVersion.value = fetched;
+  updateAvailable.value = isNewer(local, fetched);
   if (fetched === notifiedVersion) return; // already notified for this version
-  if (isNewer(local, fetched)) {
+  if (updateAvailable.value) {
     notifiedVersion = fetched;
     ui.addNotification(
       'info',
