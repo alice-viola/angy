@@ -628,14 +628,11 @@ function setParallelCount(n: number) {
 
 async function save() {
   const d = draft.value;
-  if (d.column !== epic.value?.column) {
-    if (d.column === 'in-progress') {
-      console.log(`[EpicDetailPanel] Requesting start for epic: ${props.epicId}`);
-      engineBus.emit('epic:requestStart', { epicId: props.epicId });
-    } else {
-      await epicStore.moveEpic(props.epicId, d.column);
-    }
-  }
+  const originalColumn = epic.value?.column;
+  const columnChanged = d.column !== originalColumn;
+  const isStartRequest = columnChanged && d.column === 'in-progress';
+
+  // Save epic data FIRST (so baseBranch etc. are persisted before start)
   await epicStore.updateEpic(props.epicId, {
     title: d.title,
     description: d.description,
@@ -652,6 +649,17 @@ async function save() {
     runAfter: d.runAfter,
     parallelAgentCount: d.parallelAgentCount,
   });
+
+  // Then handle column changes
+  if (columnChanged) {
+    if (isStartRequest) {
+      console.log(`[EpicDetailPanel] Requesting start for epic: ${props.epicId}`);
+      engineBus.emit('epic:requestStart', { epicId: props.epicId });
+    } else {
+      await epicStore.moveEpic(props.epicId, d.column);
+    }
+  }
+
   if (props.isNew) {
     emit('created');
   }
