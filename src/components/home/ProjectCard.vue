@@ -14,7 +14,7 @@ const props = defineProps<{
   index: number;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   'open-settings': [];
 }>();
 
@@ -157,6 +157,7 @@ function handleRun() {
         <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors" @click="goToBoard">Board</button>
         <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors" @click="goToAgents">Agents</button>
         <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors" @click="goToCode">Code</button>
+        <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors" @click="emit('open-settings')">Settings</button>
         <button
           v-if="nextTodoEpic"
           class="text-[10px] px-2.5 py-1 rounded-md bg-ember/10 hover:bg-ember/20 text-ember transition-colors ml-auto"

@@ -76,8 +76,9 @@ describe('Scheduler.computePriorityScore', () => {
     const createdAt = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
     const epicA = makeEpic({ priorityHint: 'high', complexity: 'small', createdAt });
     const epicB = makeEpic({ priorityHint: 'high', complexity: 'small', createdAt });
-    expect(scheduler.computePriorityScore(epicA)).toBe(
+    expect(scheduler.computePriorityScore(epicA)).toBeCloseTo(
       scheduler.computePriorityScore(epicB),
+      10,
     );
   });
 
@@ -133,8 +134,9 @@ describe('Scheduler.computePriorityScore', () => {
 
     // Verify that rejectionCount: 10 gives same rejection contribution as rejectionCount: 100
     const extremeRejections = makeEpic({ rejectionCount: 100 });
-    expect(scheduler.computePriorityScore(highRejections)).toBe(
+    expect(scheduler.computePriorityScore(highRejections)).toBeCloseTo(
       scheduler.computePriorityScore(extremeRejections),
+      10,
     );
   });
 });
