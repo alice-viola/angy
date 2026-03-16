@@ -1,6 +1,6 @@
 // ── Shared Types ──────────────────────────────────────────────────────
 
-export type ProviderName = 'anthropic' | 'gemini';
+export type ProviderName = 'anthropic' | 'gemini' | 'mock';
 
 // ── JSON Schema (for tool input schemas) ─────────────────────────────
 
@@ -157,6 +157,7 @@ export interface AgentLoopOptions {
   model?: string;
   systemPromptExtra?: string;
   disabledTools?: string[];
+  sessionId?: string;
 }
 
 // ── Forward-declared interfaces (implemented in their own modules) ───
