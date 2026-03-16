@@ -591,6 +591,10 @@ onMounted(async () => {
   const engine = AngyEngine.getInstance();
   await engine.initialize();
 
+  // Load Gemini API key from DB into UI store
+  const savedGeminiKey = await engine.db.getAppSetting('gemini_api_key');
+  if (savedGeminiKey) ui.geminiApiKey = savedGeminiKey;
+
   // Unify the Database and SessionManager singletons: the engine owns the
   // canonical instances; Pinia stores must share them to avoid split-brain.
   initSessionEngines(engine.sessions.manager, engine.db);

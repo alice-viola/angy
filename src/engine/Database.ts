@@ -310,6 +310,34 @@ export class Database {
         created_at TEXT NOT NULL
       )
     `);
+
+    try {
+      await this.db!.execute(`
+        CREATE TABLE IF NOT EXISTS app_settings (
+          key TEXT PRIMARY KEY,
+          value TEXT NOT NULL
+        )
+      `);
+    } catch { /* table already exists */ }
+  }
+
+  // ── App Settings ───────────────────────────────────────────────────────
+
+  async getAppSetting(key: string): Promise<string | null> {
+    if (!this.db) return null;
+    const rows = await this.db.select<{ value: string }[]>(
+      'SELECT value FROM app_settings WHERE key = $1',
+      [key]
+    );
+    return rows.length > 0 ? rows[0].value : null;
+  }
+
+  async setAppSetting(key: string, value: string): Promise<void> {
+    if (!this.db) return;
+    await this.db.execute(
+      'INSERT INTO app_settings (key, value) VALUES ($1, $2) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+      [key, value]
+    );
   }
 
   // ── Sessions ──────────────────────────────────────────────────────────

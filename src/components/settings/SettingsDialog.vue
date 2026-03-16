@@ -134,6 +134,24 @@
                 />
               </div>
 
+              <div>
+                <label class="text-xs text-[var(--text-secondary)] mb-1 block">Gemini API Key</label>
+                <div class="relative flex items-center">
+                  <input
+                    :type="showGeminiKey ? 'text' : 'password'"
+                    v-model="localGeminiKey"
+                    placeholder="AIza…"
+                    class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)] pr-12"
+                  />
+                  <button
+                    type="button"
+                    @click="showGeminiKey = !showGeminiKey"
+                    class="absolute right-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                  >{{ showGeminiKey ? 'Hide' : 'Show' }}</button>
+                </div>
+                <p class="text-[10px] text-[var(--text-faint)] mt-1">Required to use Gemini models. Get yours at aistudio.google.com</p>
+              </div>
+
               <div class="pt-2 border-t border-[var(--border-subtle)]">
                 <label class="text-xs text-[var(--text-secondary)] mb-2 block">About</label>
                 <div class="flex items-center justify-between py-1">
@@ -265,6 +283,8 @@ import { ProfileManager, type PersonalityProfile } from '../../engine/ProfileMan
 import { Scheduler } from '../../engine/Scheduler';
 import InfoTip from '@/components/common/InfoTip.vue';
 import { localVersion, remoteVersion, updateAvailable } from '@/composables/useVersionCheck';
+import { AngyEngine } from '@/engine/AngyEngine';
+import { useUiStore } from '@/stores/ui';
 
 
 const props = defineProps<{ visible: boolean }>();
@@ -272,6 +292,10 @@ const emit = defineEmits<{ close: []; saved: [settings: Record<string, string>] 
 
 const activeTab = ref('General');
 const tabs = ['General', 'Keyboard', 'Orchestration', 'Profiles'];
+
+const ui = useUiStore();
+const localGeminiKey = ref('');
+const showGeminiKey = ref(false);
 
 const profileManager = new ProfileManager();
 const profiles = ref<PersonalityProfile[]>([]);
@@ -337,6 +361,16 @@ async function save() {
     });
   } catch (e) {
     console.error('Failed to save orchestration settings:', e);
+  }
+
+  // Save Gemini API key
+  try {
+    const engine = AngyEngine.getInstance();
+    const trimmedKey = localGeminiKey.value.trim();
+    await engine.db.setAppSetting('gemini_api_key', trimmedKey);
+    ui.geminiApiKey = trimmedKey;
+  } catch (e) {
+    console.error('Failed to save Gemini API key:', e);
   }
 
   emit('saved', { ...settings });
@@ -415,6 +449,12 @@ onMounted(async () => {
 
 watch(() => props.visible, async (v) => {
   if (!v) return;
+  // Load Gemini API key from DB
+  try {
+    const engine = AngyEngine.getInstance();
+    const saved = await engine.db.getAppSetting('gemini_api_key');
+    localGeminiKey.value = saved ?? '';
+  } catch {}
   try {
     const scheduler = Scheduler.getInstance();
     const config = await scheduler.loadConfig();

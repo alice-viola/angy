@@ -12,6 +12,7 @@ import type { AgentHandle, ProcessOptions } from './types';
 import { engineBus } from './EventBus';
 import type { Database } from './Database';
 import { SessionMessageBuffer } from './SessionMessageBuffer';
+import { summarizeTool } from './toolSummary';
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -33,31 +34,6 @@ function extractRmPaths(cmd: string): string[] {
     }
   }
   return paths;
-}
-
-/** Summarize a tool call for display. */
-function summarizeTool(toolName: string, input: Record<string, any>): string {
-  switch (toolName) {
-    case 'Edit':
-    case 'StrReplace':
-    case 'Write':
-    case 'Read':
-      return input.file_path || input.path || 'file';
-    case 'Bash':
-      return (input.command || '').substring(0, 80);
-    case 'Glob':
-    case 'Grep':
-      return input.pattern || '';
-    case 'TodoWrite':
-      return 'updating tasks';
-    case 'Agent':
-      return input.description || 'subagent';
-    case 'AskUserQuestion':
-    case 'mcp__c3p2-orchestrator__AskUserQuestion':
-      return 'asking question';
-    default:
-      return toolName;
-  }
 }
 
 async function runAutoCommit(workingDir: string): Promise<void> {

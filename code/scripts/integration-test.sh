@@ -3,9 +3,20 @@ set -euo pipefail
 
 # Integration test: verify the monorepo workspace works from a clean state.
 # Starts from zero: cleans build artifacts and node_modules, reinstalls, builds, and tests.
+# Covers: core, cli, server packages — including server process health check and API connectivity.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
+SERVER_PID=""
+
+cleanup() {
+  if [ -n "$SERVER_PID" ] && kill -0 "$SERVER_PID" 2>/dev/null; then
+    echo "▸ Killing server (PID $SERVER_PID)..."
+    kill "$SERVER_PID" 2>/dev/null || true
+    wait "$SERVER_PID" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
 
 echo "=== AngyCode Integration Test ==="
 echo "Root: $ROOT_DIR"
@@ -14,31 +25,49 @@ echo ""
 # --- Phase 1: Clean state (no leftover artifacts) ---
 echo "▸ Cleaning build artifacts, buildinfo, and node_modules..."
 rm -rf "$ROOT_DIR/node_modules"
-rm -rf "$ROOT_DIR/packages/core/node_modules"
-rm -rf "$ROOT_DIR/packages/core/dist"
-rm -f "$ROOT_DIR/packages/core/tsconfig.tsbuildinfo"
-rm -rf "$ROOT_DIR/packages/cli/node_modules"
-rm -rf "$ROOT_DIR/packages/cli/dist"
-rm -f "$ROOT_DIR/packages/cli/tsconfig.tsbuildinfo"
+for PKG in core cli server; do
+  rm -rf "$ROOT_DIR/packages/$PKG/node_modules"
+  rm -rf "$ROOT_DIR/packages/$PKG/dist"
+  rm -f "$ROOT_DIR/packages/$PKG/tsconfig.tsbuildinfo"
+done
 echo "  ✓ Clean state"
 
 # --- Phase 2: Install dependencies ---
 echo "▸ Installing dependencies..."
 cd "$ROOT_DIR"
-npm install --ignore-scripts 2>&1 | tail -1
+npm install 2>&1 | tail -1
 echo "  ✓ Dependencies installed"
 
 # --- Phase 3: Build (health check for TypeScript compilation) ---
-# Build core first (CLI depends on core declarations)
+# Build core first (cli and server depend on core declarations)
 echo "▸ Building core..."
-cd "$ROOT_DIR/packages/core" && npx tsc 2>&1
+cd "$ROOT_DIR/packages/core" && npx tsc --build 2>&1
 echo "  ✓ Core build succeeded"
+
+echo "▸ Building server..."
+cd "$ROOT_DIR/packages/server" && npx tsc --build 2>&1
+echo "  ✓ Server build succeeded"
+
 echo "▸ Building cli..."
-cd "$ROOT_DIR/packages/cli" && npx tsc 2>&1
+cd "$ROOT_DIR/packages/cli" && npx tsc --build 2>&1
 echo "  ✓ CLI build succeeded"
 cd "$ROOT_DIR"
 
-# --- Phase 4: Test (verify test infrastructure) ---
+# --- Phase 4: Verify build artifacts exist ---
+echo "▸ Verifying build artifacts..."
+for ARTIFACT in \
+  "$ROOT_DIR/packages/core/dist/index.js" \
+  "$ROOT_DIR/packages/server/dist/index.js" \
+  "$ROOT_DIR/packages/cli/dist/index.js"; do
+  if [ -s "$ARTIFACT" ]; then
+    echo "  ✓ $(echo "$ARTIFACT" | sed "s|$ROOT_DIR/||") exists ($(wc -c < "$ARTIFACT" | tr -d ' ') bytes)"
+  else
+    echo "  ✗ $ARTIFACT missing or empty"
+    exit 1
+  fi
+done
+
+# --- Phase 5: Test (verify test infrastructure) ---
 echo "▸ Running tests..."
 if npm test 2>&1; then
   echo "  ✓ Tests passed"
@@ -46,19 +75,102 @@ else
   echo "  ⚠ Some tests failed (may be due to native module build — run 'npm install' without --ignore-scripts)"
 fi
 
-# --- Phase 5: Verify inter-package connectivity ---
-echo "▸ Verifying workspace linkage (@angycode/core reachable from @angycode/cli)..."
-if [ -d "$ROOT_DIR/node_modules/@angycode/core" ]; then
-  # Verify the symlink points to the actual core package
-  CORE_TARGET="$(readlink "$ROOT_DIR/node_modules/@angycode/core" 2>/dev/null || echo "$ROOT_DIR/node_modules/@angycode/core")"
-  echo "  ✓ @angycode/cli can resolve @angycode/core (linked: $CORE_TARGET)"
-else
-  echo "  ✗ @angycode/core not found in node_modules"
-  exit 1
-fi
+# --- Phase 6: Verify inter-package connectivity ---
+echo "▸ Verifying workspace linkage..."
+for LINK in "@angycode/core" "@angycode/server"; do
+  if [ -d "$ROOT_DIR/node_modules/$LINK" ] || [ -L "$ROOT_DIR/node_modules/$LINK" ]; then
+    echo "  ✓ $LINK reachable in node_modules"
+  else
+    echo "  ✗ $LINK not found in node_modules"
+    exit 1
+  fi
+done
 echo ""
 
-# --- Phase 6: Verify CLI flags ---
+# --- Phase 7: Server health check (start, ready signal, API connectivity) ---
+echo "▸ Starting server (--port 0) for health check..."
+node "$ROOT_DIR/packages/server/dist/index.js" --port 0 &
+SERVER_PID=$!
+
+# Wait for ANGYCODE_SERVER_READY (up to 10 seconds)
+SERVER_PORT=""
+for i in $(seq 1 20); do
+  sleep 0.5
+  # Check if process is still running
+  if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+    echo "  ✗ Server process exited prematurely"
+    exit 1
+  fi
+  # Try to detect the port by checking if the process is listening
+  SERVER_PORT=$(lsof -p "$SERVER_PID" -iTCP -sTCP:LISTEN -Fn 2>/dev/null | grep '^n' | head -1 | sed 's/.*://' || true)
+  if [ -n "$SERVER_PORT" ]; then
+    break
+  fi
+done
+
+if [ -z "$SERVER_PORT" ]; then
+  echo "  ✗ Server did not start within 10 seconds"
+  exit 1
+fi
+echo "  ✓ Server ready on port $SERVER_PORT (PID $SERVER_PID)"
+
+# --- Phase 8: API connectivity verification ---
+echo "▸ Verifying server API connectivity..."
+
+# Test: POST /sessions with missing fields should return 400
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "http://127.0.0.1:$SERVER_PORT/sessions" \
+  -H "Content-Type: application/json" \
+  -d '{}')
+if [ "$HTTP_CODE" = "400" ]; then
+  echo "  ✓ POST /sessions with empty body returns 400"
+else
+  echo "  ✗ POST /sessions returned $HTTP_CODE (expected 400)"
+  exit 1
+fi
+
+# Test: GET /sessions/:id/events for non-existent session should return 404
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  "http://127.0.0.1:$SERVER_PORT/sessions/nonexistent/events")
+if [ "$HTTP_CODE" = "404" ]; then
+  echo "  ✓ GET /sessions/nonexistent/events returns 404"
+else
+  echo "  ✗ GET /sessions/nonexistent/events returned $HTTP_CODE (expected 404)"
+  exit 1
+fi
+
+# Test: POST /sessions/:id/abort for non-existent session should return 404
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "http://127.0.0.1:$SERVER_PORT/sessions/nonexistent/abort")
+if [ "$HTTP_CODE" = "404" ]; then
+  echo "  ✓ POST /sessions/nonexistent/abort returns 404"
+else
+  echo "  ✗ POST /sessions/nonexistent/abort returned $HTTP_CODE (expected 404)"
+  exit 1
+fi
+
+# Test: POST /sessions/:id/continue for non-existent session should return 404
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "http://127.0.0.1:$SERVER_PORT/sessions/nonexistent/continue" \
+  -H "Content-Type: application/json" \
+  -d '{"message":"hello"}')
+if [ "$HTTP_CODE" = "404" ]; then
+  echo "  ✓ POST /sessions/nonexistent/continue returns 404"
+else
+  echo "  ✗ POST /sessions/nonexistent/continue returned $HTTP_CODE (expected 404)"
+  exit 1
+fi
+
+echo ""
+
+# Stop the server
+echo "▸ Stopping server..."
+kill "$SERVER_PID" 2>/dev/null || true
+wait "$SERVER_PID" 2>/dev/null || true
+SERVER_PID=""
+echo "  ✓ Server stopped"
+
+# --- Phase 9: Verify CLI flags ---
 echo "▸ Verifying CLI run --help output..."
 HELP_OUTPUT=$(node "$ROOT_DIR/packages/cli/dist/index.js" run --help 2>&1 || true)
 
@@ -78,7 +190,7 @@ else
   echo "  ✓ --disable-tool removed"
 fi
 
-# --- Phase 7: Verify config defaults ---
+# --- Phase 10: Verify config defaults ---
 echo "▸ Verifying config defaults..."
 node -e "
   const { getDefaults } = require('$ROOT_DIR/packages/cli/dist/config.js');
@@ -91,7 +203,7 @@ node -e "
   console.log('  ✓ model=claude-opus-4-6, maxTokens=8192, maxTurns=200');
 "
 
-# --- Phase 8: Verify --no-tools parsing ---
+# --- Phase 11: Verify --no-tools parsing ---
 echo "▸ Verifying --no-tools parsing..."
 node -e "
   const { Command } = require('commander');
@@ -116,10 +228,10 @@ echo ""
 
 # --- Teardown: Clean up build artifacts (leave node_modules for dev) ---
 echo "▸ Cleaning build artifacts..."
-rm -rf "$ROOT_DIR/packages/core/dist"
-rm -f "$ROOT_DIR/packages/core/tsconfig.tsbuildinfo"
-rm -rf "$ROOT_DIR/packages/cli/dist"
-rm -f "$ROOT_DIR/packages/cli/tsconfig.tsbuildinfo"
+for PKG in core cli server; do
+  rm -rf "$ROOT_DIR/packages/$PKG/dist"
+  rm -f "$ROOT_DIR/packages/$PKG/tsconfig.tsbuildinfo"
+done
 echo "  ✓ Teardown complete"
 
 echo ""

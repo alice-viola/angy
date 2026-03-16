@@ -267,6 +267,20 @@ export interface PipelineSnapshot {
   createdAt: string;
 }
 
+// ── AngyCode Process Options ──────────────────────────────────────────────
+
+export interface AngyCodeProcessOptions {
+  sessionId: string;
+  workingDir: string;
+  goal: string;
+  provider: 'gemini';
+  apiKey: string;
+  model?: string;
+  systemPrompt?: string;
+  maxTokens?: number;
+  maxTurns?: number;
+}
+
 // ── Attached Context / Images ─────────────────────────────────────────────
 
 export interface AttachedContext {

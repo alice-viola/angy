@@ -14,9 +14,13 @@
       <div
         v-for="model in models"
         :key="model.id"
-        @click="select(model.id)"
-        class="flex items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-white/[0.05] whitespace-nowrap"
-        :class="model.id === props.modelValue ? 'text-[var(--accent-mauve)]' : ''"
+        :title="isGeminiDisabled(model) ? 'Add your Gemini API key in Settings to enable' : undefined"
+        @click="!isGeminiDisabled(model) && select(model.id)"
+        class="flex items-center gap-2 px-3 py-1.5 whitespace-nowrap"
+        :class="[
+          isGeminiDisabled(model) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-white/[0.05]',
+          model.id === props.modelValue ? 'text-[var(--accent-mauve)]' : ''
+        ]"
       >
         <div>
           <div class="text-xs text-[var(--text-primary)]">{{ model.name }}</div>
@@ -29,20 +33,35 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { useUiStore } from '@/stores/ui';
 
 const props = defineProps<{ modelValue: string }>();
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>();
 
+const ui = useUiStore();
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
 
-const models = [
+interface Model {
+  id: string;
+  name: string;
+  desc: string;
+  provider?: string;
+}
+
+const models: Model[] = [
   { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', desc: 'Fast & capable' },
   { id: 'claude-opus-4-6', name: 'Opus 4.6', desc: 'Most powerful' },
   { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', desc: 'Fastest' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Google · Fast', provider: 'gemini' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', desc: 'Google · Powerful', provider: 'gemini' },
 ];
 
 const shortName = computed(() => models.find((m) => m.id === props.modelValue)?.name || props.modelValue);
+
+function isGeminiDisabled(model: Model): boolean {
+  return model.provider === 'gemini' && !ui.geminiApiKey;
+}
 
 function select(id: string) {
   emit('update:modelValue', id);
