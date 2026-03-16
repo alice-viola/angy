@@ -100,7 +100,7 @@ import ProfileSelector from '@/components/input/ProfileSelector.vue';
 import { useUiStore } from '@/stores/ui';
 import { useSessionsStore, getDatabase } from '@/stores/sessions';
 import { useFleetStore } from '@/stores/fleet';
-import { sendMessageToEngine, cancelProcess } from '@/composables/useEngine';
+import { sendMessageToEngine, cancelProcess, isAngyCodeModel, sendAngyCodeMessage, cancelAngyCodeProcess, isAngyCodeRunning } from '@/composables/useEngine';
 import type { AgentHandle, MessageRecord, AttachedImage } from '@/engine/types';
 
 const emit = defineEmits<{
@@ -408,13 +408,30 @@ async function doSend(text: string) {
   const engineImages = images.value.length > 0
     ? images.value.map(img => ({ data: img.data, mediaType: `image/${img.format}` }))
     : undefined;
-  sendMessageToEngine(sid, text, handle, {
-    workingDir: info?.workspace || ui.workspacePath || '.',
-    mode: currentMode.value,
-    model: ui.currentModel,
-    resumeSessionId: info?.claudeSessionId,
-    images: engineImages,
-  });
+
+  if (isAngyCodeModel(ui.currentModel)) {
+    try {
+      await sendAngyCodeMessage({
+        sessionId: sid,
+        workingDir: info?.workspace || ui.workspacePath || '.',
+        goal: text,
+        provider: 'gemini',
+        apiKey: ui.geminiApiKey,
+        model: ui.currentModel,
+      }, handle);
+    } catch (err) {
+      handle.showError(sid, err instanceof Error ? err.message : String(err));
+      handle.markDone(sid);
+    }
+  } else {
+    sendMessageToEngine(sid, text, handle, {
+      workingDir: info?.workspace || ui.workspacePath || '.',
+      mode: currentMode.value,
+      model: ui.currentModel,
+      resumeSessionId: info?.claudeSessionId,
+      images: engineImages,
+    });
+  }
 }
 
 function onSendClick() {
@@ -429,7 +446,11 @@ function onSendClick() {
 function onStop() {
   const sid = sessionId.value;
   if (sid) {
-    cancelProcess(sid);
+    if (isAngyCodeRunning(sid)) {
+      cancelAngyCodeProcess(sid);
+    } else {
+      cancelProcess(sid);
+    }
     isProcessing.value = false;
     fleetStore.updateAgent({ sessionId: sid, status: 'idle', activity: '' });
   }

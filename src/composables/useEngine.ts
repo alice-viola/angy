@@ -8,8 +8,9 @@
 
 import { ProcessManager } from '../engine/ProcessManager';
 import { ClaudeProcess } from '../engine/ClaudeProcess';
-import type { AgentHandle, ProcessOptions } from '../engine/types';
+import type { AgentHandle, ProcessOptions, AngyCodeProcessOptions } from '../engine/types';
 import { getDatabase } from '../stores/sessions';
+import type { AngyCodeProcessManager } from '../engine/AngyCodeProcessManager';
 
 // ── Re-export for backward compatibility ─────────────────────────────────
 
@@ -83,4 +84,34 @@ export function cancelProcess(sessionId: string): void {
  */
 export function getProcess(sessionId: string): ClaudeProcess | undefined {
   return getProcessManager().getProcess(sessionId);
+}
+
+// ── Singleton AngyCodeProcessManager ────────────────────────────────────
+
+let _acpm: AngyCodeProcessManager | null = null;
+
+export function setAngyCodeProcessManager(acpm: AngyCodeProcessManager): void {
+  _acpm = acpm;
+}
+
+export function getAngyCodeProcessManager(): AngyCodeProcessManager {
+  if (!_acpm) throw new Error('AngyCodeProcessManager not initialized');
+  return _acpm;
+}
+
+export function isAngyCodeModel(modelId: string): boolean {
+  return modelId.startsWith('gemini');
+}
+
+export async function sendAngyCodeMessage(options: AngyCodeProcessOptions, handle: AgentHandle): Promise<void> {
+  return getAngyCodeProcessManager().sendMessage(options, handle);
+}
+
+export function cancelAngyCodeProcess(sessionId: string): void {
+  getAngyCodeProcessManager().cancel(sessionId);
+}
+
+export function isAngyCodeRunning(sessionId: string): boolean {
+  if (!_acpm) return false;
+  return _acpm.isRunning(sessionId);
 }

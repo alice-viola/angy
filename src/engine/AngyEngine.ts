@@ -36,6 +36,9 @@ import { detectTechnologies } from './TechDetector';
 import { HybridPipelineRunner } from './HybridPipelineRunner';
 import { PipelineStateStore } from './PipelineStateStore';
 import { ClaudeHealthMonitor } from './ClaudeHealthMonitor';
+import { ServerProcess } from './ServerProcess';
+import { AngyCodeProcessManager } from './AngyCodeProcessManager';
+import { setAngyCodeProcessManager } from '../composables/useEngine';
 
 // ── Singleton ────────────────────────────────────────────────────────────
 
@@ -61,6 +64,10 @@ export class AngyEngine {
   readonly pipelineStateStore: PipelineStateStore;
   readonly healthMonitor: ClaudeHealthMonitor;
 
+  // ── AngyCode (Gemini) services ────────────────────────────────────
+  private serverProcess: ServerProcess;
+  private acpm: AngyCodeProcessManager | null = null;
+
   // ── Active pipeline runners ────────────────────────────────────────
   private hybridRunners = new Map<string, HybridPipelineRunner>();
 
@@ -77,6 +84,7 @@ export class AngyEngine {
     this.projects = new DatabaseProjectRepository(this.db);
     this.pipelineStateStore = new PipelineStateStore(this.db);
     this.healthMonitor = new ClaudeHealthMonitor();
+    this.serverProcess = new ServerProcess();
   }
 
   static getInstance(): AngyEngine {
@@ -130,6 +138,17 @@ export class AngyEngine {
     // 7. Reconcile orphaned worktrees
     await this.reconcileWorktrees();
 
+    // 8. Start angycode-server (non-blocking — Gemini models unavailable if this fails)
+    try {
+      await this.serverProcess.start();
+      this.acpm = new AngyCodeProcessManager(this.db);
+      this.acpm.setBaseUrl(this.serverProcess.getBaseUrl());
+      setAngyCodeProcessManager(this.acpm);
+      console.log('[AngyEngine] angycode-server started at', this.serverProcess.getBaseUrl());
+    } catch (err) {
+      console.error('[AngyEngine] Failed to start angycode-server — Gemini models will be unavailable:', err);
+    }
+
     this._initialized = true;
     console.log('[AngyEngine] Initialized');
   }
@@ -141,6 +160,7 @@ export class AngyEngine {
       runner.cancel();
     }
     this.hybridRunners.clear();
+    await this.serverProcess.stop();
     await this.db.close();
     this._initialized = false;
     console.log('[AngyEngine] Shut down');

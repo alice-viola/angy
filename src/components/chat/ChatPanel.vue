@@ -110,7 +110,7 @@ import { useUiStore } from '../../stores/ui';
 import { useProjectsStore } from '../../stores/projects';
 import { useEpicStore } from '../../stores/epics';
 import { ClaudeProcess } from '../../engine/ClaudeProcess';
-import { sendMessageToEngine, cancelProcess, type ChatPanelHandle } from '../../composables/useEngine';
+import { sendMessageToEngine, cancelProcess, isAngyCodeModel, sendAngyCodeMessage, cancelAngyCodeProcess, isAngyCodeRunning, type ChatPanelHandle } from '../../composables/useEngine';
 import type { AgentStatus, AttachedContext, AttachedImage, MessageRecord } from '../../engine/types';
 import { engineBus } from '../../engine/EventBus';
 import { useOrchestrator } from '../../composables/useOrchestrator';
@@ -503,14 +503,31 @@ async function onSend(text: string, _contexts?: AttachedContext[], _images?: Att
     }
   }
 
-  sendMessageToEngine(sid, engineMessage, chatPanelHandle, {
-    workingDir: ui.workspacePath || '.',
-    mode: effectiveMode,
-    model: ui.currentModel,
-    systemPrompt,
-    resumeSessionId: state.realClaudeSessionId || undefined,
-    images: imagePayload,
-  });
+  if (isAngyCodeModel(ui.currentModel)) {
+    try {
+      await sendAngyCodeMessage({
+        sessionId: sid,
+        workingDir: ui.workspacePath || '.',
+        goal: engineMessage,
+        provider: 'gemini',
+        apiKey: ui.geminiApiKey,
+        model: ui.currentModel,
+        systemPrompt,
+      }, chatPanelHandle);
+    } catch (err) {
+      chatPanelHandle.showError(sid, err instanceof Error ? err.message : String(err));
+      chatPanelHandle.markDone(sid);
+    }
+  } else {
+    sendMessageToEngine(sid, engineMessage, chatPanelHandle, {
+      workingDir: ui.workspacePath || '.',
+      mode: effectiveMode,
+      model: ui.currentModel,
+      systemPrompt,
+      resumeSessionId: state.realClaudeSessionId || undefined,
+      images: imagePayload,
+    });
+  }
 }
 
 async function onSlashCommand(command: string) {
@@ -583,7 +600,11 @@ function onStop() {
   const sid = activeSessionId.value;
   if (!sid) return;
 
-  cancelProcess(sid);
+  if (isAngyCodeRunning(sid)) {
+    cancelAngyCodeProcess(sid);
+  } else {
+    cancelProcess(sid);
+  }
 
   const state = sessionStates.value.get(sid);
   if (state) {
