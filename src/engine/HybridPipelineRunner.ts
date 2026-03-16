@@ -603,6 +603,7 @@ export class HybridPipelineRunner {
         `## CONCLUSIONS\nSynthesized conclusions and actionable recommendations.\n\n` +
         `## OPEN QUESTIONS\nAnything that could not be determined and would need further investigation.\n\n` +
         `Be thorough — read actual code, don't speculate.`,
+        'investigate',
       );
       if (this._cancelled) return;
 
@@ -644,6 +645,7 @@ export class HybridPipelineRunner {
         `## RISKS\nPotential issues, edge cases, and migration concerns.\n\n` +
         `## ESTIMATED COMPLEXITY\nOverall assessment of the effort required.\n\n` +
         `Ground the plan in actual code — read files before recommending changes. Be specific enough that an implementer could follow the plan directly.`,
+        'plan',
       );
       if (this._cancelled) return;
 
@@ -948,11 +950,11 @@ export class HybridPipelineRunner {
    * Before spawning, ensures Claude CLI is available. On transient errors,
    * waits for recovery instead of burning retry budget.
    */
-  private async healthCheckedDelegate(role: string, task: string): Promise<string> {
+  private async healthCheckedDelegate(role: string, task: string, mode = 'agent'): Promise<string> {
     if (this.healthMonitor) {
       await this.healthMonitor.waitForHealthy();
     }
-    return this.delegateAgent(role, task);
+    return this.delegateAgent(role, task, mode);
   }
 
   private async healthCheckedArchitect(task: string): Promise<string> {
@@ -1050,18 +1052,18 @@ export class HybridPipelineRunner {
   static readonly CRASH_THRESHOLD_MS = 10_000;
   static readonly MAX_CRASH_RETRIES = 4;
 
-  private async delegateAgent(role: string, task: string): Promise<string> {
-    const { result } = await this.delegateAgentReturningSid(role, task);
+  private async delegateAgent(role: string, task: string, mode = 'agent'): Promise<string> {
+    const { result } = await this.delegateAgentReturningSid(role, task, mode);
     return result;
   }
 
-  private async delegateAgentReturningSid(role: string, task: string): Promise<{ sessionId: string; result: string }> {
+  private async delegateAgentReturningSid(role: string, task: string, mode = 'agent'): Promise<{ sessionId: string; result: string }> {
     for (let attempt = 0; attempt <= HybridPipelineRunner.MAX_CRASH_RETRIES; attempt++) {
       if (this._cancelled) throw new Error('Pipeline cancelled');
 
       const startTime = Date.now();
       try {
-        const { sessionId, result } = await this.spawnAgent(role, task);
+        const { sessionId, result } = await this.spawnAgent(role, task, mode);
         const elapsed = Date.now() - startTime;
 
         if (elapsed < HybridPipelineRunner.CRASH_THRESHOLD_MS && attempt < HybridPipelineRunner.MAX_CRASH_RETRIES) {
@@ -1101,7 +1103,7 @@ export class HybridPipelineRunner {
     throw new Error(`Agent ${role} failed after ${HybridPipelineRunner.MAX_CRASH_RETRIES + 1} attempts`);
   }
 
-  private async spawnAgent(role: string, task: string): Promise<{ sessionId: string; result: string }> {
+  private async spawnAgent(role: string, task: string, mode = 'agent'): Promise<{ sessionId: string; result: string }> {
     const agentName = this.generateAgentName(role);
 
     this.events.emit('delegationStarted', {
@@ -1111,7 +1113,7 @@ export class HybridPipelineRunner {
     });
 
     const childSid = this.sessions.manager.createChildSession(
-      this.rootSessionId, this.workspace, 'agent', task,
+      this.rootSessionId, this.workspace, mode, task,
     );
     const childInfo = this.sessions.getSession(childSid);
     if (childInfo) {
@@ -1143,7 +1145,7 @@ export class HybridPipelineRunner {
 
       this.processes.sendMessage(childSid, task, this.handle, {
         workingDir: this.workspace,
-        mode: 'agent',
+        mode,
         model: this.model,
         systemPrompt,
         agentName,

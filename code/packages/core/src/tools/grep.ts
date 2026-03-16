@@ -70,9 +70,25 @@ async function grepWithRg(
 
     const proc = spawn('rg', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
     const chunks: Buffer[] = [];
+    let totalSize = 0;
+    let killed = false;
 
-    proc.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
-    proc.stderr.on('data', (chunk: Buffer) => chunks.push(chunk));
+    const onData = (chunk: Buffer) => {
+      if (killed) return;
+      totalSize += chunk.length;
+      chunks.push(chunk);
+      if (totalSize > MAX_OUTPUT * 4) {
+        killed = true;
+        proc.stdout.destroy();
+        proc.stderr.destroy();
+        proc.kill();
+      }
+    };
+
+    proc.stdout.on('data', onData);
+    proc.stderr.on('data', (chunk: Buffer) => {
+      if (!killed) chunks.push(chunk);
+    });
 
     proc.on('error', () => resolve(''));
     proc.on('close', () => {
@@ -91,9 +107,13 @@ async function grepWithNode(
   const flags = opts.caseInsensitive ? 'i' : '';
   const regex = new RegExp(pattern, flags);
   const results: string[] = [];
+  let resultSize = 0;
 
   async function scanFile(filePath: string) {
+    if (resultSize > MAX_OUTPUT) return;
     try {
+      const stat = await fs.stat(filePath);
+      if (stat.size > 5 * 1024 * 1024) return; // skip files > 5MB
       const content = await fs.readFile(filePath, 'utf-8');
       const lines = content.split('\n');
       const relPath = path.relative(cwd, filePath);
@@ -102,6 +122,7 @@ async function grepWithNode(
         for (const line of lines) {
           if (regex.test(line)) {
             results.push(relPath);
+            resultSize += relPath.length + 1;
             return;
           }
         }
@@ -117,7 +138,9 @@ async function grepWithNode(
 
       if (opts.outputMode === 'count') {
         if (matchingIndices.length > 0) {
-          results.push(`${relPath}:${matchingIndices.length}`);
+          const entry = `${relPath}:${matchingIndices.length}`;
+          results.push(entry);
+          resultSize += entry.length + 1;
         }
         return;
       }
@@ -133,7 +156,9 @@ async function grepWithNode(
 
       const sorted = [...outputLines].sort((a, b) => a - b);
       for (const i of sorted) {
-        results.push(`${relPath}:${i + 1}:${lines[i]}`);
+        const entry = `${relPath}:${i + 1}:${lines[i]}`;
+        results.push(entry);
+        resultSize += entry.length + 1;
       }
     } catch {
       // skip unreadable files
@@ -144,7 +169,7 @@ async function grepWithNode(
     try {
       const entries = await fs.readdir(dirPath, { withFileTypes: true });
       for (const entry of entries) {
-        if (entry.name.startsWith('.')) continue;
+        if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
         const full = path.join(dirPath, entry.name);
         if (entry.isDirectory() && opts.recursive) {
           await scanDir(full);

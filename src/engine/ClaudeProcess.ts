@@ -121,13 +121,11 @@ export class ClaudeProcess {
       args.push('--add-dir', this.workingDir);
     }
 
-    if (this.mode === 'ask') {
+    if (this.mode === 'ask' || this.mode === 'plan' || this.mode === 'investigate') {
       args.push(
         '--permission-mode', 'bypassPermissions',
         '--tools', 'Read,Glob,Grep',
       );
-    } else if (this.mode === 'plan') {
-      args.push('--permission-mode', 'plan');
     } else {
       let allowedTools: string;
       if (this._specialistRole && SPECIALIST_TOOLS[this._specialistRole]) {

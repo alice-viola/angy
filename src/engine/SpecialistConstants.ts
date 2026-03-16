@@ -285,7 +285,7 @@ export const SPECIALIST_PROMPTS: Record<string, string> = {
 // ── Tool restriction sets per specialist role (Phase 4.2: sandboxing) ────
 
 export const SPECIALIST_TOOLS: Record<string, string> = {
-  architect: 'Read,Glob,Grep,Task',
+  architect: 'Read,Glob,Grep',
   implementer: 'Bash,Read,Edit,Write,Glob,Grep,Task',
   reviewer: 'Read,Glob,Grep',
   tester: 'Bash,Read,Edit,Write,Glob,Grep,Task',

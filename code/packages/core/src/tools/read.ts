@@ -39,13 +39,17 @@ async function execute(
       lines = lines.slice(0, limit);
     }
 
+    const totalLines = content.split('\n').length;
     const lineNumberStart = startIndex + 1;
+    const lineNumberEnd = lineNumberStart + lines.length - 1;
     const numbered = lines
       .map((line, i) => `${String(lineNumberStart + i).padStart(6)}\t${line}`)
       .join('\n');
 
+    const header = `[Lines ${lineNumberStart}-${lineNumberEnd} of ${totalLines}]\n`;
+
     ctx.filesRead.add(filePath);
-    return { content: numbered, is_error: false };
+    return { content: header + numbered, is_error: false };
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     return { content: `Error: ${msg}`, is_error: true };
