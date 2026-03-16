@@ -112,7 +112,7 @@ export const useUiStore = defineStore('ui', () => {
     diffView.value = null;
   }
 
-  function addNotification(type: AppNotification['type'], title: string, message: string, epicId?: string) {
+  function addNotification(type: AppNotification['type'], title: string, message: string, epicId?: string, autoDismissOverride?: boolean) {
     const notification: AppNotification = {
       id: crypto.randomUUID(),
       type,
@@ -120,7 +120,7 @@ export const useUiStore = defineStore('ui', () => {
       message,
       timestamp: Date.now(),
       epicId,
-      autoDismiss: type !== 'error',
+      autoDismiss: autoDismissOverride ?? (type !== 'error'),
     }
     notifications.value.push(notification)
     if (notification.autoDismiss) {

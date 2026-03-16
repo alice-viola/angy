@@ -114,6 +114,7 @@ import { DiffEngine } from './engine/DiffEngine';
 import { engineBus } from './engine/EventBus';
 import { AngyEngine } from './engine/AngyEngine';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { useVersionCheck } from './composables/useVersionCheck';
 
 // ── Stores ──────────────────────────────────────────────────────────────
 
@@ -160,6 +161,9 @@ async function showGraphForSession(sessionId: string) {
 const showSettings = ref(false);
 // ── Orchestrator (used by epic pipelines) ────────────────────────────
 const { initPool, setEngine } = useOrchestrator();
+
+// ── Version check ────────────────────────────────────────────────────
+const { start: startVersionCheck, stop: stopVersionCheck } = useVersionCheck();
 
 // ── Keyboard shortcuts ──────────────────────────────────────────────────
 
@@ -571,6 +575,7 @@ onMounted(async () => {
   window.addEventListener('angy:open-settings', onGlobalOpenSettings);
   gitStore.manager.on('fileDiffReady', onGitFileDiffReady);
   themeStore.loadSavedTheme();
+  startVersionCheck();
 
   // Wire scheduler events to UI notifications
   onSchedulerError = ({ epicId, title, message }) => {
@@ -772,6 +777,7 @@ onUnmounted(() => {
   window.removeEventListener('angy:new-chat', onGlobalNewChat);
   window.removeEventListener('angy:open-settings', onGlobalOpenSettings);
   gitStore.manager.off('fileDiffReady', onGitFileDiffReady);
+  stopVersionCheck();
 
   // Clean up engineBus listeners to prevent leaks
   engineBus.off('scheduler:error', onSchedulerError);

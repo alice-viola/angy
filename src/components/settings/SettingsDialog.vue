@@ -133,6 +133,23 @@
                   class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
                 />
               </div>
+
+              <div class="pt-2 border-t border-[var(--border-subtle)]">
+                <label class="text-xs text-[var(--text-secondary)] mb-2 block">About</label>
+                <div class="flex items-center justify-between py-1">
+                  <span class="text-[11px] text-[var(--text-muted)]">Current version</span>
+                  <span class="text-[11px] text-[var(--text-secondary)] font-mono">{{ localVersion ?? '—' }}</span>
+                </div>
+                <div class="flex items-center justify-between py-1">
+                  <span class="text-[11px] text-[var(--text-muted)]">Latest version</span>
+                  <span
+                    class="text-[11px] font-mono"
+                    :class="remoteVersion && localVersion && remoteVersion !== localVersion
+                      ? 'text-[var(--accent-yellow)]'
+                      : 'text-[var(--text-secondary)]'"
+                  >{{ remoteVersion ?? '—' }}</span>
+                </div>
+              </div>
             </div>
           </template>
 
@@ -249,6 +266,7 @@ import { getModKey } from '@/engine/platform';
 import { ProfileManager, type PersonalityProfile } from '../../engine/ProfileManager';
 import { Scheduler } from '../../engine/Scheduler';
 import InfoTip from '@/components/common/InfoTip.vue';
+import { localVersion, remoteVersion } from '@/composables/useVersionCheck';
 
 
 const props = defineProps<{ visible: boolean }>();
