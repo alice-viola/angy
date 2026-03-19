@@ -100,7 +100,7 @@ export function getAngyCodeProcessManager(): AngyCodeProcessManager {
 }
 
 export function isAngyCodeModel(modelId: string): boolean {
-  return modelId.startsWith('gemini');
+  return modelId.startsWith('gemini') || modelId.startsWith('angy-');
 }
 
 export async function sendAngyCodeMessage(options: AngyCodeProcessOptions, handle: AgentHandle): Promise<void> {

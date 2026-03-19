@@ -107,24 +107,29 @@
             <div
               v-if="modelOpen"
               :style="modelDropdownStyle"
-              class="fixed bg-raised border border-border-standard rounded-lg shadow-lg overflow-hidden z-[200] min-w-[160px]"
+              class="fixed bg-raised border border-border-standard rounded-lg shadow-lg overflow-hidden z-[200] min-w-[160px] max-h-96 overflow-y-auto"
             >
-              <div
-                v-for="model in models"
-                :key="model.id"
-                :title="isGeminiDisabled(model) ? 'Add your Gemini API key in Settings to enable' : undefined"
-                @click="!isGeminiDisabled(model) && selectModel(model.id)"
-                class="flex items-center gap-2 px-3 py-1.5 whitespace-nowrap"
-                :class="[
-                  isGeminiDisabled(model) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-white/[0.05] transition-colors',
-                  model.id === selectedModel ? 'text-ember' : ''
-                ]"
-              >
-                <div>
-                  <div class="text-[11px] text-txt-primary">{{ model.name }}</div>
-                  <div class="text-[9px] text-txt-faint">{{ model.desc }}</div>
+              <template v-for="(group, gIdx) in modelGroups" :key="gIdx">
+                <div class="px-3 pt-2 pb-1 text-[10px] font-bold text-txt-muted uppercase tracking-wider bg-raised sticky top-0 z-10 border-b border-border-subtle shadow-sm">
+                  {{ group.category }}
                 </div>
-              </div>
+                <div
+                  v-for="model in group.items"
+                  :key="model.id"
+                  :title="isDisabled(model) ? `Add your ${model.provider === 'gemini' ? 'Gemini' : 'Anthropic'} API key in Settings to enable` : undefined"
+                  @click="!isDisabled(model) && selectModel(model.id)"
+                  class="flex items-center gap-2 px-3 py-1.5 whitespace-nowrap"
+                  :class="[
+                    isDisabled(model) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-white/[0.05] transition-colors',
+                    model.id === selectedModel ? 'text-ember' : ''
+                  ]"
+                >
+                  <div>
+                    <div class="text-[11px] text-txt-primary">{{ model.name }}</div>
+                    <div class="text-[9px] text-txt-faint">{{ model.desc }}</div>
+                  </div>
+                </div>
+              </template>
             </div>
           </Teleport>
         </div>
@@ -267,19 +272,40 @@ const selectedModel = ref(loadModel(props.sessionId));
 const modelOpen = ref(false);
 const modelRoot = ref<HTMLElement | null>(null);
 const modelDropdownStyle = ref<Record<string, string>>({});
-const models = [
-  { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', desc: 'Fast & capable', provider: 'claude' },
-  { id: 'claude-opus-4-6', name: 'Opus 4.6', desc: 'Most powerful', provider: 'claude' },
-  { id: 'claude-opus-4-5', name: 'Opus 4.5', desc: 'Powerful', provider: 'claude' },
-  { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', desc: 'Fastest', provider: 'claude' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Google · Fast', provider: 'gemini' },
-  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', desc: 'Google · Powerful', provider: 'gemini' },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', desc: 'Google · Preview', provider: 'gemini' },
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', desc: 'Google · Preview', provider: 'gemini' },
+const modelGroups = [
+  {
+    category: 'Claude Code',
+    items: [
+      { id: 'claude-sonnet-4-6', name: 'CC Sonnet 4.6', desc: 'Claude CLI', provider: 'claude-cli' },
+      { id: 'claude-opus-4-5', name: 'CC Opus 4.5', desc: 'Claude CLI', provider: 'claude-cli' },
+      { id: 'claude-opus-4-6', name: 'CC Opus 4.6', desc: 'Claude CLI', provider: 'claude-cli' },
+      { id: 'claude-haiku-4-5-20251001', name: 'CC Haiku 4.5', desc: 'Claude CLI', provider: 'claude-cli' },
+    ],
+  },
+  {
+    category: 'Anthropic API',
+    items: [
+      { id: 'angy-claude-sonnet-4-6', name: 'Sonnet 4.6', desc: 'Anthropic API', provider: 'claude' },
+      { id: 'angy-claude-opus-4-6', name: 'Opus 4.6', desc: 'Anthropic API', provider: 'claude' },
+      { id: 'angy-claude-haiku-4-5-20251001', name: 'Haiku 4.5', desc: 'Anthropic API', provider: 'claude' },
+    ],
+  },
+  {
+    category: 'Gemini API',
+    items: [
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Google · Fast', provider: 'gemini' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', desc: 'Google · Powerful', provider: 'gemini' },
+      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', desc: 'Google · Preview', provider: 'gemini' },
+    ],
+  },
 ];
 
-function isGeminiDisabled(model: { provider?: string }): boolean {
-  return model.provider === 'gemini' && !ui.geminiApiKey;
+const models = computed(() => modelGroups.flatMap(g => g.items));
+
+function isDisabled(model: { provider?: string }): boolean {
+  if (model.provider === 'gemini') return !ui.geminiApiKey;
+  if (model.provider === 'claude') return !ui.anthropicApiKey;
+  return false;
 }
 
 function toggleModelOpen() {
@@ -308,7 +334,7 @@ const MAX_HEIGHT = 300; // ~15 lines at 13px / 1.5 line-height
 const canSend = computed(() => draft.value.trim().length > 0 || images.value.length > 0);
 
 const modelShortName = computed(() =>
-  models.find(m => m.id === selectedModel.value)?.name || selectedModel.value,
+  models.value.find((m: any) => m.id === selectedModel.value)?.name || selectedModel.value,
 );
 
 // ── Auto-height textarea ─────────────────────────────────────────────

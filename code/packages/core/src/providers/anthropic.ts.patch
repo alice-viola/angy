@@ -1,0 +1,35 @@
+--- code/packages/core/src/providers/anthropic.ts
++++ code/packages/core/src/providers/anthropic.ts
+@@ -22,10 +22,10 @@
+   | { type: 'image'; source: { type: 'base64'; media_type: ImageMediaType; data: string } };
+ 
+ export function toAnthropicMessages(messages: Message[]): AnthropicMessage[] {
+-  return messages.map((msg) => ({
+-    role: msg.role,
+-    content: msg.content.map((part): AnthropicContentBlock => {
+-      switch (part.type) {
++  const anthropicMessages: AnthropicMessage[] = [];
++  for (const msg of messages) {
++    const mappedContent = msg.content.map((part): AnthropicContentBlock => {
++      switch (part.type) {
+         case 'text':
+           return { type: 'text', text: part.text };
+         case 'image':
+@@ -48,8 +48,15 @@
+             is_error: part.is_error,
+           };
+       }
+-    }),
+-  }));
++    });
++    
++    if (anthropicMessages.length > 0 && anthropicMessages[anthropicMessages.length - 1].role === msg.role) {
++      anthropicMessages[anthropicMessages.length - 1].content.push(...mappedContent);
++    } else {
++      anthropicMessages.push({ role: msg.role, content: mappedContent });
++    }
++  }
++  return anthropicMessages;
+ }
+ 
+ function toAnthropicTools(tools: ToolDefinition[]) {

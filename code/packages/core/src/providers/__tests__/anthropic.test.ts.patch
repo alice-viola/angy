@@ -1,0 +1,24 @@
+--- code/packages/core/src/providers/__tests__/anthropic.test.ts
++++ code/packages/core/src/providers/__tests__/anthropic.test.ts
+@@ -83,6 +83,21 @@
+     expect(result[0].content[0]).toEqual({ type: 'text', text: 'Let me read that file' });
+     expect(result[0].content[1]).toEqual({ type: 'tool_use', id: 'tc1', name: 'Read', input: { path: '/a' } });
+   });
++
++  it('merges consecutive messages of the same role', () => {
++    const messages: Message[] = [
++      { role: 'user', content: [{ type: 'text', text: 'hi' }] },
++      { role: 'user', content: [{ type: 'text', text: 'there' }] },
++      { role: 'assistant', content: [{ type: 'text', text: 'hello' }] },
++      { role: 'assistant', content: [{ type: 'text', text: 'world' }] },
++    ];
++    const result = toAnthropicMessages(messages);
++    expect(result).toHaveLength(2);
++    expect(result[0].role).toBe('user');
++    expect(result[0].content).toHaveLength(2);
++    expect(result[1].role).toBe('assistant');
++    expect(result[1].content).toHaveLength(2);
++  });
+ });
+ 
+ describe('AnthropicAdapter', () => {

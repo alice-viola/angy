@@ -508,14 +508,18 @@ async function onSend(text: string, _contexts?: AttachedContext[], _images?: Att
     const angyImages = imagePayload
       ? imagePayload.map(img => ({ data: img.data, mimeType: img.mediaType }))
       : undefined;
+      
+    const provider = ui.currentModel.includes('gemini') ? 'gemini' : 'anthropic';
+    const apiKey = provider === 'gemini' ? ui.geminiApiKey : ui.anthropicApiKey;
+    
     try {
       await sendAngyCodeMessage({
         sessionId: sid,
         workingDir: ui.workspacePath || '.',
         goal: engineMessage,
-        provider: 'gemini',
-        apiKey: ui.geminiApiKey,
-        model: ui.currentModel,
+        provider,
+        apiKey,
+        model: ui.currentModel.replace(/^angy-/, ''),
         systemPrompt,
         images: angyImages,
       }, chatPanelHandle);

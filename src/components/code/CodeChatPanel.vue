@@ -418,14 +418,18 @@ async function doSend(text: string) {
     const angyImages = engineImages
       ? engineImages.map(img => ({ data: img.data, mimeType: img.mediaType }))
       : undefined;
+      
+    const provider = ui.currentModel.includes('gemini') ? 'gemini' : 'anthropic';
+    const apiKey = provider === 'gemini' ? ui.geminiApiKey : ui.anthropicApiKey;
+    
     try {
       await sendAngyCodeMessage({
         sessionId: sid,
         workingDir: info?.workspace || ui.workspacePath || '.',
         goal: text,
-        provider: 'gemini',
-        apiKey: ui.geminiApiKey,
-        model: ui.currentModel,
+        provider,
+        apiKey,
+        model: ui.currentModel.replace(/^angy-/, ''),
         images: angyImages,
       }, handle);
     } catch (err) {

@@ -341,20 +341,25 @@ async function onSend(message: string, images: AttachedImage[] = [], model?: str
     }
   }
 
-const effectiveModel = model ?? ui.currentModel;
+  const effectiveModel = model ?? ui.currentModel;
   if (isAngyCodeModel(effectiveModel)) {
     // Convert images to the format expected by AngyCode server
     const angyImages = engineImages
       ? engineImages.map(img => ({ data: img.data, mimeType: img.mediaType }))
       : undefined;
+    
+    // Determine provider and api key
+    const provider = effectiveModel.includes('gemini') ? 'gemini' : 'anthropic';
+    const apiKey = provider === 'gemini' ? ui.geminiApiKey : ui.anthropicApiKey;
+    
     try {
       await sendAngyCodeMessage({
         sessionId: sid,
         workingDir,
         goal: effectiveMessage,
-        provider: 'gemini',
-        apiKey: ui.geminiApiKey,
-        model: effectiveModel,
+        provider,
+        apiKey,
+        model: effectiveModel.replace(/^angy-/, ''),
         images: angyImages,
       }, storeHandle);
     } catch (err) {

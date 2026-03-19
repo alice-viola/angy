@@ -32,6 +32,7 @@ export const useUiStore = defineStore('ui', () => {
   const missionControlFilter = ref<string | null>(null);
   const autoCommitEnabled = ref(false);
   const geminiApiKey = ref('');
+  const anthropicApiKey = ref('');
 
   const fleetProjectIds = ref<string[]>([]);
   const notifications = ref<AppNotification[]>([]);
@@ -206,7 +207,7 @@ export const useUiStore = defineStore('ui', () => {
     inlinePreviewFile, effectsPanelVisible, editorChatVisible, rightPanelMode, diffView,
     missionControlFilter, autoCommitEnabled, fleetProjectIds, notifications, repoSwitchOnly,
     managerSizes, editorSizes, kanbanFilterText, pipelineActivity, pipelineTodoProgress,
-    epicActivities, activityLogVisible, geminiApiKey,
+    epicActivities, activityLogVisible, geminiApiKey, anthropicApiKey,
     switchToMode, toggleViewMode, toggleTerminal, dismissInlinePreview,
     toggleEffectsPanel, toggleEditorChat, toggleRightPanelMode, setRightPanelMode,
     showDiffView, closeDiffView,

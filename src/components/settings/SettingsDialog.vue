@@ -114,15 +114,27 @@
               </div>
 
               <div>
-                <label class="text-xs text-[var(--text-secondary)] mb-1 flex items-center">Default Model<InfoTip text="The AI model used for new conversations. Opus is most capable; Haiku is fastest and cheapest." /></label>
+                <label class="text-xs text-[var(--text-secondary)] mb-1 flex items-center">Default Model<InfoTip text="The AI model used for new conversations." /></label>
                 <select
                   v-model="settings.defaultModel"
                   class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none"
                 >
-                  <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
-                  <option value="claude-opus-4-6">Claude Opus 4.6</option>
-                  <option value="claude-opus-4-5">Claude Opus 4.5</option>
-                  <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
+                  <optgroup label="Claude Code">
+                    <option value="claude-sonnet-4-6">CC Sonnet 4.6</option>
+                    <option value="claude-opus-4-5">CC Opus 4.5</option>
+                    <option value="claude-opus-4-6">CC Opus 4.6</option>
+                    <option value="claude-haiku-4-5-20251001">CC Haiku 4.5</option>
+                  </optgroup>
+                  <optgroup label="Anthropic API">
+                    <option value="angy-claude-sonnet-4-6">Sonnet 4.6</option>
+                    <option value="angy-claude-opus-4-6">Opus 4.6</option>
+                    <option value="angy-claude-haiku-4-5-20251001">Haiku 4.5</option>
+                  </optgroup>
+                  <optgroup label="Gemini API">
+                    <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                    <option value="gemini-3-flash-preview">Gemini 3 Flash</option>
+                  </optgroup>
                 </select>
               </div>
 
@@ -133,6 +145,24 @@
                   placeholder="~"
                   class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
                 />
+              </div>
+
+              <div>
+                <label class="text-xs text-[var(--text-secondary)] mb-1 block">Anthropic API Key</label>
+                <div class="relative flex items-center">
+                  <input
+                    :type="showAnthropicKey ? 'text' : 'password'"
+                    v-model="localAnthropicKey"
+                    placeholder="sk-ant-…"
+                    class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)] pr-12"
+                  />
+                  <button
+                    type="button"
+                    @click="showAnthropicKey = !showAnthropicKey"
+                    class="absolute right-2 text-[10px] text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+                  >{{ showAnthropicKey ? 'Hide' : 'Show' }}</button>
+                </div>
+                <p class="text-[10px] text-[var(--text-faint)] mt-1">Required to use Claude models. Get yours at console.anthropic.com</p>
               </div>
 
               <div>
@@ -295,6 +325,8 @@ const activeTab = ref('General');
 const tabs = ['General', 'Keyboard', 'Orchestration', 'Profiles'];
 
 const ui = useUiStore();
+const localAnthropicKey = ref('');
+const showAnthropicKey = ref(false);
 const localGeminiKey = ref('');
 const showGeminiKey = ref(false);
 
@@ -364,14 +396,19 @@ async function save() {
     console.error('Failed to save orchestration settings:', e);
   }
 
-  // Save Gemini API key
+  // Save API keys
   try {
     const engine = AngyEngine.getInstance();
-    const trimmedKey = localGeminiKey.value.trim();
-    await engine.db.setAppSetting('gemini_api_key', trimmedKey);
-    ui.geminiApiKey = trimmedKey;
+    
+    const trimmedGeminiKey = localGeminiKey.value.trim();
+    await engine.db.setAppSetting('gemini_api_key', trimmedGeminiKey);
+    ui.geminiApiKey = trimmedGeminiKey;
+    
+    const trimmedAnthropicKey = localAnthropicKey.value.trim();
+    await engine.db.setAppSetting('anthropic_api_key', trimmedAnthropicKey);
+    ui.anthropicApiKey = trimmedAnthropicKey;
   } catch (e) {
-    console.error('Failed to save Gemini API key:', e);
+    console.error('Failed to save API keys:', e);
   }
 
   emit('saved', { ...settings });
@@ -450,11 +487,14 @@ onMounted(async () => {
 
 watch(() => props.visible, async (v) => {
   if (!v) return;
-  // Load Gemini API key from DB
+  // Load API keys from DB
   try {
     const engine = AngyEngine.getInstance();
-    const saved = await engine.db.getAppSetting('gemini_api_key');
-    localGeminiKey.value = saved ?? '';
+    const savedGemini = await engine.db.getAppSetting('gemini_api_key');
+    localGeminiKey.value = savedGemini ?? '';
+    
+    const savedAnthropic = await engine.db.getAppSetting('anthropic_api_key');
+    localAnthropicKey.value = savedAnthropic ?? '';
   } catch {}
   try {
     const scheduler = Scheduler.getInstance();

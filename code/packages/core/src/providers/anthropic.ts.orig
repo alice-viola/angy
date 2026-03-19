@@ -22,9 +22,9 @@ type AnthropicContentBlock =
   | { type: 'image'; source: { type: 'base64'; media_type: ImageMediaType; data: string } };
 
 export function toAnthropicMessages(messages: Message[]): AnthropicMessage[] {
-  const anthropicMessages: AnthropicMessage[] = [];
-  for (const msg of messages) {
-    const mappedContent = msg.content.map((part): AnthropicContentBlock => {
+  return messages.map((msg) => ({
+    role: msg.role,
+    content: msg.content.map((part): AnthropicContentBlock => {
       switch (part.type) {
         case 'text':
           return { type: 'text', text: part.text };
@@ -47,15 +47,8 @@ export function toAnthropicMessages(messages: Message[]): AnthropicMessage[] {
             is_error: part.is_error,
           };
       }
-    });
-    
-    if (anthropicMessages.length > 0 && anthropicMessages[anthropicMessages.length - 1].role === msg.role) {
-      anthropicMessages[anthropicMessages.length - 1].content.push(...mappedContent);
-    } else {
-      anthropicMessages.push({ role: msg.role, content: mappedContent });
-    }
-  }
-  return anthropicMessages;
+    }),
+  }));
 }
 
 function toAnthropicTools(tools: ToolDefinition[]) {
