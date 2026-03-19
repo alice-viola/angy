@@ -82,6 +82,7 @@ export const useFleetStore = defineStore('fleet', () => {
         mode: info.mode,
         favorite: info.favorite,
         updatedAt: info.updatedAt,
+        workspace: info.workspace,
         parentSessionId: info.parentSessionId,
         epicId: info.epicId,
       });

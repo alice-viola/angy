@@ -99,6 +99,7 @@
             <option value="">Default (CLI default)</option>
             <option value="claude-sonnet-4-6">Sonnet 4.6</option>
             <option value="claude-opus-4-6">Opus 4.6</option>
+            <option value="claude-opus-4-5">Opus 4.5</option>
             <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
           </select>
         </div>
@@ -136,7 +137,7 @@
             <div class="space-y-1">
               <label
                 class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors"
-                :class="{ 'bg-[rgba(203,166,247,0.06)]': gitMode === 'none', 'opacity-40 cursor-not-allowed': draft.parallelAgentCount > 1 }"
+                :class="{ 'bg-[rgba(245,158,11,0.06)]': gitMode === 'none', 'opacity-40 cursor-not-allowed': draft.parallelAgentCount > 1 }"
               >
                 <input type="radio" value="none" :checked="gitMode === 'none'"
                        :disabled="draft.parallelAgentCount > 1"
@@ -146,7 +147,7 @@
               </label>
               <label
                 class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors"
-                :class="{ 'bg-[rgba(203,166,247,0.06)]': gitMode === 'branch', 'opacity-40 cursor-not-allowed': draft.parallelAgentCount > 1 }"
+                :class="{ 'bg-[rgba(245,158,11,0.06)]': gitMode === 'branch', 'opacity-40 cursor-not-allowed': draft.parallelAgentCount > 1 }"
               >
                 <input type="radio" value="branch" :checked="gitMode === 'branch'"
                        :disabled="draft.parallelAgentCount > 1"
@@ -156,7 +157,7 @@
               </label>
               <label
                 class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors"
-                :class="{ 'bg-[rgba(203,166,247,0.06)]': gitMode === 'worktree' }"
+                :class="{ 'bg-[rgba(245,158,11,0.06)]': gitMode === 'worktree' }"
               >
                 <input type="radio" value="worktree" :checked="gitMode === 'worktree'"
                        @change="setGitMode('worktree')" class="sr-only" />
@@ -176,8 +177,8 @@
             </span>
           </div>
 
-          <!-- BranchPicker (only when worktree) -->
-          <div v-if="gitMode === 'worktree'" class="space-y-1.5">
+          <!-- BranchPicker (branch or worktree) -->
+          <div v-if="gitMode === 'branch' || gitMode === 'worktree'" class="space-y-1.5">
             <div class="text-[11px] text-txt-muted">Base Branch</div>
             <BranchPicker
               v-model="draft.baseBranch"
@@ -627,14 +628,11 @@ function setParallelCount(n: number) {
 
 async function save() {
   const d = draft.value;
-  if (d.column !== epic.value?.column) {
-    if (d.column === 'in-progress') {
-      console.log(`[EpicDetailPanel] Requesting start for epic: ${props.epicId}`);
-      engineBus.emit('epic:requestStart', { epicId: props.epicId });
-    } else {
-      await epicStore.moveEpic(props.epicId, d.column);
-    }
-  }
+  const originalColumn = epic.value?.column;
+  const columnChanged = d.column !== originalColumn;
+  const isStartRequest = columnChanged && d.column === 'in-progress';
+
+  // Save epic data FIRST (so baseBranch etc. are persisted before start)
   await epicStore.updateEpic(props.epicId, {
     title: d.title,
     description: d.description,
@@ -651,6 +649,17 @@ async function save() {
     runAfter: d.runAfter,
     parallelAgentCount: d.parallelAgentCount,
   });
+
+  // Then handle column changes
+  if (columnChanged) {
+    if (isStartRequest) {
+      console.log(`[EpicDetailPanel] Requesting start for epic: ${props.epicId}`);
+      engineBus.emit('epic:requestStart', { epicId: props.epicId });
+    } else {
+      await epicStore.moveEpic(props.epicId, d.column);
+    }
+  }
+
   if (props.isNew) {
     emit('created');
   }

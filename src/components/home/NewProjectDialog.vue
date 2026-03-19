@@ -16,7 +16,7 @@
             <input
               v-model="name"
               placeholder="My Project"
-              class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+              class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
             />
           </div>
 
@@ -27,7 +27,7 @@
               v-model="description"
               placeholder="Optional description..."
               rows="2"
-              class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)] resize-none"
+              class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)] resize-none"
             />
           </div>
 
@@ -52,7 +52,7 @@
                 <input
                   v-model="repo.name"
                   placeholder="Repo name (e.g. backend)"
-                  class="flex-1 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-mauve)]"
+                  class="flex-1 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-ember)]"
                 />
                 <button
                   @click="repos.splice(i, 1)"
@@ -67,11 +67,11 @@
                 <input
                   v-model="repo.path"
                   placeholder="/path/to/repo"
-                  class="flex-1 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-mauve)]"
+                  class="flex-1 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-ember)]"
                 />
                 <button
                   @click="browseRepoPath(repo)"
-                  class="shrink-0 px-2 py-1.5 text-xs bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-standard)] rounded hover:text-[var(--text-primary)] hover:border-[var(--accent-mauve)] transition-colors"
+                  class="shrink-0 px-2 py-1.5 text-xs bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-standard)] rounded hover:text-[var(--text-primary)] hover:border-[var(--accent-ember)] transition-colors"
                   title="Browse..."
                 >
                   Browse
@@ -83,12 +83,16 @@
                   <input
                     v-model="repo.defaultBranch"
                     placeholder="main"
-                    class="w-32 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-mauve)]"
+                    autocapitalize="none"
+                    autocomplete="new-password"
+                    autocorrect="off"
+                    spellcheck="false"
+                    class="w-32 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-ember)]"
                   />
                   <InfoTip text="The main branch used as the base for epic branches." />
                 </div>
                 <label class="flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] cursor-pointer">
-                  <input type="checkbox" v-model="repo.primary" class="accent-[var(--accent-mauve)]" />
+                  <input type="checkbox" v-model="repo.primary" class="accent-[var(--accent-ember)]" />
                   Primary<InfoTip text="The primary repo is the default workspace when opening this project." position="right" />
                 </label>
               </div>
@@ -107,7 +111,7 @@
           <button
             @click="onCreate"
             :disabled="!canCreate"
-            class="px-4 py-1.5 text-xs bg-[var(--accent-mauve)] text-white rounded hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            class="px-4 py-1.5 text-xs bg-[var(--accent-ember)] text-white rounded hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Create Project
           </button>

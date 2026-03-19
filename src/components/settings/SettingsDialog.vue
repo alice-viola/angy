@@ -15,7 +15,7 @@
             :key="tab"
             @click="activeTab = tab"
             class="px-4 py-2 text-xs transition-colors"
-            :class="activeTab === tab ? 'text-[var(--text-primary)] border-b-2 border-[var(--accent-mauve)]' : 'text-[var(--text-muted)]'"
+            :class="activeTab === tab ? 'text-[var(--text-primary)] border-b-2 border-[var(--accent-ember)]' : 'text-[var(--text-muted)]'"
           >
             {{ tab }}
           </button>
@@ -32,7 +32,7 @@
                 @click="selectProfile(p)"
                 class="w-full flex items-center gap-2 px-3 py-2 text-xs text-left transition-colors"
                 :class="selectedProfileId === p.id
-                  ? 'bg-[color-mix(in_srgb,var(--accent-mauve)_15%,transparent)] text-[var(--text-primary)]'
+                  ? 'bg-[color-mix(in_srgb,var(--accent-ember)_15%,transparent)] text-[var(--text-primary)]'
                   : 'text-[var(--text-secondary)] hover:bg-[var(--bg-raised)]'"
               >
                 <span>{{ p.icon ?? '🤖' }}</span>
@@ -62,14 +62,14 @@
                     <label class="text-xs text-[var(--text-secondary)] mb-1 block">Name</label>
                     <input
                       v-model="editing.name"
-                      class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                      class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
                     />
                   </div>
                   <div>
                     <label class="text-xs text-[var(--text-secondary)] mb-1 block">Icon</label>
                     <input
                       v-model="editing.icon"
-                      class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                      class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
                     />
                   </div>
                   <div>
@@ -77,13 +77,13 @@
                     <textarea
                       v-model="editing.systemPrompt"
                       rows="8"
-                      class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)] resize-none"
+                      class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)] resize-none"
                     />
                   </div>
                   <div class="flex gap-2">
                     <button
                       @click="saveProfileEntry"
-                      class="text-xs px-4 py-1.5 rounded bg-[var(--accent-mauve)] text-[var(--bg-base)] font-medium"
+                      class="text-xs px-4 py-1.5 rounded bg-[var(--accent-ember)] text-[var(--bg-base)] font-medium"
                     >Save</button>
                     <button
                       v-if="!editing.isBuiltIn"
@@ -108,7 +108,7 @@
                 <input
                   v-model="settings.claudePath"
                   placeholder="Auto-detect"
-                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
                 />
                 <p class="text-[10px] text-[var(--text-faint)] mt-1">Leave empty for auto-detection (~/.local/bin, /usr/local/bin, etc.)</p>
               </div>
@@ -121,6 +121,7 @@
                 >
                   <option value="claude-sonnet-4-6">Claude Sonnet 4.6</option>
                   <option value="claude-opus-4-6">Claude Opus 4.6</option>
+                  <option value="claude-opus-4-5">Claude Opus 4.5</option>
                   <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5</option>
                 </select>
               </div>
@@ -130,7 +131,7 @@
                 <input
                   v-model="settings.defaultWorkspace"
                   placeholder="~"
-                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
                 />
               </div>
 
@@ -207,7 +208,7 @@
                   type="number"
                   min="1"
                   max="5"
-                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
                 />
                 <p class="text-[10px] text-[var(--text-faint)] mt-1">How many levels of sub-orchestrators can be spawned (1-5)</p>
               </div>
@@ -219,7 +220,7 @@
                   type="number"
                   min="1"
                   max="10"
-                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
                 />
               </div>
 
@@ -230,7 +231,7 @@
                   type="number"
                   min="1"
                   max="10"
-                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                  class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
                 />
                 <p class="text-[10px] text-[var(--text-faint)] mt-1">Max concurrent sub-orchestrators per parent</p>
               </div>
@@ -243,7 +244,7 @@
                     v-model.number="orchestrationSettings.dailyCostBudget"
                     type="number"
                     min="0"
-                    class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded pl-7 pr-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+                    class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded pl-7 pr-3 py-2 outline-none focus:border-[var(--accent-ember)]"
                   />
                 </div>
               </div>
@@ -264,11 +265,11 @@
         <!-- Footer -->
         <div class="flex justify-end gap-2 px-6 py-4 border-t border-[var(--border-subtle)]">
           <template v-if="activeTab === 'Profiles'">
-            <button @click="$emit('close')" class="text-xs px-4 py-1.5 rounded bg-[var(--accent-mauve)] text-[var(--bg-base)] font-medium">Close</button>
+            <button @click="$emit('close')" class="text-xs px-4 py-1.5 rounded bg-[var(--accent-ember)] text-[var(--bg-base)] font-medium">Close</button>
           </template>
           <template v-else>
             <button @click="$emit('close')" class="text-xs px-4 py-1.5 rounded bg-[var(--bg-raised)] text-[var(--text-muted)]">Cancel</button>
-            <button @click="save" class="text-xs px-4 py-1.5 rounded bg-[var(--accent-mauve)] text-[var(--bg-base)] font-medium">Save</button>
+            <button @click="save" class="text-xs px-4 py-1.5 rounded bg-[var(--accent-ember)] text-[var(--bg-base)] font-medium">Save</button>
           </template>
         </div>
       </div>

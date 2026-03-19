@@ -28,6 +28,10 @@
             ref="searchInput"
             v-model="search"
             type="text"
+            autocapitalize="none"
+            autocomplete="new-password"
+            autocorrect="off"
+            spellcheck="false"
             class="w-full h-7 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[11px] px-2 text-[var(--text-primary)] outline-none placeholder:text-[var(--text-faint)]"
             placeholder="Search branches..."
             @keydown.escape="close"
@@ -271,7 +275,7 @@ onUnmounted(() => document.removeEventListener('mousedown', onOutsideClick));
   font-family: 'Inter', sans-serif;
 }
 .field-input:hover:not(.disabled) { border-color: var(--border-standard); }
-.field-input:focus:not(.disabled) { border-color: var(--accent-mauve); box-shadow: 0 0 0 2px rgba(203,166,247,0.12); }
+.field-input:focus:not(.disabled) { border-color: var(--accent-ember); box-shadow: 0 0 0 2px rgba(245,158,11,0.12); }
 
 .branch-list::-webkit-scrollbar { width: 6px; }
 .branch-list::-webkit-scrollbar-track { background: transparent; }

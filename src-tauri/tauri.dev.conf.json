@@ -1,0 +1,12 @@
+{
+  "$schema": "https://raw.githubusercontent.com/nicoh-at/tauri-schema/main/tauri.conf.json",
+  "productName": "angy-dev",
+  "identifier": "com.angy.dev",
+  "app": {
+    "windows": [
+      {
+        "title": "Angy DEV"
+      }
+    ]
+  }
+}

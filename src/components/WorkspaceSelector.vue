@@ -58,10 +58,14 @@
 import { ref, onMounted } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import { useUiStore } from '../stores/ui';
+import { useProjectsStore } from '../stores/projects';
+import { useFilterStore } from '../stores/filter';
 import { getDatabase } from '../stores/sessions';
 import InfoTip from '@/components/common/InfoTip.vue';
 
 const ui = useUiStore();
+const projectsStore = useProjectsStore();
+const filterStore = useFilterStore();
 const recentWorkspaces = ref<string[]>([]);
 
 function folderName(path: string): string {
@@ -90,6 +94,16 @@ async function openFolder() {
 }
 
 onMounted(async () => {
+  // Auto-select workspace from first selected project's repo (same as fleet logic)
+  const firstProjectId = filterStore.selectedProjectIds[0] ?? projectsStore.projects[0]?.id;
+  if (firstProjectId) {
+    const firstRepo = projectsStore.reposByProjectId(firstProjectId)[0];
+    if (firstRepo?.path) {
+      ui.workspacePath = firstRepo.path;
+      return;
+    }
+  }
+
   const db = getDatabase();
   await db.open();
   recentWorkspaces.value = await db.getDistinctWorkspaces();

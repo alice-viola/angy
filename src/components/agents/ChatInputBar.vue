@@ -38,8 +38,12 @@
         @dragover.prevent
         :placeholder="'Send a message...'"
         rows="1"
+        autocapitalize="none"
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
         class="w-full bg-transparent text-[13px] text-txt-primary placeholder:text-txt-faint resize-none outline-none ring-0 border-0"
-        :style="{ height: textareaHeight + 'px', maxHeight: '200px' }"
+        :style="{ maxHeight: MAX_HEIGHT + 'px' }"
         :class="isDragging ? 'opacity-50' : ''"
         :disabled="processing"
       />
@@ -208,6 +212,11 @@
   </div>
 </template>
 
+<script lang="ts">
+// Module-level: shared across all instances, survives component re-creation from :key
+const draftsBySession = new Map<string, string>();
+</script>
+
 <script setup lang="ts">
 import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
@@ -217,21 +226,21 @@ import { ProfileManager, type PersonalityProfile } from '../../engine/ProfileMan
 import type { AttachedImage } from '../../engine/types';
 import { useUiStore } from '@/stores/ui';
 
-defineProps<{
+const props = defineProps<{
   processing: boolean;
+  sessionId?: string;
 }>();
 
 const emit = defineEmits<{
-  send: [message: string, images: AttachedImage[]];
+  send: [message: string, images: AttachedImage[], model: string];
   stop: [];
 }>();
 
 // ── State ─────────────────────────────────────────────────────────────
 const ui = useUiStore();
 
-const draft = ref('');
+const draft = ref(props.sessionId ? (draftsBySession.get(props.sessionId) ?? '') : '');
 const inputEl = ref<HTMLTextAreaElement | null>(null);
-const textareaHeight = ref(28);
 const isDragging = ref(false);
 const images = ref<AttachedImage[]>([]);
 
@@ -245,17 +254,26 @@ const modes = [
   { id: 'ask', label: 'Ask', desc: 'Read-only questions' },
 ];
 
-// Model
-const selectedModel = ref('claude-sonnet-4-6');
+// Model — per-session, with global fallback for new chats
+const MODEL_DEFAULT_KEY = 'angy:selectedModel';
+function loadModel(sessionId?: string): string {
+  if (sessionId) {
+    const perChat = localStorage.getItem(`angy:model:${sessionId}`);
+    if (perChat) return perChat;
+  }
+  return localStorage.getItem(MODEL_DEFAULT_KEY) ?? 'claude-sonnet-4-6';
+}
+const selectedModel = ref(loadModel(props.sessionId));
 const modelOpen = ref(false);
 const modelRoot = ref<HTMLElement | null>(null);
 const modelDropdownStyle = ref<Record<string, string>>({});
 const models = [
   { id: 'claude-sonnet-4-6', name: 'Sonnet 4.6', desc: 'Fast & capable', provider: 'claude' },
   { id: 'claude-opus-4-6', name: 'Opus 4.6', desc: 'Most powerful', provider: 'claude' },
+  { id: 'claude-opus-4-5', name: 'Opus 4.5', desc: 'Powerful', provider: 'claude' },
   { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', desc: 'Fastest', provider: 'claude' },
-  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', desc: 'Google · Fast', provider: 'gemini' },
-  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', desc: 'Google · Powerful', provider: 'gemini' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Google · Fast', provider: 'gemini' },
+  { id: 'gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro', desc: 'Google · Powerful', provider: 'gemini' },
 ];
 
 function isGeminiDisabled(model: { provider?: string }): boolean {
@@ -281,6 +299,7 @@ const profiles = ref<PersonalityProfile[]>([]);
 const profileManager = new ProfileManager();
 
 const MIN_HEIGHT = 28;
+const MAX_HEIGHT = 300; // ~15 lines at 13px / 1.5 line-height
 
 // ── Computed ──────────────────────────────────────────────────────────
 
@@ -293,26 +312,32 @@ const modelShortName = computed(() =>
 // ── Auto-height textarea ─────────────────────────────────────────────
 
 function autoGrow() {
-  nextTick(() => {
-    const el = inputEl.value;
-    if (!el) return;
-    el.style.height = 'auto';
-    textareaHeight.value = Math.min(Math.max(el.scrollHeight, MIN_HEIGHT), 200);
-  });
+  const el = inputEl.value;
+  if (!el) return;
+  el.style.height = 'auto';
+  const h = Math.min(Math.max(el.scrollHeight, MIN_HEIGHT), MAX_HEIGHT);
+  el.style.height = h + 'px';
+  el.style.overflowY = h >= MAX_HEIGHT ? 'auto' : 'hidden';
 }
 
-watch(draft, () => autoGrow());
+watch(draft, (val) => {
+  autoGrow();
+  if (props.sessionId) draftsBySession.set(props.sessionId, val);
+});
 
 // ── Send ──────────────────────────────────────────────────────────────
 
 function sendMessage() {
   const text = draft.value.trim();
   if (!text && images.value.length === 0) return;
-  emit('send', text, [...images.value]);
+  emit('send', text, [...images.value], selectedModel.value);
   draft.value = '';
+  if (props.sessionId) draftsBySession.delete(props.sessionId);
   images.value = [];
-  textareaHeight.value = MIN_HEIGHT;
-  nextTick(() => autoGrow());
+  nextTick(() => {
+    const el = inputEl.value;
+    if (el) { el.style.height = MIN_HEIGHT + 'px'; el.style.overflowY = 'hidden'; }
+  });
 }
 
 // ── Keydown ───────────────────────────────────────────────────────────
@@ -334,6 +359,8 @@ function selectMode(id: string) {
 function selectModel(id: string) {
   selectedModel.value = id;
   ui.currentModel = id;
+  if (props.sessionId) localStorage.setItem(`angy:model:${props.sessionId}`, id);
+  localStorage.setItem(MODEL_DEFAULT_KEY, id); // also update global default for new chats
   modelOpen.value = false;
 }
 
@@ -429,6 +456,7 @@ let unlistenDrop: (() => void) | null = null;
 
 onMounted(async () => {
   inputEl.value?.focus();
+  autoGrow();
   document.addEventListener('click', onClickOutside);
 
   await profileManager.init();

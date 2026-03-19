@@ -9,7 +9,7 @@
   <a href="https://alice-viola.github.io/angy/">View the website</a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.2.8-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-v0.3.2-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="Platform" />
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-see%20LICENSE.md-green" alt="License" /></a>
 </p>
@@ -170,6 +170,9 @@ npm install
 # Run in development mode
 npm run tauri dev
 
+# Run a separate dev instance (for developing Angy with Angy)
+npm run tauri:dev-instance
+
 # Build a production binary
 npm run build
 ```
@@ -224,9 +227,15 @@ The pipeline's key innovation is **incremental building with verification gates*
 - **Git not installed** — git is required for branch management. Install it via Xcode Command Line Tools (`xcode-select --install`) or [git-scm.com](https://git-scm.com).
 - **Platform support** — Angy is currently macOS-focused. Linux and Windows support is not yet available.
 
+## Next Steps
+
+The immediate next milestone is replacing the current dependency on the `claude` CLI with **our own agentic loop** — a first-party implementation that communicates directly with AI provider APIs, allowing us to have an alternative to Claude Code.
+
+The custom agentic loop will support both the **Gemini** and **Anthropics** APIs, enabling Angy to run agents against either provider (or both simultaneously within the same pipeline). This opens the door to model diversity across specialist roles, cost optimization, and provider redundancy — without any changes to how epics or pipelines are defined.
+
 ## Status
 
-**v0.2.8** — active development. macOS and Linux for now. Expect breaking changes.
+**v0.3.2** — active development. macOS and Linux for now. Expect breaking changes.
 
 ---
 

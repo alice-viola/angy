@@ -50,7 +50,7 @@
         :class="{
           'border-[var(--border-standard)]': focused,
           'border-[var(--border-subtle)]': !focused && !isDraggingOver,
-          'border-[var(--accent-mauve)]': isDraggingOver,
+          'border-[var(--accent-ember)]': isDraggingOver,
         }"
       >
         <textarea
@@ -65,6 +65,10 @@
           @drop="onDrop"
           :placeholder="placeholder || 'Message Claude...'"
           rows="1"
+          autocapitalize="none"
+          autocomplete="off"
+          autocorrect="off"
+          spellcheck="false"
           class="textarea-field w-full bg-transparent text-[var(--text-primary)] px-4 py-3 resize-none outline-none ring-0"
           :style="{ height: textareaHeight + 'px', maxHeight: '300px' }"
           :disabled="processing"

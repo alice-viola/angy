@@ -9,7 +9,8 @@
         <select v-model="modelId"
                 class="text-xs bg-[var(--bg-raised)] text-[var(--text-secondary)] border border-[var(--border-standard)] rounded px-2 py-1">
           <option value="claude-sonnet-4-6">Sonnet</option>
-          <option value="claude-opus-4-6">Opus</option>
+          <option value="claude-opus-4-6">Opus 4.6</option>
+          <option value="claude-opus-4-5">Opus 4.5</option>
           <option value="claude-haiku-4-5-20251001">Haiku</option>
         </select>
         <input v-model="instruction" ref="instructionInput"

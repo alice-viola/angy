@@ -22,6 +22,7 @@
 
       <OrchestratorChat
         v-else-if="selectedAgentId"
+        :key="selectedAgentId"
         :sessionId="selectedAgentId"
         @file-clicked="onLocalFileClicked"
         @send="onSend"
@@ -254,7 +255,7 @@ const storeHandle: AgentHandle = {
 
 // ── Send / Stop handlers ─────────────────────────────────────────────
 
-async function onSend(message: string, images: AttachedImage[] = []) {
+async function onSend(message: string, images: AttachedImage[] = [], model?: string) {
   const sid = selectedAgentId.value;
   if (!sid) return;
 
@@ -323,7 +324,8 @@ async function onSend(message: string, images: AttachedImage[] = []) {
     }
   }
 
-  if (isAngyCodeModel(ui.currentModel)) {
+const effectiveModel = model ?? ui.currentModel;
+  if (isAngyCodeModel(effectiveModel)) {
     try {
       await sendAngyCodeMessage({
         sessionId: sid,
@@ -331,7 +333,7 @@ async function onSend(message: string, images: AttachedImage[] = []) {
         goal: effectiveMessage,
         provider: 'gemini',
         apiKey: ui.geminiApiKey,
-        model: ui.currentModel,
+        model: effectiveModel,
       }, storeHandle);
     } catch (err) {
       storeHandle.showError(sid, err instanceof Error ? err.message : String(err));
@@ -341,7 +343,7 @@ async function onSend(message: string, images: AttachedImage[] = []) {
     sendMessageToEngine(sid, effectiveMessage, storeHandle, {
       workingDir,
       mode: info?.mode || 'agent',
-      model: ui.currentModel,
+      model: effectiveModel,
       resumeSessionId,
       images: engineImages,
     });

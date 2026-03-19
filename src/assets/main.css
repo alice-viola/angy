@@ -151,7 +151,7 @@ body,
 
 /* Focus rings */
 :focus-visible {
-  outline: 1px solid var(--accent-mauve);
+  outline: 1px solid var(--accent-ember);
   outline-offset: -1px;
 }
 textarea:focus-visible {
@@ -159,7 +159,7 @@ textarea:focus-visible {
 }
 
 button:focus-visible {
-  outline: 1px solid var(--accent-mauve);
+  outline: 1px solid var(--accent-ember);
   outline-offset: 1px;
   border-radius: 4px;
 }

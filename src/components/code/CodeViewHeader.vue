@@ -92,6 +92,7 @@ import { useCodeStore } from '@/stores/code';
 import { useUiStore } from '@/stores/ui';
 import { useProjectsStore } from '@/stores/projects';
 import { useGitStore } from '@/stores/git';
+import { useFilterStore } from '@/stores/filter';
 import PopoverPanel from '@/components/common/PopoverPanel.vue';
 
 const PROJECT_COLORS = ['#f59e0b', '#10b981', '#22d3ee', '#cba6f7', '#f38ba8', '#a6e3a1', '#f9e2af', '#FF6B8A'];
@@ -100,6 +101,7 @@ const codeStore = useCodeStore();
 const ui = useUiStore();
 const projectsStore = useProjectsStore();
 const gitStore = useGitStore();
+const filterStore = useFilterStore();
 
 const projBtnRef = ref<HTMLButtonElement | null>(null);
 const repoBtnRef = ref<HTMLButtonElement | null>(null);
@@ -184,6 +186,11 @@ function onDocumentMousedown(e: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('mousedown', onDocumentMousedown);
+  // Auto-select first project if none is active (e.g. coming from kanban/fleet)
+  if (!ui.activeProjectId && projectsStore.projects.length > 0) {
+    const firstId = filterStore.selectedProjectIds[0] ?? projectsStore.projects[0].id;
+    onProjectSelect(firstId);
+  }
 });
 
 onBeforeUnmount(() => {

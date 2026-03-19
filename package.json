@@ -1,13 +1,14 @@
 {
   "name": "angy",
   "private": true,
-  "version": "0.2.8",
+  "version": "0.3.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:dev-instance": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

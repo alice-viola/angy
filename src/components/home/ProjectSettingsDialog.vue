@@ -15,7 +15,7 @@
             <label class="text-xs text-[var(--text-secondary)] mb-1 block">Project Name</label>
             <input
               v-model="editName"
-              class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)]"
+              class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)]"
             />
           </div>
 
@@ -25,7 +25,7 @@
             <textarea
               v-model="editDescription"
               rows="2"
-              class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-mauve)] resize-none"
+              class="w-full text-xs bg-[var(--bg-raised)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-3 py-2 outline-none focus:border-[var(--accent-ember)] resize-none"
             />
           </div>
 
@@ -67,7 +67,7 @@
                 <input
                   v-model="repo.name"
                   placeholder="Repo name"
-                  class="flex-1 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-mauve)]"
+                  class="flex-1 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-ember)]"
                 />
                 <button
                   @click="newRepos.splice(i, 1)"
@@ -80,11 +80,11 @@
                 <input
                   v-model="repo.path"
                   placeholder="/path/to/repo"
-                  class="flex-1 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-mauve)]"
+                  class="flex-1 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-ember)]"
                 />
                 <button
                   @click="browseRepoPath(repo)"
-                  class="shrink-0 px-2 py-1.5 text-xs bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-standard)] rounded hover:text-[var(--text-primary)] hover:border-[var(--accent-mauve)] transition-colors"
+                  class="shrink-0 px-2 py-1.5 text-xs bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-standard)] rounded hover:text-[var(--text-primary)] hover:border-[var(--accent-ember)] transition-colors"
                   title="Browse..."
                 >
                   Browse
@@ -93,7 +93,11 @@
               <input
                 v-model="repo.defaultBranch"
                 placeholder="main"
-                class="w-32 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-mauve)]"
+                autocapitalize="none"
+                autocomplete="new-password"
+                autocorrect="off"
+                spellcheck="false"
+                class="w-32 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-standard)] rounded px-2 py-1.5 outline-none focus:border-[var(--accent-ember)]"
               />
             </div>
           </div>
@@ -136,7 +140,7 @@
           <button
             @click="onSave"
             :disabled="!canSave"
-            class="px-4 py-1.5 text-xs bg-[var(--accent-mauve)] text-white rounded hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+            class="px-4 py-1.5 text-xs bg-[var(--accent-ember)] text-white rounded hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Save
           </button>

@@ -75,6 +75,7 @@ export interface AgentSummary {
   mode: string;
   favorite: boolean;
   updatedAt: number;
+  workspace?: string;
   parentSessionId?: string;
   epicId?: string;
 }

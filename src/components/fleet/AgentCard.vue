@@ -3,7 +3,7 @@
     class="agent-card relative cursor-pointer rounded-[var(--radius-md)] group"
     :class="[
       selected
-        ? 'bg-[var(--bg-raised)] border-l-2 border-[var(--accent-mauve)]'
+        ? 'bg-[var(--bg-raised)] border-l-2 border-[var(--accent-ember)]'
         : agent.status === 'working'
           ? 'bg-[color-mix(in_srgb,var(--accent-green)_6%,transparent)] hover:bg-white/[0.03]'
           : 'hover:bg-white/[0.03]',
@@ -139,7 +139,7 @@
         <div
           v-if="unviewed"
           class="shrink-0 w-2 h-2 rounded-full"
-          style="background: var(--accent-mauve)"
+          style="background: var(--accent-ember)"
         />
 
         <!-- Delete button (on hover) -->
@@ -154,7 +154,14 @@
         </button>
       </div>
 
-      <!-- Second line: activity or timestamp -->
+      <!-- Second line: workspace path -->
+      <div v-if="workspaceDisplay" class="flex items-center gap-1.5 min-w-0 h-4 mt-0.5" :style="{ paddingLeft: agent.favorite ? '22px' : '14px' }">
+        <span class="text-[var(--text-xs)] text-[var(--text-faint)] truncate font-mono" :title="agent.workspace">
+          {{ workspaceDisplay }}
+        </span>
+      </div>
+
+      <!-- Third line: activity or timestamp -->
       <div class="flex items-center gap-1.5 min-w-0 h-4 mt-0.5" :style="{ paddingLeft: agent.favorite ? '22px' : '14px' }">
         <!-- Collapsed badge for orchestrator roots -->
         <span v-if="isOrchestratorRoot && childrenCollapsed && childCount > 0" class="text-[var(--text-xs)] text-[var(--accent-green)]">
@@ -193,7 +200,7 @@
         <button class="w-full text-left px-4 py-2 text-[var(--text-sm)] text-[var(--text-secondary)] hover:bg-[var(--bg-surface)]" @click="copySessionId()">
           Copy Session ID
         </button>
-        <button class="w-full text-left px-4 py-2 text-[var(--text-sm)] text-[var(--accent-mauve)] hover:bg-[var(--bg-surface)]" @click="$emit('transform-to-epic', agent.sessionId)">
+        <button class="w-full text-left px-4 py-2 text-[var(--text-sm)] text-[var(--accent-ember)] hover:bg-[var(--bg-surface)]" @click="$emit('transform-to-epic', agent.sessionId)">
           Transform into Epic
         </button>
         <div class="h-px bg-[var(--border-subtle)] my-1" />
@@ -335,6 +342,21 @@ const relativeTime = computed(() => {
     return 'Yesterday ' + date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
   }
   return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+});
+
+// Workspace display (shortened path)
+const workspaceDisplay = computed(() => {
+  const ws = props.agent.workspace;
+  if (!ws || ws === '.' || ws === '~') return '';
+  // Replace home dir with ~
+  const home = '/Users/';
+  let display = ws;
+  if (display.startsWith(home)) {
+    const afterHome = display.slice(home.length);
+    const username = afterHome.split('/')[0];
+    display = '~' + display.slice(home.length + username.length);
+  }
+  return display;
 });
 
 // ── Inline rename ────────────────────────────────────────────────────────

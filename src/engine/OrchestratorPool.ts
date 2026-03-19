@@ -1,6 +1,7 @@
 import type { Epic, EpicBranch, OrchestratorOptions, ProjectRepo } from './KosTypes'
 import { BranchManager } from './BranchManager'
 import type { Database } from './Database'
+import { engineBus } from './EventBus'
 
 // ── OrchestratorPool — Multi-Orchestrator Manager (singleton) ─────────────
 
@@ -142,9 +143,10 @@ export class OrchestratorPool {
 
           if (epic.useWorktree) {
             // Case 1: Worktree mode
+            const base = epic.baseBranch || repo.defaultBranch
             const worktreePath = BranchManager.computeWorktreePath(repo.path, slug)
             const ok = await this.branchManager.createWorktree(
-              repo.path, worktreePath, branchName, epic.baseBranch,
+              repo.path, worktreePath, branchName, base,
             )
             if (ok) {
               const branch: EpicBranch = {
@@ -152,7 +154,7 @@ export class OrchestratorPool {
                 epicId,
                 repoId: repo.id,
                 branchName,
-                baseBranch: repo.defaultBranch,
+                baseBranch: base,
                 status: 'active',
                 worktreePath,
               }
@@ -161,8 +163,9 @@ export class OrchestratorPool {
             }
           } else if (epic.useGitBranch) {
             // Case 2: Checkout-based branch
+            const base = epic.baseBranch || repo.defaultBranch
             const ok = await this.branchManager.createAndCheckoutEpicBranch(
-              repo.path, branchName, repo.defaultBranch,
+              repo.path, branchName, base,
             )
             if (ok) {
               const branch: EpicBranch = {
@@ -170,7 +173,7 @@ export class OrchestratorPool {
                 epicId,
                 repoId: repo.id,
                 branchName,
-                baseBranch: repo.defaultBranch,
+                baseBranch: base,
                 status: 'active',
                 worktreePath: null,
               }
@@ -194,6 +197,9 @@ export class OrchestratorPool {
           }
         }
       }
+
+      // Notify store to reload branches so UI updates
+      engineBus.emit('epic:storeSyncNeeded')
     }
 
     let sessionId: string

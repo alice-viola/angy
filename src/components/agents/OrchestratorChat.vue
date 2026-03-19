@@ -24,6 +24,9 @@
           <span v-else-if="selectedAgent?.status === 'done'" class="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 flex-shrink-0">done</span>
           <span v-else-if="selectedAgent?.status === 'error'" class="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400 flex-shrink-0">failed</span>
         </div>
+        <div v-if="workspaceDisplay" class="text-[10px] text-txt-faint font-mono truncate mt-0.5" :title="selectedAgent?.workspace">
+          {{ workspaceDisplay }}
+        </div>
         <div v-if="epicInfo" class="flex items-center gap-2 mt-0.5">
           <span class="text-[10px] text-txt-muted">{{ epicInfo.projectName }}</span>
           <span class="text-txt-faint text-[10px]">›</span>
@@ -167,7 +170,8 @@
     <ChatInputBar
       v-if="!isAutoSpawned"
       :processing="isProcessing"
-      @send="(msg: string, imgs: any[]) => $emit('send', msg, imgs)"
+      :sessionId="sessionId"
+      @send="(msg: string, imgs: any[], model: string) => $emit('send', msg, imgs, model)"
       @stop="$emit('stop')"
     />
     <div v-else class="py-3 text-center text-[11px] text-txt-muted border-t border-border-subtle">
@@ -210,7 +214,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'file-clicked': [filePath: string];
-  send: [message: string, images: { data: string; format: string; displayName: string }[]];
+  send: [message: string, images: { data: string; format: string; displayName: string }[], model: string];
   stop: [];
   'question-answered': [toolUseId: string, answer: string];
 }>();
@@ -327,6 +331,19 @@ const isOrchestrator = computed(() =>
 const isProcessing = computed(() =>
   selectedAgent.value?.status === 'working',
 );
+
+const workspaceDisplay = computed(() => {
+  const ws = selectedAgent.value?.workspace;
+  if (!ws || ws === '.' || ws === '~') return '';
+  const home = '/Users/';
+  let display = ws;
+  if (display.startsWith(home)) {
+    const afterHome = display.slice(home.length);
+    const username = afterHome.split('/')[0];
+    display = '~' + display.slice(home.length + username.length);
+  }
+  return display;
+});
 
 const isAutoSpawned = computed(() => {
   const session = sessionsStore.sessions.get(props.sessionId);
