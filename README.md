@@ -9,7 +9,7 @@
   <a href="https://alice-viola.github.io/angy/">View the website</a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.3.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-v0.3.2-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="Platform" />
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-see%20LICENSE.md-green" alt="License" /></a>
 </p>
@@ -235,7 +235,7 @@ The custom agentic loop will support both the **Gemini** and **Anthropics** APIs
 
 ## Status
 
-**v0.3.1** — active development. macOS and Linux for now. Expect breaking changes.
+**v0.3.2** — active development. macOS and Linux for now. Expect breaking changes.
 
 ---
 
