@@ -170,6 +170,9 @@ npm install
 # Run in development mode
 npm run tauri dev
 
+# Run a separate dev instance (for developing Angy with Angy)
+npm run tauri:dev-instance
+
 # Build a production binary
 npm run build
 ```
