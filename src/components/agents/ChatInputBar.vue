@@ -272,8 +272,10 @@ const models = [
   { id: 'claude-opus-4-6', name: 'Opus 4.6', desc: 'Most powerful', provider: 'claude' },
   { id: 'claude-opus-4-5', name: 'Opus 4.5', desc: 'Powerful', provider: 'claude' },
   { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', desc: 'Fastest', provider: 'claude' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', desc: 'Google · Fast', provider: 'gemini' },
-  { id: 'gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro', desc: 'Google · Powerful', provider: 'gemini' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', desc: 'Google · Fast', provider: 'gemini' },
+  { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', desc: 'Google · Powerful', provider: 'gemini' },
+  { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', desc: 'Google · Preview', provider: 'gemini' },
+  { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', desc: 'Google · Preview', provider: 'gemini' },
 ];
 
 function isGeminiDisabled(model: { provider?: string }): boolean {

@@ -12,7 +12,7 @@ import { sseHandler } from './sse.js';
 
 const DEFAULT_MODELS: Record<string, string> = {
   anthropic: 'claude-opus-4-6',
-  gemini: 'gemini-2.0-flash',
+  gemini: 'gemini-2.5-flash',
   mock: 'mock',
 };
 
