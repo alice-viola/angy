@@ -75,9 +75,11 @@ export function toGeminiContents(messages: Message[]): GeminiContent[] {
     }
   }
 
-  return messages.map((msg) => ({
-    role: msg.role === 'assistant' ? 'model' : 'user',
-    parts: msg.content.map((part): GeminiPart => {
+  const geminiContents: GeminiContent[] = [];
+
+  for (const msg of messages) {
+    const role = msg.role === 'assistant' ? 'model' : 'user';
+    const parts = msg.content.map((part): GeminiPart => {
       switch (part.type) {
         case 'text':
           return { text: part.text };
@@ -106,8 +108,16 @@ export function toGeminiContents(messages: Message[]): GeminiContent[] {
           };
         }
       }
-    }),
-  }));
+    });
+
+    if (geminiContents.length > 0 && geminiContents[geminiContents.length - 1].role === role) {
+      geminiContents[geminiContents.length - 1].parts.push(...parts);
+    } else {
+      geminiContents.push({ role, parts });
+    }
+  }
+
+  return geminiContents;
 }
 
 // ── Tool translation ─────────────────────────────────────────────────
