@@ -1,9 +1,14 @@
 {
   "name": "@angycode/core",
   "version": "0.1.0",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "!dist/**/__tests__"
+  ],
   "exports": {
     ".": {
       "import": "./dist/index.js",
@@ -12,7 +17,8 @@
   },
   "scripts": {
     "build": "tsc --build",
-    "test": "vitest run"
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
