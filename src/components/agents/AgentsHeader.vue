@@ -45,27 +45,14 @@
         New Agent
       </button>
     </div>
-
-    <!-- Row 2: Project filter chips -->
-    <div class="px-4 py-2 border-t border-border-subtle">
-      <ProjectFilterChips
-        :selectedIds="filterStore.selectedProjectIds"
-        :projects="chipProjects"
-        :showAgentCounts="true"
-        popoverId="agents-project-filter"
-        @toggle="filterStore.toggleProject"
-        @remove="filterStore.toggleProject"
-      />
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useFleetStore } from '../../stores/fleet';
-import { useFilterStore } from '../../stores/filter';
-import { useProjectsStore } from '../../stores/projects';
-import ProjectFilterChips from '../common/ProjectFilterChips.vue';
+import { useUiStore } from '../../stores/ui';
+import { useEpicStore } from '../../stores/epics';
 
 defineEmits<{
   'new-agent': [];
@@ -73,26 +60,38 @@ defineEmits<{
 }>();
 
 const fleetStore = useFleetStore();
-const filterStore = useFilterStore();
-const projectsStore = useProjectsStore();
+const ui = useUiStore();
+const epicStore = useEpicStore();
+
+function resolveAgentProjectId(epicId?: string): string | null {
+  if (epicId) {
+    const epic = epicStore.epicById(epicId);
+    if (epic) return epic.projectId;
+  }
+  return null;
+}
+
+function agentIsInActiveProject(agent: { epicId?: string; parentSessionId?: string }): boolean {
+  if (agent.epicId) {
+    return resolveAgentProjectId(agent.epicId) === ui.activeProjectId;
+  }
+  if (agent.parentSessionId) {
+    const parent = fleetStore.agents.find(a => a.sessionId === agent.parentSessionId);
+    if (parent) return agentIsInActiveProject(parent);
+  }
+  // Unattached agents aren't strictly in a project unless we link them some other way
+  // For now, if no epic, it's not in the active project view for this header
+  return false;
+}
 
 const runningCount = computed(() =>
-  fleetStore.agents.filter((a) => a.status === 'working').length,
+  fleetStore.agents.filter((a) => a.status === 'working' && agentIsInActiveProject(a)).length,
 );
-
-const projectCount = computed(() => {
-  const grouped = fleetStore.agentsGroupedByProject;
-  return grouped.filter((g) => g.projectId !== '__unattached__').length;
-});
 
 const subtitle = computed(() => {
   const r = runningCount.value;
-  const p = projectCount.value;
-  if (r === 0) return `${fleetStore.agents.length} agents`;
-  return `${r} running across ${p} project${p !== 1 ? 's' : ''}`;
+  const projectAgents = fleetStore.agents.filter(a => agentIsInActiveProject(a)).length;
+  if (r === 0) return `${projectAgents} agents`;
+  return `${r} running in this project`;
 });
-
-const chipProjects = computed(() =>
-  projectsStore.projects.map((p) => ({ id: p.id, name: p.name })),
-);
 </script>

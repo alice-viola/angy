@@ -76,52 +76,20 @@
     </div>
 
     <!-- Scrollable agent list -->
-    <div class="flex-1 overflow-y-auto py-2">
-      <template v-if="filteredGroups.length > 0">
-        <div v-for="group in filteredGroups" :key="group.projectId" class="mb-1">
-          <!-- Project section header -->
-          <button
-            class="w-full px-3 py-1.5 flex items-center gap-2 cursor-pointer hover:bg-white/[0.03] transition-colors"
-            @click="toggleGroup(group.projectId)"
-          >
-            <svg
-              class="w-2.5 h-2.5 text-txt-muted flex-shrink-0 transition-transform duration-150"
-              :class="collapsedGroups.has(group.projectId) ? '' : 'rotate-90'"
-              viewBox="0 0 10 10"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-            >
-              <path d="M3 1l4 4-4 4" />
-            </svg>
-            <span
-              class="w-2 h-2 rounded-full flex-shrink-0"
-              :style="{ backgroundColor: group.projectColor }"
-            />
-            <span class="text-[11px] font-medium truncate text-txt-secondary">{{ group.projectName }}</span>
-            <span
-              v-if="group.runningCount > 0"
-              class="text-[9px] px-1.5 rounded-full bg-teal/10 text-teal flex-shrink-0"
-            >{{ group.runningCount }}</span>
-            <span class="text-[9px] text-txt-faint ml-auto flex-shrink-0">{{ group.agents.length }}</span>
-          </button>
-
-          <!-- Agent rows -->
-          <div v-if="!collapsedGroups.has(group.projectId)" class="space-y-0.5 px-1">
-            <FleetAgentRow
-              v-for="agent in group.agents"
-              :key="agent.sessionId"
-              :agent="agent"
-              :selected="fleetStore.selectedAgentId === agent.sessionId"
-              class="anim-fade-in"
-              @agent-selected="onAgentSelected"
-              @delete="onDeleteAgent"
-              @rename="onRenameAgent"
-              @favorite-toggle="onFavoriteToggle"
-              @export-chat="onExportChat"
-            />
-          </div>
-        </div>
+    <div class="flex-1 overflow-y-auto py-2 px-1">
+      <template v-if="filteredAgents.length > 0">
+        <FleetAgentRow
+          v-for="agent in filteredAgents"
+          :key="agent.sessionId"
+          :agent="agent"
+          :selected="fleetStore.selectedAgentId === agent.sessionId"
+          class="anim-fade-in mb-0.5"
+          @agent-selected="onAgentSelected"
+          @delete="onDeleteAgent"
+          @rename="onRenameAgent"
+          @favorite-toggle="onFavoriteToggle"
+          @export-chat="onExportChat"
+        />
       </template>
 
       <!-- Empty state -->
@@ -147,10 +115,9 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { useFleetStore } from '../../stores/fleet';
-import { useFilterStore } from '../../stores/filter';
 import { useEpicStore } from '../../stores/epics';
-import { useProjectsStore } from '../../stores/projects';
 import { useSessionsStore, getDatabase } from '../../stores/sessions';
+import { useUiStore } from '../../stores/ui';
 import type { HierarchicalAgent } from '../../stores/fleet';
 import FleetAgentRow from './FleetAgentRow.vue';
 
@@ -161,13 +128,11 @@ const emit = defineEmits<{
 }>();
 
 const fleetStore = useFleetStore();
-const filterStore = useFilterStore();
 const epicStore = useEpicStore();
-const projectsStore = useProjectsStore();
 const sessionsStore = useSessionsStore();
+const ui = useUiStore();
 
 const activeFilter = ref<FilterKey>('all');
-const collapsedGroups = ref<Set<string>>(new Set());
 const searchOpen = ref(false);
 const searchQuery = ref('');
 const searchInput = ref<HTMLInputElement | null>(null);
@@ -211,44 +176,16 @@ function toggleSearch() {
 
 // ── Project filter workspace matching ────────────────────────────────
 
-const selectedWorkspaces = computed(() => {
-  const selected = filterStore.selectedProjectIds;
-  if (selected.length === 0) return null;
-  const paths = new Set<string>();
-  for (const repo of projectsStore.repos) {
-    if (selected.includes(repo.projectId)) paths.add(repo.path);
-  }
-  for (const group of fleetStore.agentsGroupedByProject) {
-    if (!selected.includes(group.projectId)) continue;
-    for (const agent of group.agents) {
-      const info = sessionsStore.sessions.get(agent.sessionId);
-      if (info?.workspace) paths.add(info.workspace);
-    }
-  }
-  return paths;
-});
-
-function passesProjectFilter(agent: HierarchicalAgent, groupProjectId: string): boolean {
-  const selected = filterStore.selectedProjectIds;
-  if (selected.length === 0) return true;
-  if (selected.includes(groupProjectId)) return true;
-  const ws = selectedWorkspaces.value;
-  if (ws) {
-    const info = sessionsStore.sessions.get(agent.sessionId);
-    if (info?.workspace && ws.has(info.workspace)) return true;
-  }
-  return false;
-}
-
 function resolveOrchestratorProject(agent: HierarchicalAgent): string | null {
   const epic = epicStore.epics.find(e => e.rootSessionId === agent.sessionId);
   return epic?.projectId ?? null;
 }
 
-// ── Filtered groups ──────────────────────────────────────────────────
+// ── Filtered agents ──────────────────────────────────────────────────
 
-const filteredGroups = computed(() => {
-  const groupMap = new Map<string, typeof fleetStore.agentsGroupedByProject[number] & { agents: HierarchicalAgent[] }>();
+const filteredAgents = computed(() => {
+  const result: HierarchicalAgent[] = [];
+  const activeProjectId = ui.activeProjectId;
 
   for (const group of fleetStore.agentsGroupedByProject) {
     for (const agent of group.agents) {
@@ -256,49 +193,22 @@ const filteredGroups = computed(() => {
       if (!matchesFilter(agent)) continue;
       if (!matchesSearch(agent)) continue;
 
-      let targetGroup = group;
-      if (group.projectId === '__unattached__') {
-        const projectId = resolveOrchestratorProject(agent);
-        if (projectId) {
-          const realGroup = fleetStore.agentsGroupedByProject.find(g => g.projectId === projectId);
-          if (realGroup) targetGroup = realGroup;
-        }
+      let projectId = group.projectId;
+      if (projectId === '__unattached__') {
+        const resolved = resolveOrchestratorProject(agent);
+        if (resolved) projectId = resolved;
       }
 
-      if (!passesProjectFilter(agent, targetGroup.projectId)) continue;
+      if (projectId !== activeProjectId) continue;
 
-      let bucket = groupMap.get(targetGroup.projectId);
-      if (!bucket) {
-        bucket = { ...targetGroup, agents: [] };
-        groupMap.set(targetGroup.projectId, bucket);
-      }
-      bucket.agents.push(agent);
+      result.push(agent);
     }
   }
 
-  return [...groupMap.values()]
-    .map(g => ({ ...g, runningCount: g.agents.filter(a => a.status === 'working').length }))
-    .filter(g => g.agents.length > 0)
-    .sort((a, b) => {
-      if (a.projectId === '__unattached__') return 1;
-      if (b.projectId === '__unattached__') return -1;
-      return a.projectName.localeCompare(b.projectName);
-    });
+  return result.sort((a, b) => b.updatedAt - a.updatedAt);
 });
 
-const visibleAgentCount = computed(() =>
-  filteredGroups.value.reduce((sum, g) => sum + g.agents.length, 0),
-);
-
-// ── Group toggle ─────────────────────────────────────────────────────
-
-function toggleGroup(projectId: string) {
-  if (collapsedGroups.value.has(projectId)) {
-    collapsedGroups.value.delete(projectId);
-  } else {
-    collapsedGroups.value.add(projectId);
-  }
-}
+const visibleAgentCount = computed(() => filteredAgents.value.length);
 
 // ── Agent actions ────────────────────────────────────────────────────
 

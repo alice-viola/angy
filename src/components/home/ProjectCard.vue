@@ -52,8 +52,8 @@ const AVATAR_GRADIENTS = [
 ];
 
 function goToBoard() { ui.navigateToKanban(props.project.id); }
-function goToAgents() { ui.activeProjectId = props.project.id; ui.switchToMode('agents'); }
-function goToCode() { ui.activeProjectId = props.project.id; ui.switchToMode('code'); }
+function goToAgents() { ui.navigateToEpic(null, props.project.id); }
+function goToCode() { ui.openProjectTab(props.project.id); ui.switchToMode('code'); }
 function handleRun() {
   if (nextTodoEpic.value) {
     epicStore.moveEpic(nextTodoEpic.value.id, 'in-progress');

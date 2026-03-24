@@ -28,7 +28,7 @@
       :class="ui.viewMode === 'kanban' ? 'text-ember-500' : 'text-txt-muted hover:text-txt-secondary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-txt-muted'"
       :disabled="!ui.activeProjectId"
       title="Board (⌘2)"
-      @click="ui.switchToMode('kanban')"
+      @click="ui.activeProjectId && ui.navigateToKanban(ui.activeProjectId)"
     >
       <div v-if="ui.viewMode === 'kanban'" class="absolute left-0 top-[25%] bottom-[25%] w-[3px] rounded-r-[3px] bg-gradient-to-b from-[#f59e0b] to-[#ea580c]"></div>
       <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
@@ -42,7 +42,7 @@
       :class="ui.viewMode === 'agents' ? 'text-ember-500' : 'text-txt-muted hover:text-txt-secondary disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:text-txt-muted'"
       :disabled="!ui.activeProjectId"
       title="Agents (⌘3)"
-      @click="ui.switchToMode('agents')"
+      @click="ui.activeProjectId && ui.navigateToEpic(null, ui.activeProjectId)"
     >
       <div v-if="ui.viewMode === 'agents'" class="absolute left-0 top-[25%] bottom-[25%] w-[3px] rounded-r-[3px] bg-gradient-to-b from-[#f59e0b] to-[#ea580c]"></div>
       <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">

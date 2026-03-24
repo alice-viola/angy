@@ -36,7 +36,7 @@ export const useUiStore = defineStore('ui', () => {
   const geminiApiKey = ref('');
   const anthropicApiKey = ref('');
 
-  const fleetProjectIds = ref<string[]>([]);
+  const openProjectIds = ref<string[]>([]);
   const notifications = ref<AppNotification[]>([]);
   const repoSwitchOnly = ref(false);
   const epicActivities = ref<Map<string, { label: string; progress?: { current: number; total: number } }>>(new Map());
@@ -164,26 +164,43 @@ export const useUiStore = defineStore('ui', () => {
 
   function navigateToProject(projectId: string) {
     window.dispatchEvent(new CustomEvent('angy:close-popovers'));
-    activeProjectId.value = projectId;
-    selectFirstRepo(projectId);
-    useFilterStore().applySelection([projectId]);
+    openProjectTab(projectId);
     viewMode.value = 'kanban';
   }
 
-  function navigateToEpic(epicId: string, projectId: string) {
+  function navigateToEpic(epicId: string | null, projectId: string) {
     window.dispatchEvent(new CustomEvent('angy:close-popovers'));
-    activeProjectId.value = projectId;
-    selectFirstRepo(projectId);
+    openProjectTab(projectId);
     activeEpicId.value = epicId;
     viewMode.value = 'agents';
   }
 
-  function toggleFleetProject(projectId: string) {
-    const idx = fleetProjectIds.value.indexOf(projectId);
-    if (idx >= 0) {
-      fleetProjectIds.value = fleetProjectIds.value.filter(id => id !== projectId);
-    } else {
-      fleetProjectIds.value = [...fleetProjectIds.value, projectId];
+  function openProjectTab(projectId: string) {
+    if (!openProjectIds.value.includes(projectId)) {
+      openProjectIds.value = [...openProjectIds.value, projectId];
+    }
+    activeProjectId.value = projectId;
+    selectFirstRepo(projectId);
+    useFilterStore().applySelection([projectId]);
+  }
+
+  function switchProjectTab(projectId: string) {
+    if (openProjectIds.value.includes(projectId)) {
+      activeProjectId.value = projectId;
+      selectFirstRepo(projectId);
+      useFilterStore().applySelection([projectId]);
+    }
+  }
+
+  function closeProjectTab(projectId: string) {
+    openProjectIds.value = openProjectIds.value.filter(id => id !== projectId);
+    if (activeProjectId.value === projectId) {
+      if (openProjectIds.value.length > 0) {
+        // Fall back to the last opened tab
+        switchProjectTab(openProjectIds.value[openProjectIds.value.length - 1]);
+      } else {
+        navigateHome();
+      }
     }
   }
 
@@ -204,12 +221,7 @@ export const useUiStore = defineStore('ui', () => {
 
   function navigateToKanban(projectId: string) {
     window.dispatchEvent(new CustomEvent('angy:close-popovers'));
-    activeProjectId.value = projectId;
-    selectFirstRepo(projectId);
-    const filterStore = useFilterStore();
-    if (!filterStore.selectedProjectIds.includes(projectId)) {
-      filterStore.applySelection([projectId]);
-    }
+    openProjectTab(projectId);
     activeEpicId.value = null;
     viewMode.value = 'kanban';
   }
@@ -218,7 +230,7 @@ export const useUiStore = defineStore('ui', () => {
     viewMode, activeProjectId, activeEpicId, terminalVisible, activeLeftTab,
     workspacePath, currentFile, currentBranch, currentModel, isProcessing,
     inlinePreviewFile, effectsPanelVisible, editorChatVisible, rightPanelMode, diffView,
-    missionControlFilter, autoCommitEnabled, fleetProjectIds, notifications, repoSwitchOnly,
+    missionControlFilter, autoCommitEnabled, openProjectIds, notifications, repoSwitchOnly,
     managerSizes, editorSizes, kanbanFilterText, pipelineActivity, pipelineTodoProgress,
     epicActivities, activityLogVisible, geminiApiKey, anthropicApiKey,
     switchToMode, toggleViewMode, toggleTerminal, dismissInlinePreview,
@@ -227,6 +239,7 @@ export const useUiStore = defineStore('ui', () => {
     enterMissionControl, exitMissionControl, setMissionControlFilter, toggleAutoCommit,
     addNotification, dismissNotification, clearNotifications,
     navigateHome, navigateToProject, navigateToEpic, navigateToKanban,
-    openCommandPalette, toggleFleetProject, toggleActivityLog, setEpicActivity,
+    openProjectTab, switchProjectTab, closeProjectTab,
+    openCommandPalette, toggleActivityLog, setEpicActivity,
   };
 });

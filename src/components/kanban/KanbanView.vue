@@ -9,7 +9,7 @@
       <div class="relative h-12 flex items-center px-5 gap-3">
         <span class="text-sm font-semibold text-txt-primary">Board</span>
         <span class="text-xs text-txt-muted">
-          {{ epicCount }} epic{{ epicCount !== 1 ? 's' : '' }} across {{ activeProjectCount }} active project{{ activeProjectCount !== 1 ? 's' : '' }}
+          {{ epicCount }} epic{{ epicCount !== 1 ? 's' : '' }} in this project
         </span>
 
         <!-- Git tools — centered -->
@@ -107,17 +107,6 @@
           Add Epic
         </button>
       </div>
-
-      <!-- Row 2: Project filter chips -->
-      <div class="flex items-center px-4 py-2 border-t border-border-subtle">
-        <ProjectFilterChips
-          :selectedIds="filterStore.selectedProjectIds"
-          :projects="chipProjects"
-          popoverId="kanban-project-filter"
-          @toggle="onFilterToggle"
-          @remove="onFilterToggle"
-        />
-      </div>
     </header>
 
     <!-- Board + Detail panel -->
@@ -129,7 +118,7 @@
             v-for="col in boardColumns"
             :key="col.key"
             :boardColumn="col"
-            :projectIds="filterStore.selectedProjectIds"
+            :projectIds="[projectId]"
             :filterText="filterQuery"
             :mergeMode="mergeMode"
             :selectedEpicIds="selectedEpicIds"
@@ -199,13 +188,10 @@ import type { SchedulerConfig } from '@/engine/KosTypes';
 import { useUiStore } from '@/stores/ui';
 import { useEpicStore } from '@/stores/epics';
 import { useProjectsStore } from '@/stores/projects';
-import { useFilterStore } from '@/stores/filter';
-import { PROJECT_COLORS } from '@/stores/fleet';
 import { Scheduler } from '@/engine/Scheduler';
 import KanbanColumn from './KanbanColumn.vue';
 import type { BoardColumn } from './KanbanColumn.vue';
 import EpicDetailPanel from './EpicDetailPanel.vue';
-import ProjectFilterChips from '@/components/common/ProjectFilterChips.vue';
 import SchedulerConfigDialog from './SchedulerConfigDialog.vue';
 import GitOpsPanel from './GitOpsPanel.vue';
 import MergeEpicsDialog from './MergeEpicsDialog.vue';
@@ -213,12 +199,8 @@ import MergeEpicsDialog from './MergeEpicsDialog.vue';
 const ui = useUiStore();
 const epicStore = useEpicStore();
 const projectsStore = useProjectsStore();
-const filterStore = useFilterStore();
 
 onMounted(async () => {
-  if (filterStore.selectedProjectIds.length === 0) {
-    filterStore.applyPreset('active');
-  }
   try {
     const config = await Scheduler.getInstance().loadConfig();
     schedulerEnabled.value = config.enabled;
@@ -240,19 +222,9 @@ const projectId = computed(() => ui.activeProjectId ?? '');
 
 // ── Derived data ──────────────────────────────────────────────────────
 
-const chipProjects = computed(() =>
-  projectsStore.projects.map((p, idx) => ({
-    id: p.id,
-    name: p.name,
-    color: PROJECT_COLORS[idx % PROJECT_COLORS.length],
-  })),
-);
-
 const epicCount = computed(() =>
-  epicStore.epicsByColumns(filterStore.selectedProjectIds, ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done', 'discarded']).length,
+  epicStore.epicsByColumns([projectId.value], ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done', 'discarded']).length,
 );
-
-const activeProjectCount = computed(() => filterStore.selectedProjectIds.length);
 
 // ── Board columns config ──────────────────────────────────────────────
 
@@ -358,10 +330,6 @@ async function toggleSchedulerEnabled() {
 
 async function onSchedulerConfigSaved(config: SchedulerConfig) {
   await Scheduler.getInstance().saveConfig(config);
-}
-
-function onFilterToggle(projectId: string) {
-  filterStore.toggleProject(projectId);
 }
 
 function onToggleSelect(epicId: string) {

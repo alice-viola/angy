@@ -7,80 +7,6 @@
       @keep-today="$emit('keep-today-requested')"
     />
 
-    <!-- Project filter row -->
-    <div v-if="projectsStore.projects.length > 1" class="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--border-subtle)]">
-      <div class="relative flex-1" ref="fleetDropdownRef">
-        <button
-          class="w-full flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border transition-colors"
-          :class="fleetAllSelected
-            ? 'border-[var(--border-subtle)] text-[var(--text-secondary)] hover:border-[var(--border-standard)]'
-            : 'border-[var(--accent-teal)] text-[var(--accent-teal)] bg-[color-mix(in_srgb,var(--accent-teal)_10%,transparent)]'"
-          @click="fleetDropdownOpen = !fleetDropdownOpen"
-        >
-          <span class="flex items-center gap-0.5">
-            <span
-              v-for="p in fleetSelectedDots"
-              :key="p.id"
-              class="w-1.5 h-1.5 rounded-full shrink-0"
-              :style="{ background: p.color || '#94e2d5' }"
-            />
-          </span>
-          <span class="flex-1 text-left">{{ fleetDropdownLabel }}</span>
-          <svg class="w-3 h-3 shrink-0 transition-transform" :class="fleetDropdownOpen && 'rotate-180'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        <div
-          v-if="fleetDropdownOpen"
-          class="absolute left-0 top-full mt-1 z-50 w-full min-w-[180px] rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--bg-surface)] shadow-[var(--shadow-lg)] py-1"
-        >
-          <!-- All option -->
-          <button
-            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--bg-hover)] transition-colors"
-            :class="fleetAllSelected ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'"
-            @click="showAllFleetProjects"
-          >
-            <span
-              class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0"
-              :class="fleetAllSelected
-                ? 'bg-[var(--accent-teal)] border-[var(--accent-teal)]'
-                : 'border-[var(--border-standard)]'"
-            >
-              <svg v-if="fleetAllSelected" class="w-2 h-2 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </span>
-            All projects
-          </button>
-
-          <div class="my-1 h-px bg-[var(--border-subtle)]" />
-
-          <button
-            v-for="project in projectsStore.projects"
-            :key="project.id"
-            class="w-full flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-[var(--bg-hover)] transition-colors"
-            :class="isFleetProjectSelected(project.id) ? 'text-[var(--text-primary)]' : 'text-[var(--text-secondary)]'"
-            @click="ui.toggleFleetProject(project.id)"
-          >
-            <span
-              class="w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0"
-              :style="isFleetProjectSelected(project.id)
-                ? { background: project.color || '#94e2d5', borderColor: project.color || '#94e2d5' }
-                : {}"
-              :class="!isFleetProjectSelected(project.id) && 'border-[var(--border-standard)]'"
-            >
-              <svg v-if="isFleetProjectSelected(project.id)" class="w-2 h-2 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </span>
-            <span class="w-2 h-2 rounded-full shrink-0" :style="{ background: project.color || '#94e2d5' }" />
-            <span class="truncate">{{ project.name }}</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
     <!-- Agent list -->
     <div class="flex-1 overflow-y-auto py-1 px-1.5">
       <SectionTip tipId="fleet-intro" title="Agent Fleet">
@@ -160,46 +86,6 @@ const ui = useUiStore();
 const projectsStore = useProjectsStore();
 const epicStore = useEpicStore();
 
-// ── Fleet project dropdown ───────────────────────────────────────────────
-
-const fleetDropdownRef = ref<HTMLElement | null>(null);
-const fleetDropdownOpen = ref(false);
-
-const fleetAllSelected = computed(() => ui.fleetProjectIds.length === 0);
-
-const fleetDropdownLabel = computed(() => {
-  if (fleetAllSelected.value) return 'All projects';
-  if (ui.fleetProjectIds.length === 1) {
-    const p = projectsStore.projects.find(p => p.id === ui.fleetProjectIds[0]);
-    return p?.name ?? '1 project';
-  }
-  return `${ui.fleetProjectIds.length} projects`;
-});
-
-const fleetSelectedDots = computed(() =>
-  fleetAllSelected.value
-    ? projectsStore.projects.slice(0, 3)
-    : projectsStore.projects.filter(p => ui.fleetProjectIds.includes(p.id)).slice(0, 3)
-);
-
-function isFleetProjectSelected(projectId: string): boolean {
-  // When fleetProjectIds is empty = "all", treat each as selected
-  return ui.fleetProjectIds.length === 0 || ui.fleetProjectIds.includes(projectId);
-}
-
-function showAllFleetProjects() {
-  ui.fleetProjectIds = [];
-}
-
-function onClickOutside(e: MouseEvent) {
-  if (fleetDropdownRef.value && !fleetDropdownRef.value.contains(e.target as Node)) {
-    fleetDropdownOpen.value = false;
-  }
-}
-
-onMounted(() => document.addEventListener('mousedown', onClickOutside));
-onUnmounted(() => document.removeEventListener('mousedown', onClickOutside));
-
 // ── Computed ─────────────────────────────────────────────────────────────
 
 interface VisibleAgent {
@@ -232,13 +118,13 @@ const visibleAgents = computed(() => {
   const hiddenRoots = fleetStore.collapsedRoots;
 
   // Build a set of allowed session IDs based on project filter
-  const filterActive = ui.fleetProjectIds.length > 0;
+  const filterActive = !!ui.activeProjectId;
   let allowedSessionIds: Set<string> | null = null;
   if (filterActive) {
     allowedSessionIds = new Set<string>();
     for (const agent of agents) {
       const projectId = resolveAgentProjectId(agent.sessionId, agent.epicId);
-      if (projectId && ui.fleetProjectIds.includes(projectId)) {
+      if (projectId === ui.activeProjectId) {
         allowedSessionIds.add(agent.sessionId);
       }
     }
