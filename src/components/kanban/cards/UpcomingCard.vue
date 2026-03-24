@@ -28,23 +28,30 @@
         >{{ reasonShortLabel(reason) }}</span>
       </div>
 
-      <!-- Branch -->
-      <div v-if="actions.branchName.value" class="flex items-center gap-1 mt-1.5">
-        <svg class="w-3 h-3 text-txt-faint flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="6" y1="3" x2="6" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" />
-        </svg>
-        <span class="text-[10px] text-txt-faint font-mono truncate">{{ actions.branchName.value }}</span>
-      </div>
+      <!-- Action / State bar -->
+      <div class="flex items-center gap-1 mt-1.5 justify-between">
+        <div class="flex items-center gap-1">
+          <svg v-if="actions.branchName.value" class="w-3 h-3 text-txt-faint flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="3" x2="6" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" />
+          </svg>
+          <span v-if="actions.branchName.value" class="text-[10px] text-txt-faint font-mono truncate">{{ actions.branchName.value }}</span>
 
-      <!-- Suspended state -->
-      <div v-if="epic.suspendedAt" class="flex items-center gap-1 mt-1.5">
-        <span class="text-[10px] text-amber-400">suspended</span>
+          <span v-if="epic.suspendedAt" class="text-[10px] text-amber-400 ml-1">suspended</span>
+          <button
+            v-if="epic.suspendedAt"
+            class="p-0.5 rounded text-amber-400 hover:bg-amber-500/20 transition-colors"
+            title="Resume"
+            @click.stop="actions.resumeEpic"
+          >
+            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z" /></svg>
+          </button>
+        </div>
+        
         <button
-          class="p-0.5 rounded text-amber-400 hover:bg-amber-500/20 transition-colors"
-          title="Resume"
-          @click.stop="actions.resumeEpic"
+          class="text-[10px] px-1.5 py-0.5 bg-border-subtle hover:bg-border-standard text-txt-secondary rounded transition-colors"
+          @click.stop="sendToIcebox"
         >
-          <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 16 16"><path d="M4 2.5v11l9-5.5z" /></svg>
+          Icebox
         </button>
       </div>
     </div>
@@ -77,6 +84,10 @@ const emit = defineEmits<{
 
 const projectsStore = useProjectsStore();
 const epicStore = useEpicStore();
+
+function sendToIcebox() {
+  epicStore.moveEpic(props.epic.id, 'backlog');
+}
 
 const blockingReasons = computed(() => epicStore.getBlockingReasons(props.epic.id));
 

@@ -131,8 +131,11 @@ const showClearAll = computed(() =>
 const emptyDescriptions: Record<string, string> = {
   idea: 'Your ideas will appear here',
   upcoming: 'No upcoming epics',
+  todo: 'Queue is empty',
+  icebox: 'Icebox is empty',
   active: 'No epics in progress',
   review: 'Nothing to review',
+  'review-inbox': 'Inbox is empty',
   done: 'No completed epics',
   discarded: 'Discarded epics appear here',
 };

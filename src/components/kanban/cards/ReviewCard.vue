@@ -29,7 +29,7 @@
       </div>
 
       <!-- Needs review + changes -->
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 mb-3">
         <span class="text-[10px] text-orange-400 flex items-center gap-1">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
@@ -37,6 +37,22 @@
           needs review
         </span>
         <span v-if="changeCount > 0" class="text-[10px] text-txt-faint">{{ changeCount }} changes</span>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="flex items-center gap-2 mt-2 pt-2 border-t border-border-subtle">
+        <button
+          class="flex-1 py-1.5 px-2 bg-[var(--accent-green)]/10 text-[var(--accent-green)] hover:bg-[var(--accent-green)] hover:text-white rounded text-[11px] font-medium transition-colors"
+          @click.stop="approveEpic"
+        >
+          Approve
+        </button>
+        <button
+          class="flex-1 py-1.5 px-2 bg-[var(--accent-red)]/10 text-[var(--accent-red)] hover:bg-[var(--accent-red)] hover:text-white rounded text-[11px] font-medium transition-colors"
+          @click.stop="rejectEpic"
+        >
+          Reject
+        </button>
       </div>
     </div>
   </div>
@@ -47,6 +63,7 @@ import { computed, toRef } from 'vue';
 import type { Epic } from '@/engine/KosTypes';
 import { useProjectsStore } from '@/stores/projects';
 import { useEpicCardActions } from '@/composables/useEpicCardActions';
+import { useEpicStore } from '@/stores/epics';
 
 const ACCENT_COLORS = ['#f59e0b', '#22d3ee', '#10b981', '#FF6B8A', '#cba6f7', '#89b4fa'];
 
@@ -65,6 +82,7 @@ const emit = defineEmits<{
 }>();
 
 const projectsStore = useProjectsStore();
+const epicStore = useEpicStore();
 
 const actions = useEpicCardActions({
   epic: toRef(props, 'epic'),
@@ -72,6 +90,15 @@ const actions = useEpicCardActions({
   selected: toRef(props, 'selected'),
   emit,
 });
+
+function approveEpic() {
+  epicStore.moveEpic(props.epic.id, 'done');
+}
+
+function rejectEpic() {
+  epicStore.moveEpic(props.epic.id, 'todo');
+  epicStore.incrementRejection(props.epic.id);
+}
 
 const projectName = computed(() => {
   const p = projectsStore.projects.find(p => p.id === props.epic.projectId);

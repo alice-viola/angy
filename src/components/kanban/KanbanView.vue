@@ -111,22 +111,64 @@
 
     <!-- Board + Detail panel -->
     <div class="flex flex-1 overflow-hidden">
-      <!-- Columns -->
-      <div class="flex-1 flex flex-col overflow-hidden">
-        <div class="flex-1 flex gap-3 p-4 overflow-x-auto">
+      <!-- 3-Column Pipeline Layout -->
+      <div class="flex-1 flex gap-4 p-4 overflow-hidden">
+        
+        <!-- 1. The Queue (Left Column) -->
+        <div class="flex flex-col gap-4 flex-[1] min-w-[320px] max-w-[400px]">
+          <!-- Active Queue (todo) -->
+          <div class="flex-[1] flex flex-col min-h-0 bg-[var(--bg-surface)]/30 rounded-xl border border-[var(--border-subtle)] p-3">
+            <KanbanColumn
+              v-if="queueTodoColumn"
+              :boardColumn="queueTodoColumn"
+              :projectIds="[projectId]"
+              :filterText="filterQuery"
+              :mergeMode="mergeMode"
+              :selectedEpicIds="selectedEpicIds"
+              @epic-select="onSelectEpic($event)"
+              @epic-toggle-select="onToggleSelect"
+            />
+          </div>
+          
+          <!-- Icebox / Drafts (idea, backlog) -->
+          <div class="flex-[1] flex flex-col min-h-0 bg-[var(--bg-surface)]/10 rounded-xl border border-[var(--border-subtle)] border-dashed p-3 opacity-60 hover:opacity-100 transition-opacity">
+            <KanbanColumn
+              v-if="queueIceboxColumn"
+              :boardColumn="queueIceboxColumn"
+              :projectIds="[projectId]"
+              :filterText="filterQuery"
+              :mergeMode="mergeMode"
+              :selectedEpicIds="selectedEpicIds"
+              @epic-select="onSelectEpic($event)"
+              @epic-toggle-select="onToggleSelect"
+              @add-idea="addEpic"
+            />
+          </div>
+        </div>
+
+        <!-- 2. Live Execution Graph (Center Column) -->
+        <div class="flex-[2] flex flex-col min-w-[400px] min-h-0">
+          <LiveExecutionGraph
+            v-if="projectId"
+            :projectId="projectId"
+            @epic-select="onSelectEpic($event)"
+          />
+        </div>
+
+        <!-- 3. Review Inbox (Right Column) -->
+        <div class="flex flex-col flex-[1] min-w-[320px] max-w-[400px] bg-[var(--bg-surface)]/30 rounded-xl border border-[var(--border-subtle)] p-3 min-h-0">
           <KanbanColumn
-            v-for="col in boardColumns"
-            :key="col.key"
-            :boardColumn="col"
+            v-if="reviewInboxColumn"
+            :boardColumn="reviewInboxColumn"
             :projectIds="[projectId]"
             :filterText="filterQuery"
             :mergeMode="mergeMode"
             :selectedEpicIds="selectedEpicIds"
             @epic-select="onSelectEpic($event)"
             @epic-toggle-select="onToggleSelect"
-            @add-idea="addEpic"
           />
         </div>
+        
       </div>
 
       <!-- Detail panel slide-out -->
@@ -187,9 +229,9 @@ import { ref, computed, onMounted } from 'vue';
 import type { SchedulerConfig } from '@/engine/KosTypes';
 import { useUiStore } from '@/stores/ui';
 import { useEpicStore } from '@/stores/epics';
-import { useProjectsStore } from '@/stores/projects';
 import { Scheduler } from '@/engine/Scheduler';
 import KanbanColumn from './KanbanColumn.vue';
+import LiveExecutionGraph from './LiveExecutionGraph.vue';
 import type { BoardColumn } from './KanbanColumn.vue';
 import EpicDetailPanel from './EpicDetailPanel.vue';
 import SchedulerConfigDialog from './SchedulerConfigDialog.vue';
@@ -198,7 +240,6 @@ import MergeEpicsDialog from './MergeEpicsDialog.vue';
 
 const ui = useUiStore();
 const epicStore = useEpicStore();
-const projectsStore = useProjectsStore();
 
 onMounted(async () => {
   try {
@@ -228,75 +269,42 @@ const epicCount = computed(() =>
 
 // ── Board columns config ──────────────────────────────────────────────
 
-const boardColumns = computed<BoardColumn[]>(() => [
-  {
-    key: 'idea',
-    columns: ['idea'],
-    dropTarget: 'idea',
-    label: 'Idea',
-    width: '220px',
-    dotColor: 'bg-purple-400/80',
-    labelColor: 'text-txt-faint',
-    opacity: 1,
-    breathe: false,
-    addButton: true,
-  },
-  {
-    key: 'upcoming',
-    columns: ['backlog', 'todo'],
-    dropTarget: 'todo',
-    label: 'Upcoming',
-    width: '250px',
-    dotColor: 'bg-blue-400/80',
-    labelColor: 'text-txt-faint',
-    opacity: 1,
-    breathe: false,
-  },
-  {
-    key: 'active',
-    columns: ['in-progress'],
-    dropTarget: 'in-progress',
-    label: 'Active',
-    width: '340px',
-    dotColor: 'bg-ember',
-    labelColor: 'text-ember-400',
-    opacity: 1,
-    breathe: true,
-  },
-  {
-    key: 'review',
-    columns: ['review'],
-    dropTarget: 'review',
-    label: 'Review',
-    width: '270px',
-    dotColor: 'bg-orange-400',
-    labelColor: 'text-orange-400',
-    opacity: 1,
-    breathe: true,
-  },
-  {
-    key: 'done',
-    columns: ['done'],
-    dropTarget: 'done',
-    label: 'Done',
-    width: '220px',
-    dotColor: 'bg-emerald-400',
-    labelColor: 'text-txt-faint',
-    opacity: 0.7,
-    breathe: false,
-  },
-  {
-    key: 'discarded',
-    columns: ['discarded'],
-    dropTarget: 'discarded',
-    label: 'Discarded',
-    width: '180px',
-    dotColor: 'bg-red-400/60',
-    labelColor: 'text-txt-faint',
-    opacity: 0.5,
-    breathe: false,
-  },
-]);
+const queueTodoColumn = computed<BoardColumn>(() => ({
+  key: 'todo',
+  columns: ['todo'],
+  dropTarget: 'todo',
+  label: 'Active Queue',
+  width: '100%',
+  dotColor: 'bg-blue-400/80',
+  labelColor: 'text-txt-faint',
+  opacity: 1,
+  breathe: false,
+}));
+
+const queueIceboxColumn = computed<BoardColumn>(() => ({
+  key: 'icebox',
+  columns: ['idea', 'backlog'],
+  dropTarget: 'idea',
+  label: 'Icebox',
+  width: '100%',
+  dotColor: 'bg-purple-400/80',
+  labelColor: 'text-txt-faint',
+  opacity: 1,
+  breathe: false,
+  addButton: true,
+}));
+
+const reviewInboxColumn = computed<BoardColumn>(() => ({
+  key: 'review-inbox',
+  columns: ['review', 'done', 'discarded'],
+  dropTarget: 'review',
+  label: 'Review Inbox',
+  width: '100%',
+  dotColor: 'bg-orange-400',
+  labelColor: 'text-orange-400',
+  opacity: 1,
+  breathe: false,
+}));
 
 // ── Handlers ──────────────────────────────────────────────────────────
 
