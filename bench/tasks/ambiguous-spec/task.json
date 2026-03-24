@@ -1,0 +1,12 @@
+{
+  "id": "ambiguous-spec",
+  "name": "Ambiguous Specification",
+  "description": "Implement validation for an Express API based on a vague spec",
+  "difficulty": "hard",
+  "goal": "Add input validation to the POST /api/users endpoint in this Express API. The validation should be reasonable and production-quality. There are hidden tests that will verify your implementation.",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 360,
+  "maxTurns": 50,
+  "tags": ["hard", "ambiguous", "validation", "express"]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "large-codebase-nav",
+  "name": "Large Codebase Navigation",
+  "description": "Find and report a specific function hidden in a 200-file TypeScript project",
+  "difficulty": "medium",
+  "goal": "This TypeScript project has approximately 200 files. Find the function responsible for validating JWT tokens and report: (1) the exact file path relative to the project root, (2) the function name, (3) a one-sentence description of what it does. Output your answer in this exact format:\n\nFILE: <path>\nFUNCTION: <name>\nDESCRIPTION: <one sentence>",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 300,
+  "maxTurns": 40,
+  "tags": ["medium", "navigation", "codebase"]
+}

@@ -1,0 +1,3 @@
+export const SESSION_DURATION_MS = 3600000;
+export const MAX_LOGIN_ATTEMPTS = 5;
+export const LOCKOUT_DURATION_MS = 900000;

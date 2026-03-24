@@ -1,0 +1,12 @@
+{
+  "id": "from-scratch",
+  "name": "Build From Scratch",
+  "description": "Build a complete TypeScript REST API from an empty project",
+  "difficulty": "expert",
+  "goal": "Build a complete Express REST API for a todo list application from scratch. Requirements: (1) GET /api/todos — returns all todos, (2) POST /api/todos — creates a todo with { title: string }, returns 201, (3) PUT /api/todos/:id — updates todo title, returns 200 or 404, (4) DELETE /api/todos/:id — deletes todo, returns 200 or 404, (5) All endpoints return JSON, (6) In-memory storage is fine, (7) TypeScript with strict mode, (8) Tests using Vitest that cover all endpoints.",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 600,
+  "maxTurns": 80,
+  "tags": ["expert", "from-scratch", "express", "api"]
+}

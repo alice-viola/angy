@@ -1,0 +1,12 @@
+{
+  "id": "error-recovery",
+  "name": "Error Recovery from Misleading Code",
+  "description": "Fix a module that has a pre-existing wrong return type causing downstream failures",
+  "difficulty": "hard",
+  "goal": "The database module src/db/client.ts has a function `findUserById` that is documented to return a User object but actually returns a raw database row with different field names. Fix the mapping in client.ts so the function returns a properly-shaped User object. All tests in the test suite must pass.",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 360,
+  "maxTurns": 50,
+  "tags": ["hard", "debugging", "types", "misleading"]
+}

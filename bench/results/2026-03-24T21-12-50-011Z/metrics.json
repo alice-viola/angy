@@ -1,0 +1,27 @@
+{
+  "runId": "2026-03-24T21-12-50-011Z",
+  "adapter": "claudecode",
+  "model": "claude-sonnet-4-20250514",
+  "gitSha": "b0e23c286a137e6898f1830cf6b4a81d2bb27dd7",
+  "timestamp": "2026-03-24T21:13:38.815Z",
+  "tasks": [
+    {
+      "taskId": "fix-type-error",
+      "taskName": "Fix TypeScript Type Error",
+      "difficulty": "easy",
+      "adapter": "claudecode",
+      "model": "claude-sonnet-4-20250514",
+      "passed": false,
+      "timedOut": false,
+      "turns": 8,
+      "inputTokens": 74,
+      "outputTokens": 1954,
+      "costUsd": 0.11335319999999999,
+      "durationMs": 47238,
+      "verifyExitCode": 2,
+      "editFailures": 0,
+      "backtracks": 0,
+      "stopReason": "end_turn"
+    }
+  ]
+}

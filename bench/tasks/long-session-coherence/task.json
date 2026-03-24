@@ -1,0 +1,12 @@
+{
+  "id": "long-session-coherence",
+  "name": "Long Session Coherence",
+  "description": "Build a TypeScript library with comprehensive test coverage in a long session",
+  "difficulty": "expert",
+  "goal": "Build a TypeScript utility library called 'datakit' from scratch. It must include the following modules with full implementations and tests: (1) src/array.ts — chunk, flatten, unique, groupBy, (2) src/string.ts — truncate, slugify, camelCase, capitalize, (3) src/number.ts — clamp, lerp, roundTo, formatCurrency, (4) src/object.ts — pick, omit, deepMerge, (5) src/date.ts — formatDate, addDays, daysBetween. Each function must have at least 3 test cases. Use Vitest. All tests must pass.",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 900,
+  "maxTurns": 120,
+  "tags": ["expert", "coherence", "library", "comprehensive"]
+}

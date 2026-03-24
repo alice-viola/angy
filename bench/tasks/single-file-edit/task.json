@@ -1,0 +1,12 @@
+{
+  "id": "single-file-edit",
+  "name": "Single File Edit",
+  "description": "Edit a single function in a small TypeScript utility file",
+  "difficulty": "easy",
+  "goal": "In src/utils/math.ts, the function `clamp(value, min, max)` currently returns `value` without clamping. Fix it so it returns min if value < min, max if value > max, and value otherwise. All tests in src/utils/math.test.ts must pass.",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 120,
+  "maxTurns": 20,
+  "tags": ["easy", "edit", "typescript"]
+}

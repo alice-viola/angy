@@ -1,0 +1,12 @@
+{
+  "id": "fix-type-error",
+  "name": "Fix TypeScript Type Error",
+  "description": "Fix a TypeScript type error in a user service module",
+  "difficulty": "easy",
+  "goal": "The file src/services/user.ts has a TypeScript type error. Fix the type error so that `npx tsc --noEmit` passes. Do not change the runtime behaviour or test files.",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 120,
+  "maxTurns": 15,
+  "tags": ["easy", "typescript", "types"]
+}
