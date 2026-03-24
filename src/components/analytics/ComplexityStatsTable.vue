@@ -1,7 +1,7 @@
 <template>
-  <div class="bg-window rounded-lg border border-border-subtle overflow-hidden">
+  <div class="border border-border-subtle rounded-md overflow-hidden">
     <div class="px-3 py-2 border-b border-border-subtle">
-      <span class="text-xs font-semibold text-txt-primary">By Complexity</span>
+      <span class="text-[11px] font-semibold uppercase tracking-wider text-txt-muted">By Complexity</span>
     </div>
     <table class="w-full">
       <thead>

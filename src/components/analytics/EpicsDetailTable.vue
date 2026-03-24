@@ -1,7 +1,7 @@
 <template>
-  <div class="bg-surface rounded-lg border border-border-subtle overflow-hidden">
+  <div class="border border-border-subtle rounded-md overflow-hidden">
     <div class="px-3 py-2 border-b border-border-subtle flex items-center justify-between">
-      <span class="text-xs font-semibold text-txt-primary">Epics Detail</span>
+      <span class="text-[11px] font-semibold uppercase tracking-wider text-txt-muted">Epics Detail</span>
       <span class="text-[11px] text-txt-muted">{{ sortedEpics.length }} epics</span>
     </div>
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="flex items-center px-5 h-12 bg-[var(--bg-window)]/50 border-b border-[var(--border-subtle)]">
+  <div class="flex items-center px-5 h-12 border-b border-[var(--border-subtle)]">
     <!-- Left group -->
     <span class="text-sm font-semibold text-txt-primary">Code</span>
     <span class="text-txt-faint mx-2">&middot;</span>

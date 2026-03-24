@@ -1,10 +1,10 @@
 <template>
-  <div class="flex flex-col h-full bg-[var(--bg-base)]">
+  <div class="flex flex-col h-full bg-[var(--bg-base)] relative">
     <!-- Git ops panel -->
     <GitOpsPanel v-if="showGitOps && projectId" ref="gitOpsPanelRef" :projectId="projectId" />
 
-    <!-- Two-row header -->
-    <header class="flex-shrink-0 bg-window/50 border-b border-border-subtle">
+    <!-- Two-row header (hidden when editing epic) -->
+    <header v-if="!selectedEpicId" class="flex-shrink-0 border-b border-border-subtle">
       <!-- Row 1: title, subtitle, filter input, actions -->
       <div class="relative h-12 flex items-center px-5 gap-3">
         <span class="text-sm font-semibold text-txt-primary">Board</span>
@@ -22,20 +22,6 @@
           >
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="6" y1="3" x2="6" y2="15" />
-              <circle cx="18" cy="6" r="3" />
-              <circle cx="6" cy="18" r="3" />
-              <path d="M18 9a9 9 0 0 1-9 9" />
-            </svg>
-          </button>
-
-          <!-- Git Ops -->
-          <button
-            class="text-txt-muted hover:text-txt-primary transition-colors"
-            title="Toggle git status panel"
-            @click="showGitOps = !showGitOps"
-          >
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M6 3v12" />
               <circle cx="18" cy="6" r="3" />
               <circle cx="6" cy="18" r="3" />
               <path d="M18 9a9 9 0 0 1-9 9" />
@@ -110,14 +96,14 @@
     </header>
 
     <!-- Board + Detail panel -->
-    <div class="flex flex-1 overflow-hidden">
+    <div class="flex flex-1 overflow-hidden relative">
       <!-- 3-Column Pipeline Layout -->
-      <div class="flex-1 flex gap-4 p-4 overflow-hidden">
-        
+      <div v-if="!selectedEpicId" class="flex-1 flex gap-0 overflow-hidden w-full h-full">
+
         <!-- 1. The Queue (Left Column) -->
-        <div class="flex flex-col gap-4 flex-[1] min-w-[320px] max-w-[400px]">
+        <div class="flex flex-col flex-[1] min-w-[280px] max-w-[340px] border-r border-border-subtle">
           <!-- Active Queue (todo) -->
-          <div class="flex-[1] flex flex-col min-h-0 bg-[var(--bg-surface)]/30 rounded-xl border border-[var(--border-subtle)] p-3">
+          <div class="flex-[1] flex flex-col min-h-0 p-2 border-b border-border-subtle">
             <KanbanColumn
               v-if="queueTodoColumn"
               :boardColumn="queueTodoColumn"
@@ -129,9 +115,9 @@
               @epic-toggle-select="onToggleSelect"
             />
           </div>
-          
+
           <!-- Icebox / Drafts (idea, backlog) -->
-          <div class="flex-[1] flex flex-col min-h-0 bg-[var(--bg-surface)]/10 rounded-xl border border-[var(--border-subtle)] border-dashed p-3 opacity-60 hover:opacity-100 transition-opacity">
+          <div class="flex-[1] flex flex-col min-h-0 p-2 opacity-60 hover:opacity-100 transition-opacity">
             <KanbanColumn
               v-if="queueIceboxColumn"
               :boardColumn="queueIceboxColumn"
@@ -147,7 +133,7 @@
         </div>
 
         <!-- 2. Live Execution Graph (Center Column) -->
-        <div class="flex-[2] flex flex-col min-w-[400px] min-h-0">
+        <div class="flex-[2] flex flex-col min-w-[400px] min-h-0 border-r border-border-subtle">
           <LiveExecutionGraph
             v-if="projectId"
             :projectId="projectId"
@@ -156,7 +142,7 @@
         </div>
 
         <!-- 3. Review Inbox (Right Column) -->
-        <div class="flex flex-col flex-[1] min-w-[320px] max-w-[400px] bg-[var(--bg-surface)]/30 rounded-xl border border-[var(--border-subtle)] p-3 min-h-0">
+        <div class="flex flex-col flex-[1] min-w-[280px] max-w-[340px] p-2 min-h-0">
           <KanbanColumn
             v-if="reviewInboxColumn"
             :boardColumn="reviewInboxColumn"
@@ -168,13 +154,14 @@
             @epic-toggle-select="onToggleSelect"
           />
         </div>
-        
+
       </div>
 
-      <!-- Detail panel slide-out -->
-      <transition name="slide">
+      <!-- Full-Page Epic Builder -->
+      <transition name="fade">
         <EpicDetailPanel
           v-if="selectedEpicId"
+          class="absolute inset-0 z-50 bg-[var(--bg-base)]"
           :epicId="selectedEpicId"
           :isNew="isNewEpic"
           @close="selectedEpicId = null"
@@ -378,12 +365,13 @@ defineExpose({
 </script>
 
 <style scoped>
-.slide-enter-active,
-.slide-leave-active {
-  transition: transform 0.2s ease;
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
-.slide-enter-from,
-.slide-leave-to {
-  transform: translateX(100%);
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: scale(0.98);
 }
 </style>

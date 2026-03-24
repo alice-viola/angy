@@ -77,6 +77,20 @@ export interface ProjectRepo {
 
 // ── Epic ─────────────────────────────────────────────────────────────────────
 
+export type AgentRole = 'architect' | 'builder-frontend' | 'builder-backend' | 'tester' | 'custom';
+
+export interface AgentNode {
+  id: string;
+  role: AgentRole;
+  model: string;
+  promptOverride?: string;
+  dependsOn: string[];
+}
+
+export interface PipelineConfig {
+  nodes: AgentNode[];
+}
+
 export interface Epic {
   id: string;
   projectId: string;
@@ -85,7 +99,9 @@ export interface Epic {
   acceptanceCriteria: string;
   column: EpicColumn;
   priorityHint: PriorityHint;
+  /** @deprecated Replaced by pipelineConfig driving the orchestrator */
   complexity: ComplexityEstimate;
+  pipelineConfig?: PipelineConfig;
   model: string;
   targetRepoIds: string[];
   pipelineType: EpicPipelineType;

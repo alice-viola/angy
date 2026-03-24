@@ -4,7 +4,7 @@
     class="flex-none flex flex-col h-full"
   >
     <!-- Column header -->
-    <div class="flex items-center gap-2 mb-3">
+    <div class="flex items-center gap-2 mb-2 px-1">
       <div
         :class="[
           'w-2 h-2 rounded-full',
@@ -12,7 +12,7 @@
           boardColumn.breathe ? 'anim-breathe' : '',
         ]"
       />
-      <span :class="['text-xs font-semibold uppercase tracking-wider', boardColumn.labelColor]">
+      <span :class="['text-[11px] font-semibold uppercase tracking-wider', boardColumn.labelColor]">
         {{ boardColumn.label }}
       </span>
       <span class="text-[10px] text-txt-faint">{{ columnEpics.length }}</span>
@@ -29,7 +29,7 @@
     <!-- Body: scrollable card list + drop zone -->
     <div
       :data-drop-column="boardColumn.dropTarget"
-      class="flex-1 flex flex-col gap-2 overflow-y-auto pr-1 rounded-lg border-2 border-transparent transition-colors p-1"
+      class="flex-1 flex flex-col gap-0.5 overflow-y-auto rounded-md border-2 border-transparent transition-colors py-1"
       :class="{ 'border-dashed border-[var(--accent-mauve)]/30': isDragOver }"
       :style="isDragOver ? { backgroundColor: 'color-mix(in srgb, var(--accent-mauve) 8%, transparent)' } : {}"
     >
@@ -47,10 +47,10 @@
       <!-- Add Idea button -->
       <button
         v-if="boardColumn.addButton"
-        class="w-full border border-dashed border-border-standard rounded-lg py-2 text-[11px] text-txt-muted hover:border-[var(--accent-mauve)]/40 hover:text-txt-secondary flex items-center justify-center gap-1.5 transition-colors"
+        class="w-full border border-dashed border-border-subtle rounded-md py-1.5 text-[10px] text-txt-muted hover:border-[var(--accent-mauve)]/40 hover:text-txt-secondary flex items-center justify-center gap-1.5 transition-colors mt-1"
         @click="emit('add-idea')"
       >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
         </svg>
         Add Idea

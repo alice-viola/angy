@@ -1,7 +1,7 @@
 <template>
   <div class="flex flex-col h-full bg-[var(--bg-base)]">
     <!-- Header -->
-    <div class="flex-shrink-0 h-12 flex items-center justify-between px-4 bg-[var(--bg-window)]/50 border-b border-[var(--border-subtle)]">
+    <div class="flex-shrink-0 h-12 flex items-center justify-between px-4 border-b border-[var(--border-subtle)]">
       <!-- Left: title + repo selector -->
       <div class="flex items-center gap-2">
         <svg class="w-4 h-4 text-[var(--accent-teal)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

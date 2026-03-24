@@ -1,6 +1,6 @@
 <template>
-  <div class="bg-window rounded-lg border border-border-subtle p-3.5">
-    <div class="text-xs font-semibold text-txt-primary mb-2.5">Cost Over Time</div>
+  <div class="border border-border-subtle rounded-md p-3">
+    <div class="text-[11px] font-semibold uppercase tracking-wider text-txt-muted mb-3">Cost Over Time</div>
     <div class="relative h-40">
       <Line v-if="hasData" :data="chartData" :options="chartOptions" />
       <div v-else class="flex flex-col items-center justify-center h-full">

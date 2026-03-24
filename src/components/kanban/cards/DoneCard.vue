@@ -1,6 +1,6 @@
 <template>
   <div
-    class="group rounded-lg px-3 py-2 flex items-center gap-2 transition-colors select-none"
+    class="group rounded-md px-3 py-2 flex items-center gap-2 transition-colors select-none border-l-2"
     :class="cardClasses"
     @click="actions.onSingleClick"
     @dblclick="actions.onDoubleClick"
@@ -62,8 +62,8 @@ const changeCount = computed(() => props.epic.lastAttemptFiles?.length ?? 0);
 
 const cardClasses = computed(() => {
   if (props.selectable && props.selected) {
-    return 'border border-[var(--accent-teal)] bg-[var(--accent-teal)]/5 cursor-pointer';
+    return 'border-l-[var(--accent-teal)] bg-[var(--accent-teal)]/5 cursor-pointer';
   }
-  return 'bg-white/[0.02] border border-white/[0.03] cursor-grab active:cursor-grabbing hover:bg-white/[0.04]';
+  return 'border-l-emerald-500/30 hover:bg-white/[0.03] cursor-grab active:cursor-grabbing';
 });
 </script>

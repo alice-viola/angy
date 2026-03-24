@@ -172,7 +172,9 @@ export class Database {
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         started_at TEXT DEFAULT NULL,
-        completed_at TEXT DEFAULT NULL
+        completed_at TEXT DEFAULT NULL,
+        parallel_agent_count INTEGER DEFAULT 1,
+        pipeline_config TEXT DEFAULT NULL
       )
     `);
 
@@ -213,6 +215,9 @@ export class Database {
     } catch { /* column already exists */ }
     try {
       await this.db.execute(`ALTER TABLE epics ADD COLUMN parallel_agent_count INTEGER DEFAULT 1`);
+    } catch { /* column already exists */ }
+    try {
+      await this.db.execute(`ALTER TABLE epics ADD COLUMN pipeline_config TEXT DEFAULT NULL`);
     } catch { /* column already exists */ }
 
     await this.db.execute(`
@@ -780,8 +785,8 @@ export class Database {
         rejection_count, rejection_feedback,
         last_attempt_files, last_validation_results, last_architect_plan,
         computed_score, root_session_id, cost_total, created_at, updated_at, started_at, completed_at, suspended_at, run_after,
-        parallel_agent_count)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30)`,
+        parallel_agent_count, pipeline_config)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31)`,
       [
         epic.id,
         epic.projectId,
@@ -813,6 +818,7 @@ export class Database {
         epic.suspendedAt,
         epic.runAfter ?? null,
         epic.parallelAgentCount ?? 1,
+        epic.pipelineConfig ? JSON.stringify(epic.pipelineConfig) : null,
       ],
     );
   }
@@ -1413,6 +1419,7 @@ export class Database {
       suspendedAt: r.suspended_at || null,
       runAfter: r.run_after || null,
       parallelAgentCount: r.parallel_agent_count ?? 1,
+      pipelineConfig: r.pipeline_config ? JSON.parse(r.pipeline_config) : undefined,
     };
   }
 

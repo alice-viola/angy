@@ -1,186 +1,166 @@
 <template>
-  <div class="flex flex-col h-full w-[480px] bg-surface border-l border-border-standard">
-    <!-- Header (48px) -->
-    <div class="flex items-center justify-between px-5 h-12 flex-shrink-0 border-b border-border-subtle">
-      <!-- Column badge pill -->
-      <div
-        v-if="epic"
-        class="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider"
-        :style="columnBadgeStyle"
-      >
-        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :style="{ background: columnBadge.color }"></span>
-        {{ columnBadge.label }}
-      </div>
-      <div v-else></div>
-      <!-- Panel title -->
-      <span class="text-[11px] font-semibold text-ember-500 uppercase tracking-widest">
-        {{ isNew ? 'New Epic' : 'Epic Details' }}
-      </span>
-      <!-- Close button -->
-      <button
-        class="w-6 h-6 flex items-center justify-center rounded-md text-txt-faint hover:text-txt-primary hover:bg-raised transition-colors"
-        @click="$emit('close')"
-      >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-    </div>
-
-    <!-- Body (scrollable) -->
-    <div v-if="epic" class="flex-1 overflow-y-auto px-5 pt-5 pb-2 space-y-5 scroll-area">
-
-      <!-- Blocking reasons -->
-      <div
-        v-if="(epic.column === 'todo' || epic.column === 'backlog') && epicStore.getBlockingReasons(epic.id).length > 0"
-        class="flex flex-wrap gap-1.5 -mt-1"
-      >
-        <span
-          v-for="reason in epicStore.getBlockingReasons(epic.id)"
-          :key="reason.type + (reason.relatedEpicId ?? '')"
-          :class="reasonClass(reason)"
-        >{{ reason.label }}</span>
-      </div>
-
-      <!-- GROUP 1 — Title -->
-      <input
-        ref="titleInput"
-        v-model="draft.title"
-        type="text"
-        class="title-input w-full"
-        placeholder="Epic title..."
-      />
-
-      <!-- GROUP 2 — HOW IT RUNS -->
-      <div class="bg-raised rounded-xl p-4 space-y-3">
-        <div class="text-[11px] font-semibold text-txt-muted uppercase tracking-wider">How It Runs</div>
-
-        <!-- Complexity DotPicker -->
-        <div>
-          <div class="text-[11px] text-txt-muted mb-1.5">Complexity</div>
-          <DotPicker
-            :modelValue="complexityValues.indexOf(draft.complexity)"
-            :labels="complexityLabels"
-            :disabled="draft.pipelineType !== 'hybrid'"
-            @update:modelValue="draft.complexity = complexityValues[$event]"
-          />
-        </div>
-
-        <p v-if="draft.pipelineType === 'hybrid'" class="text-[11px] text-txt-faint leading-relaxed">
-          {{ complexityDescriptions[draft.complexity] }}
-        </p>
-
-        <!-- Pipeline pill tabs -->
-        <div>
-          <div class="text-[11px] text-txt-muted mb-1.5">Pipeline</div>
-          <div class="flex gap-1.5" :class="{ 'pipeline-pulse': pipelinePulse }">
-            <button
-              v-for="pt in pipelineTypes"
-              :key="pt.value"
-              class="pipe-btn"
-              :class="[
-                draft.pipelineType === pt.value ? `active-${pt.value === 'hybrid' ? 'create' : pt.value}` : '',
-                { 'suggested-ring': suggestedPipeline === (pt.value === 'hybrid' ? 'hybrid' : pt.value) && draft.pipelineType !== pt.value }
-              ]"
-              @click="draft.pipelineType = pt.value"
-            >
-              {{ pt.label }}
-            </button>
-          </div>
-          <p class="text-[11px] text-txt-faint leading-relaxed mt-1.5">
-            {{ pipelineDescriptions[draft.pipelineType] }}
-          </p>
-        </div>
-
-        <!-- Model dropdown -->
-        <div>
-          <div class="text-[11px] text-txt-muted mb-1.5">Model</div>
-          <select v-model="draft.model" class="field-input w-full">
-            <option value="">Default (CLI default)</option>
-            <template v-for="group in MODEL_GROUPS" :key="group.category">
-              <optgroup :label="group.category">
-                <option v-for="m in group.items" :key="m.id" :value="m.id">{{ m.name }}</option>
-              </optgroup>
-            </template>
-          </select>
-        </div>
-      </div>
-
-      <!-- GROUP 3 — WHERE IT RUNS (collapsible) -->
-      <div class="bg-raised rounded-xl p-4">
+  <div class="flex flex-col h-full w-full bg-[var(--bg-base)] absolute inset-0 z-50">
+    <!-- 1. THE GLOBAL HEADER -->
+    <header class="flex flex-col border-b border-[var(--border-subtle)] flex-shrink-0">
+      <div class="h-12 flex items-center gap-3 px-4">
+        <!-- Left: Back button -->
         <button
-          @click="whereOpen = !whereOpen"
-          class="flex items-center justify-between w-full"
+          class="flex items-center gap-1.5 text-[11px] font-medium text-txt-muted hover:text-txt-primary transition-colors"
+          @click="$emit('close')"
         >
-          <span class="text-[11px] font-semibold text-txt-muted uppercase tracking-wider">Where It Runs</span>
-          <svg
-            class="w-3 h-3 text-txt-faint transition-transform duration-150"
-            :class="{ 'rotate-90': whereOpen }"
-            fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
           </svg>
+          Back
         </button>
 
-        <div v-if="whereOpen" class="space-y-3 mt-3">
-          <!-- Repos -->
-          <div>
-            <div class="text-[11px] text-txt-muted mb-1.5">Target Repos</div>
+        <div class="w-px h-4 bg-border-subtle mx-1" />
+
+        <!-- Title Input (seamless) -->
+        <input
+          ref="titleInput"
+          v-model="draft.title"
+          type="text"
+          class="flex-1 bg-transparent border-none outline-none text-sm font-medium text-txt-primary placeholder:text-txt-faint transition-colors hover:bg-white/[0.02] focus:bg-white/[0.04] px-2 py-1 rounded"
+          placeholder="Epic title..."
+        />
+
+        <!-- Right: Action buttons -->
+        <div class="flex items-center gap-2">
+          <!-- Execution controls (in-progress) -->
+          <template v-if="epic?.column === 'in-progress'">
+            <button class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border border-amber-500/40 text-amber-400 hover:bg-amber-500/10" @click="suspendEpic">Suspend</button>
+            <button class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border border-red-500/40 text-red-400 hover:bg-red-500/10" @click="stopEpic">Stop</button>
+          </template>
+
+          <!-- Resume control (suspended) -->
+          <button v-if="epic?.suspendedAt && (epic?.column === 'todo' || epic?.column === 'backlog')"
+            class="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+            @click="resumeEpic"
+          >Resume</button>
+
+          <button v-if="!isNew && epic?.column !== 'in-progress'" @click="remove" class="text-[11px] text-txt-muted hover:text-red-400 transition-colors px-2 py-1 rounded hover:bg-red-500/10">Delete</button>
+
+          <button v-if="epic?.column === 'done' && branchName"
+            class="px-2.5 py-1 rounded-md text-[11px] font-medium text-white bg-ember-500 hover:bg-ember-600 transition whitespace-nowrap"
+            :disabled="prLoading"
+            @click="createPR(epic!.id, epic!.projectId)"
+          >
+            {{ prLoading ? 'Pushing...' : 'Create PR' }}
+          </button>
+
+          <button
+            v-if="epic?.column !== 'in-progress'"
+            class="px-3 py-1 rounded-md text-[11px] font-medium text-white bg-amber-500 hover:bg-amber-600 transition"
+            @click="save"
+          >
+            {{ isNew ? 'Create' : 'Save' }}
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <div v-if="!epic" class="flex-1 flex items-center justify-center">
+      <p class="text-[12px] text-[var(--text-muted)] italic">Loading epic...</p>
+    </div>
+
+    <!-- 3-Panel Layout -->
+    <div v-else class="flex-1 flex min-h-0">
+
+      <!-- PANEL 1: Specification (Name, Description, Acceptance Criteria) -->
+      <div class="flex-1 border-r border-border-subtle flex flex-col">
+        <div class="px-3 py-2.5 border-b border-border-subtle">
+          <span class="text-[11px] font-semibold uppercase tracking-wider text-txt-muted">Specification</span>
+        </div>
+        <div class="flex-1 overflow-y-auto p-3 space-y-4 scroll-area">
+          <!-- Status Badge -->
+          <div class="flex items-center gap-2">
+            <div
+              class="flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider"
+              :style="columnBadgeStyle"
+            >
+              <span class="w-1.5 h-1.5 rounded-full flex-shrink-0" :style="{ background: columnBadge.color }"></span>
+              {{ columnBadge.label }}
+            </div>
+            <div v-if="epic.suspendedAt && (epic.column === 'todo' || epic.column === 'backlog')"
+                 class="px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wider bg-amber-500/10 text-amber-500">
+              Suspended
+            </div>
+          </div>
+
+          <!-- Description -->
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-semibold text-txt-muted uppercase tracking-wider">Description</label>
+            <textarea
+              v-model="draft.description"
+              class="field-input w-full resize-none min-h-[120px] text-[12px] leading-relaxed"
+              placeholder="Explain what to build and why it matters."
+            ></textarea>
+          </div>
+
+          <!-- Acceptance Criteria -->
+          <div class="space-y-1.5">
+            <label class="text-[10px] font-semibold text-txt-muted uppercase tracking-wider">Acceptance Criteria</label>
+            <textarea
+              v-model="draft.acceptanceCriteria"
+              class="field-input w-full resize-none min-h-[100px] text-[12px] leading-relaxed"
+              placeholder="List what must be true for this to be considered done."
+            ></textarea>
+          </div>
+
+          <!-- Blocking reasons -->
+          <div v-if="(epic.column === 'todo' || epic.column === 'backlog') && epicStore.getBlockingReasons(epic.id).length > 0" class="flex flex-wrap gap-1">
+            <span v-for="reason in epicStore.getBlockingReasons(epic.id)" :key="reason.type + (reason.relatedEpicId ?? '')" :class="reasonClass(reason)">{{ reason.label }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 2: Configuration (Git & Scheduling) -->
+      <div class="flex-1 border-r border-border-subtle flex flex-col">
+        <div class="px-3 py-2.5 border-b border-border-subtle">
+          <span class="text-[11px] font-semibold uppercase tracking-wider text-txt-muted">Configuration</span>
+        </div>
+        <div class="flex-1 overflow-y-auto p-3 space-y-4 scroll-area">
+          <!-- Target Repos -->
+          <div class="space-y-1.5">
+            <div class="text-[10px] text-txt-muted uppercase tracking-wider font-semibold">Target Repos</div>
             <RepoScopeSelector
               :projectId="epic.projectId"
               v-model="draft.targetRepoIds"
             />
           </div>
 
-          <!-- Git radio group -->
-          <div>
-            <div class="text-[11px] text-txt-muted mb-1.5">Git Mode</div>
-            <div class="space-y-1">
-              <label
-                class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors"
-                :class="{ 'bg-[rgba(245,158,11,0.06)]': gitMode === 'none', 'opacity-40 cursor-not-allowed': draft.parallelAgentCount > 1 }"
-              >
-                <input type="radio" value="none" :checked="gitMode === 'none'"
-                       :disabled="draft.parallelAgentCount > 1"
-                       @change="setGitMode('none')" class="sr-only" />
+          <!-- Git Mode -->
+          <div class="space-y-1.5">
+            <div class="text-[10px] text-txt-muted uppercase tracking-wider font-semibold">Git Mode</div>
+            <div class="space-y-0.5">
+              <label class="flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors" :class="{ 'bg-ember-500/[0.06]': gitMode === 'none', 'opacity-40 cursor-not-allowed': draft.parallelAgentCount > 1 }">
+                <input type="radio" value="none" :checked="gitMode === 'none'" :disabled="draft.parallelAgentCount > 1" @change="setGitMode('none')" class="sr-only" />
                 <span class="git-radio-dot" :class="{ selected: gitMode === 'none' }"></span>
-                <span class="text-[12px]" :class="gitMode === 'none' ? 'text-txt-primary' : 'text-txt-secondary'">None</span>
+                <span class="text-[11px]" :class="gitMode === 'none' ? 'text-txt-primary' : 'text-txt-secondary'">None</span>
               </label>
-              <label
-                class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors"
-                :class="{ 'bg-[rgba(245,158,11,0.06)]': gitMode === 'branch', 'opacity-40 cursor-not-allowed': draft.parallelAgentCount > 1 }"
-              >
-                <input type="radio" value="branch" :checked="gitMode === 'branch'"
-                       :disabled="draft.parallelAgentCount > 1"
-                       @change="setGitMode('branch')" class="sr-only" />
+              <label class="flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors" :class="{ 'bg-ember-500/[0.06]': gitMode === 'branch', 'opacity-40 cursor-not-allowed': draft.parallelAgentCount > 1 }">
+                <input type="radio" value="branch" :checked="gitMode === 'branch'" :disabled="draft.parallelAgentCount > 1" @change="setGitMode('branch')" class="sr-only" />
                 <span class="git-radio-dot" :class="{ selected: gitMode === 'branch' }"></span>
-                <span class="text-[12px]" :class="gitMode === 'branch' ? 'text-txt-primary' : 'text-txt-secondary'">Git Branch</span>
+                <span class="text-[11px]" :class="gitMode === 'branch' ? 'text-txt-primary' : 'text-txt-secondary'">Git Branch</span>
               </label>
-              <label
-                class="flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors"
-                :class="{ 'bg-[rgba(245,158,11,0.06)]': gitMode === 'worktree' }"
-              >
-                <input type="radio" value="worktree" :checked="gitMode === 'worktree'"
-                       @change="setGitMode('worktree')" class="sr-only" />
+              <label class="flex items-center gap-2 px-2.5 py-1.5 rounded-md cursor-pointer transition-colors" :class="{ 'bg-ember-500/[0.06]': gitMode === 'worktree' }">
+                <input type="radio" value="worktree" :checked="gitMode === 'worktree'" @change="setGitMode('worktree')" class="sr-only" />
                 <span class="git-radio-dot" :class="{ selected: gitMode === 'worktree' }"></span>
-                <span class="text-[12px]" :class="gitMode === 'worktree' ? 'text-txt-primary' : 'text-txt-secondary'">Worktree</span>
+                <span class="text-[11px]" :class="gitMode === 'worktree' ? 'text-txt-primary' : 'text-txt-secondary'">Worktree</span>
               </label>
             </div>
           </div>
 
-          <!-- Branch name display -->
-          <div v-if="branchName && (gitMode === 'branch' || gitMode === 'worktree')" class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-base border border-border-subtle">
-            <svg class="w-3.5 h-3.5 text-teal flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <div v-if="branchName && (gitMode === 'branch' || gitMode === 'worktree')" class="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border-subtle">
+            <svg class="w-3 h-3 text-teal flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>
             </svg>
-            <span class="text-[12px] font-mono text-teal truncate select-all" :title="branchName">
-              {{ branchName }}
-            </span>
+            <span class="text-[11px] font-mono text-teal truncate select-all" :title="branchName">{{ branchName }}</span>
           </div>
 
-          <!-- BranchPicker (branch or worktree) -->
           <div v-if="gitMode === 'branch' || gitMode === 'worktree'" class="space-y-1.5">
-            <div class="text-[11px] text-txt-muted">Base Branch</div>
+            <div class="text-[10px] text-txt-muted">Base Branch</div>
             <BranchPicker
               v-model="draft.baseBranch"
               :repoIds="epicRepoIds"
@@ -188,67 +168,24 @@
               placeholder="Base branch..."
               :disabled="!!draft.runAfter"
             />
-            <p v-if="!!draft.runAfter" class="text-[11px] text-txt-faint">Inherited from predecessor</p>
           </div>
 
-          <!-- Agents DotPicker -->
-          <div>
-            <div class="text-[11px] text-txt-muted mb-1.5">Parallel Agents</div>
+          <!-- Parallel Agents (only for worktree mode) -->
+          <div v-if="gitMode === 'worktree'" class="space-y-1.5">
+            <div class="text-[10px] text-txt-muted uppercase tracking-wider font-semibold">Parallel Agents</div>
             <DotPicker
               :modelValue="draft.parallelAgentCount - 1"
-              :labels="agentLabels"
-              @update:modelValue="setParallelCount($event + 1)"
+              :labels="parallelLabels"
+              @update:modelValue="draft.parallelAgentCount = $event + 1"
             />
-            <p class="text-[11px] text-txt-faint leading-relaxed mt-1.5">
-              {{ draft.parallelAgentCount > 1
-                ? `On start, creates ${draft.parallelAgentCount} independent copies (X1–X${draft.parallelAgentCount}), each in its own worktree. Pick the best result.`
-                : 'Runs a single agent for this epic.' }}
-            </p>
+            <p class="text-[9px] text-txt-faint">Run multiple agents in isolated worktrees</p>
           </div>
-        </div>
-      </div>
 
-      <!-- GROUP 4 — Description & Acceptance Criteria -->
-      <div class="space-y-3">
-        <div>
-          <div class="text-[11px] text-txt-muted mb-1.5">Description</div>
-          <textarea
-            v-model="draft.description"
-            class="field-input w-full"
-            rows="3"
-            placeholder="Explain what to build and why it matters."
-          ></textarea>
-        </div>
-        <div>
-          <div class="text-[11px] text-txt-muted mb-1.5">Acceptance Criteria</div>
-          <textarea
-            v-model="draft.acceptanceCriteria"
-            class="field-input w-full"
-            rows="3"
-            placeholder="List what must be true for this to be considered done."
-          ></textarea>
-        </div>
-      </div>
+          <div class="w-full h-px bg-border-subtle" />
 
-      <!-- GROUP 5 — SCHEDULING (collapsible) -->
-      <section class="border-t border-border-subtle pt-1">
-        <button
-          class="w-full flex items-center gap-2 py-2 hover:bg-white/[0.015] transition-colors"
-          @click="schedOpen = !schedOpen"
-        >
-          <svg
-            class="w-3 h-3 transition-transform duration-150 text-txt-faint"
-            :class="schedOpen ? 'rotate-90' : ''"
-            fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
-          >
-            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
-          </svg>
-          <span class="text-[11px] font-semibold text-txt-muted uppercase tracking-wider">Scheduling</span>
-        </button>
-        <div v-show="schedOpen" class="pb-3 pt-1 space-y-4">
-          <!-- Priority DotPicker -->
-          <div>
-            <div class="text-[11px] text-txt-muted mb-1.5">Priority</div>
+          <!-- Scheduling -->
+          <div class="space-y-1.5">
+            <div class="text-[10px] text-txt-muted uppercase tracking-wider font-semibold">Priority</div>
             <DotPicker
               :modelValue="priorityValues.indexOf(draft.priorityHint)"
               :labels="priorityLabels"
@@ -256,9 +193,8 @@
             />
           </div>
 
-          <!-- Column -->
           <div class="space-y-1.5">
-            <div class="text-[11px] text-txt-muted">Column</div>
+            <div class="text-[10px] text-txt-muted uppercase tracking-wider font-semibold">Column</div>
             <select v-model="draft.column" class="field-input">
               <option v-for="col in columns" :key="col" :value="col">
                 {{ col.replace(/-/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()) }}
@@ -266,18 +202,15 @@
             </select>
           </div>
 
-          <!-- Run after -->
           <div class="space-y-1.5">
-            <div class="text-[11px] text-txt-muted">Run after</div>
+            <div class="text-[10px] text-txt-muted uppercase tracking-wider font-semibold">Run After</div>
             <div v-if="draft.runAfter" class="dep-row">
-              <svg class="w-3.5 h-3.5 text-ember-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <svg class="w-3 h-3 text-ember-500 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 12h15" />
               </svg>
-              <span class="text-[12px] text-txt-secondary truncate">{{ runAfterTitle(draft.runAfter) }}</span>
+              <span class="text-[11px] text-txt-secondary truncate">{{ runAfterTitle(draft.runAfter) }}</span>
               <button class="dep-remove" title="Remove" @click="clearRunAfter">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
             <select
@@ -285,146 +218,191 @@
               class="field-input-dashed"
               @change="setRunAfter(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
             >
-              <option value="">Run after...</option>
+              <option value="">Select epic...</option>
               <option v-for="e in availableRunAfter" :key="e.id" :value="e.id">{{ e.title }}</option>
             </select>
-            <p v-else-if="availableRunAfter.length === 0 && !draft.runAfter" class="text-[11px] text-txt-faint italic">No other epics in project</p>
+            <p v-else class="text-[10px] text-txt-faint italic">No other epics</p>
           </div>
 
-          <!-- Dependencies -->
-          <div class="space-y-2">
-            <div class="text-[11px] text-txt-muted">Dependencies</div>
-            <div class="space-y-1.5">
-              <div v-for="depId in draft.dependsOn" :key="depId" class="dep-row">
-                <span class="w-1.5 h-1.5 rounded-full bg-ember flex-shrink-0"></span>
-                <span class="text-[12px] text-txt-secondary truncate">{{ depTitle(depId) }}</span>
-                <button class="dep-remove" @click="removeDep(depId)">
-                  <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <select
-                v-if="availableDeps.length > 0"
-                class="field-input-dashed"
-                @change="addDep(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+          <div class="space-y-1.5">
+            <div class="text-[10px] text-txt-muted uppercase tracking-wider font-semibold">Dependencies</div>
+            <div v-for="depId in draft.dependsOn" :key="depId" class="dep-row">
+              <span class="w-1.5 h-1.5 rounded-full bg-ember flex-shrink-0"></span>
+              <span class="text-[11px] text-txt-secondary truncate">{{ depTitle(depId) }}</span>
+              <button class="dep-remove" @click="removeDep(depId)">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <select
+              v-if="availableDeps.length > 0"
+              class="field-input-dashed"
+              @change="addDep(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+            >
+              <option value="">+ Add dependency...</option>
+              <option v-for="dep in availableDeps" :key="dep.id" :value="dep.id">{{ dep.title }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- PANEL 3: Agents (Pipeline Type + Vertical Agent List) -->
+      <div class="flex-1 flex flex-col">
+        <!-- Agent config header (hidden during execution/review/done) -->
+        <div v-if="!isExecutionMode" class="px-3 py-2.5 border-b border-border-subtle flex flex-col gap-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-semibold uppercase tracking-wider text-txt-muted">Agents</span>
+            <!-- Pipeline Type Selector -->
+            <div class="flex items-center gap-3" :class="{ 'pipeline-pulse': pipelinePulse }">
+              <button
+                v-for="pt in pipelineTypes"
+                :key="pt.value"
+                class="px-1 pb-0.5 text-[10px] font-medium transition-all"
+                :class="getPipelineTypeClass(pt.value)"
+                @click="setPipelineType(pt.value)"
               >
-                <option value="">+ Add dependency...</option>
-                <option v-for="dep in availableDeps" :key="dep.id" :value="dep.id">{{ dep.title }}</option>
+                {{ pt.label }}
+              </button>
+            </div>
+          </div>
+          <!-- Set All models selector -->
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-txt-faint">Set All:</span>
+            <div class="relative flex-1">
+              <select
+                class="w-full text-[10px] bg-transparent border border-border-subtle rounded px-1.5 py-1 text-txt-secondary outline-none appearance-none cursor-pointer hover:border-border-standard transition-colors pr-5"
+                @change="setAllModels(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value = ''"
+              >
+                <option value="">Choose model...</option>
+                <template v-for="group in MODEL_GROUPS" :key="group.category">
+                  <optgroup :label="group.category">
+                    <option v-for="m in group.items" :key="m.id" :value="m.id">{{ m.name }}</option>
+                  </optgroup>
+                </template>
               </select>
+              <svg class="absolute right-1.5 top-1.5 w-3 h-3 text-txt-faint pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
             </div>
           </div>
         </div>
-      </section>
 
-      <!-- ACTION ZONE (contextual) -->
-      <!-- Review -->
-      <template v-if="epic.column === 'review'">
-        <div class="border-t border-border-standard my-1"></div>
-        <div class="space-y-3">
-          <div class="flex items-center gap-2.5">
-            <span class="text-[11px] font-semibold uppercase tracking-wider" style="color: var(--accent-peach)">Review Needed</span>
-            <span class="text-[10px] px-2 py-0.5 rounded-full font-medium border" style="color: var(--accent-peach); background: rgba(250,179,135,0.08); border-color: rgba(250,179,135,0.12)">needs review</span>
-          </div>
-          <textarea
-            v-model="rejectionFeedback"
-            rows="2"
-            class="field-input w-full"
-            placeholder="Feedback for rejection (optional)..."
-          ></textarea>
-          <div class="flex gap-2">
-            <button class="btn-primary flex-1" style="background: var(--accent-green)" @click="approve">Approve</button>
-            <button class="btn-primary flex-1" style="background: var(--accent-red)" @click="reject">Reject</button>
-          </div>
+        <!-- Agent List (Fleet-style vertical) or Execution View -->
+        <div class="flex-1 overflow-y-auto">
+          <template v-if="epic.column === 'in-progress'">
+            <OrchestratorChat
+              v-if="epic.rootSessionId"
+              :sessionId="epic.rootSessionId"
+              class="h-full"
+              @stop="stopEpic"
+            />
+            <div v-else class="h-full flex flex-col items-center justify-center opacity-40">
+              <div class="w-5 h-5 border-2 border-teal border-t-transparent rounded-full animate-spin mb-3"></div>
+              <span class="text-xs font-medium text-txt-primary">Initializing Orchestrator</span>
+              <span class="text-[11px] text-txt-muted mt-1">Starting up agents...</span>
+            </div>
+          </template>
+
+          <template v-else-if="epic.column === 'review'">
+            <div class="p-4 space-y-4">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-amber-500" />
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-amber-400">Review Needed</span>
+              </div>
+              <p class="text-[11px] text-txt-muted">The pipeline has completed. Review the changes and approve or reject with feedback.</p>
+              <textarea
+                v-model="rejectionFeedback"
+                rows="3"
+                class="field-input w-full resize-none text-[12px]"
+                placeholder="Feedback for rejection (optional)..."
+              ></textarea>
+              <div class="flex gap-2">
+                <button
+                  class="flex-1 px-3 py-2 rounded-md text-[11px] font-medium transition-colors border border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                  @click="approve"
+                >
+                  Approve
+                </button>
+                <button
+                  class="flex-1 px-3 py-2 rounded-md text-[11px] font-medium transition-colors border border-red-500/40 text-red-400 hover:bg-red-500/10"
+                  @click="reject"
+                >
+                  Reject
+                </button>
+              </div>
+            </div>
+          </template>
+
+          <template v-else-if="epic.column === 'done'">
+            <div class="p-4 space-y-3">
+              <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-400">Completed</span>
+              </div>
+              <p class="text-[11px] text-txt-muted">The pipeline finished successfully. You can create a PR from the branch if needed.</p>
+            </div>
+          </template>
+
+          <template v-else>
+            <!-- Vertical Agent List (Fleet-style) -->
+            <div class="p-2 space-y-1">
+              <div
+                v-for="node in pipelineNodes"
+                :key="node.id"
+                class="flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors border-l-2 hover:bg-white/[0.03]"
+                :class="getAgentRowClass(node)"
+              >
+                <!-- Role icon -->
+                <div class="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" :class="getRoleBgClass(node.role)">
+                  <span class="text-white" v-html="getRoleIconSmall(node.role)"></span>
+                </div>
+
+                <!-- Info -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-[11px] font-medium text-txt-primary">{{ formatRole(node) }}</span>
+                    <span v-if="node.model === 'disabled'" class="text-[9px] px-1 py-0 rounded bg-txt-faint/20 text-txt-faint">skipped</span>
+                  </div>
+                  <div class="text-[10px] text-txt-faint truncate">{{ getModelLabel(node.model) }}</div>
+                </div>
+
+                <!-- Model selector -->
+                <div class="relative flex-shrink-0">
+                  <select
+                    class="text-[10px] bg-transparent border border-border-subtle rounded px-1.5 py-1 text-txt-secondary outline-none appearance-none cursor-pointer hover:border-border-standard transition-colors pr-5 w-28"
+                    :value="node.model"
+                    @change="updateNodeModel(node.id, ($event.target as HTMLSelectElement).value)"
+                  >
+                    <option value="disabled">Skip</option>
+                    <template v-for="group in MODEL_GROUPS" :key="group.category">
+                      <optgroup :label="group.category">
+                        <option v-for="m in group.items" :key="m.id" :value="m.id">{{ m.name }}</option>
+                      </optgroup>
+                    </template>
+                  </select>
+                  <svg class="absolute right-1 top-1.5 w-3 h-3 text-txt-faint pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"></path></svg>
+                </div>
+              </div>
+
+              <!-- Parallel agents info -->
+              <div v-if="draft.parallelAgentCount > 1" class="flex items-center gap-2 px-3 py-2 mt-2 border border-dashed border-border-subtle rounded-md">
+                <svg class="w-4 h-4 text-txt-faint" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <span class="text-[10px] text-txt-muted">{{ draft.parallelAgentCount }} parallel agents will run</span>
+              </div>
+            </div>
+          </template>
         </div>
-      </template>
 
-      <!-- In-progress -->
-      <template v-else-if="epic.column === 'in-progress'">
-        <div class="border-t border-border-standard my-1"></div>
-        <div class="space-y-2">
-          <div class="text-[11px] font-semibold uppercase tracking-wider" style="color: var(--accent-teal)">Running</div>
-          <div class="flex gap-2">
-            <button
-              class="flex-1 py-2 px-3 rounded-lg text-[13px] font-medium transition-colors"
-              style="border: 1px solid rgba(137,180,250,0.3); color: var(--accent-blue)"
-              @click="ui.navigateToEpic(epic.id, epic.projectId)"
-            >Open Workspace</button>
-            <button
-              class="flex-1 py-2 px-3 rounded-lg text-[13px] font-medium transition-colors"
-              style="border: 1px solid rgba(245,158,11,0.3); color: var(--accent-ember)"
-              @click="suspendEpic"
-            >Suspend</button>
-            <button
-              class="flex-1 py-2 px-3 rounded-lg text-[13px] font-medium transition-colors"
-              style="border: 1px solid rgba(243,139,168,0.3); color: var(--accent-red)"
-              @click="stopEpic"
-            >Stop</button>
-          </div>
-        </div>
-      </template>
+      </div>
 
-      <!-- Done with branch -->
-      <template v-else-if="epic.column === 'done' && branchName">
-        <div class="border-t border-border-standard my-1"></div>
-        <div class="space-y-2">
-          <div class="text-[11px] font-semibold uppercase tracking-wider" style="color: var(--accent-green)">Completed</div>
-          <div class="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-base border border-border-subtle">
-            <svg class="w-3.5 h-3.5 text-teal flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>
-            </svg>
-            <span class="text-[12px] font-mono text-teal truncate" :title="branchName">
-              {{ branchName }}
-            </span>
-          </div>
-          <button
-            class="btn-primary w-full"
-            style="background: linear-gradient(to right, var(--accent-ember), var(--accent-ember-600))"
-            :disabled="prLoading"
-            @click="createPR(epic.id, epic.projectId)"
-          >
-            {{ prLoading ? 'Pushing & Opening PR...' : 'Create Pull Request' }}
-          </button>
-          <p v-if="prError" class="text-[11px]" style="color: var(--accent-red)">{{ prError }}</p>
-        </div>
-      </template>
-
-      <!-- Suspended -->
-      <template v-else-if="epic.suspendedAt && (epic.column === 'todo' || epic.column === 'backlog')">
-        <div class="border-t border-border-standard my-1"></div>
-        <div class="space-y-2">
-          <div class="text-[11px] font-semibold uppercase tracking-wider" style="color: var(--accent-yellow)">Suspended</div>
-          <button
-            class="w-full py-2 px-4 rounded-lg text-[13px] font-medium transition-colors"
-            style="border: 1px solid rgba(245,158,11,0.3); color: var(--accent-ember)"
-            @click="resumeEpic"
-          >Resume</button>
-        </div>
-      </template>
-
-      <div class="h-2"></div>
-    </div>
-
-    <!-- Footer (52px) -->
-    <div v-if="epic" class="flex items-center px-5 h-[52px] flex-shrink-0 border-t border-border-subtle bg-surface gap-3">
-      <button v-if="!isNew" @click="remove" class="delete-btn text-sm text-txt-muted">Delete</button>
-      <div class="flex-1"></div>
-      <button @click="save" class="btn-primary" style="background: linear-gradient(to right, var(--accent-ember), var(--accent-ember-600)); min-width: 100px">
-        {{ isNew ? 'Create' : 'Save' }}
-      </button>
-    </div>
-
-    <!-- Empty state -->
-    <div v-if="!epic" class="flex-1 flex items-center justify-center">
-      <p class="text-[12px] text-txt-muted italic">No epic selected</p>
     </div>
   </div>
 </template>
-
 <script setup lang="ts">
+import OrchestratorChat from '@/components/agents/OrchestratorChat.vue';
 import { ref, computed, watch, nextTick } from 'vue';
-import type { EpicColumn, EpicPipelineType, PriorityHint, ComplexityEstimate } from '@/engine/KosTypes';
-import { useUiStore } from '@/stores/ui';
+import type { EpicColumn, EpicPipelineType, PriorityHint, ComplexityEstimate, PipelineConfig } from '@/engine/KosTypes';
 import { useEpicStore } from '@/stores/epics';
 import { useProjectsStore } from '@/stores/projects';
 import { Scheduler } from '@/engine/Scheduler';
@@ -433,15 +411,15 @@ import { useCreatePR } from '@/composables/useCreatePR';
 import RepoScopeSelector from './RepoScopeSelector.vue';
 import BranchPicker from './BranchPicker.vue';
 import DotPicker from './DotPicker.vue';
-import type { BlockingReason } from '@/engine/KosTypes';
-import { MODEL_GROUPS } from '@/constants/models';
+import type { AgentNode, BlockingReason } from '@/engine/KosTypes';
+import { MODEL_GROUPS, DEFAULT_MODEL_ID } from '@/constants/models';
 
 const props = defineProps<{ epicId: string; isNew?: boolean }>();
 const emit = defineEmits<{ close: []; created: [] }>();
 
-const ui = useUiStore();
+
 const epicStore = useEpicStore();
-const { loading: prLoading, error: prError, createPR } = useCreatePR();
+const { loading: prLoading, createPR } = useCreatePR();
 
 const columns: EpicColumn[] = ['idea', 'backlog', 'todo', 'in-progress', 'review', 'done', 'discarded'];
 const pipelineTypes: Array<{ value: EpicPipelineType; label: string }> = [
@@ -451,29 +429,17 @@ const pipelineTypes: Array<{ value: EpicPipelineType; label: string }> = [
   { value: 'plan', label: 'Plan' },
 ];
 
-const pipelineDescriptions: Record<EpicPipelineType, string> = {
-  hybrid: 'Plan → Incremental Build → Verify → Review → Test',
-  fix: 'Diagnose → Debug → Fix → Test → Review',
-  investigate: 'Analyze → Investigate → Report (read-only)',
-  plan: 'Analyze → Design → Plan (read-only)',
-};
 
-const complexityDescriptions: Record<ComplexityEstimate, string> = {
-  trivial: 'Single builder, no architect. For typo fixes and one-line changes.',
-  small: 'Light architect, one builder pass. For small features or bug fixes.',
-  medium: 'Full architect + scoped builders. For features spanning backend or frontend.',
-  large: 'Multi-turn architect + design system + scoped builders. For large features.',
-  epic: 'Full pipeline with verification protocol + integration testing. For new projects.',
-};
-
-const complexityLabels = ['Trivial', 'Small', 'Medium', 'Large', 'Epic']
-const complexityValues: ComplexityEstimate[] = ['trivial', 'small', 'medium', 'large', 'epic']
 const priorityLabels = ['None', 'Low', 'Medium', 'High', 'Critical']
 const priorityValues: PriorityHint[] = ['none', 'low', 'medium', 'high', 'critical']
-const agentLabels = ['1', '2', '3', '4']
+const parallelLabels = ['1', '2', '3', '4', '5']
 
 const epic = computed(() => epicStore.epicById(props.epicId));
 const branchName = computed(() => epicStore.epicBranchName(props.epicId));
+const isExecutionMode = computed(() => {
+  const col = epic.value?.column;
+  return col === 'in-progress' || col === 'review' || col === 'done';
+});
 
 const columnBadge = computed(() => {
   const col = epic.value?.column
@@ -498,18 +464,8 @@ const columnBadgeStyle = computed(() => {
   }
 })
 
-const suggestedPipeline = computed(() => {
-  const c = draft.value?.complexity
-  if (!c) return null
-  if (c === 'trivial' || c === 'small') return 'fix'
-  if (c === 'medium') return 'hybrid'
-  return 'hybrid'
-})
-
-const schedOpen = ref(false);
 const titleInput = ref<HTMLInputElement | null>(null);
 const gitMode = ref<'none' | 'branch' | 'worktree'>('none');
-const whereOpen = ref(!props.isNew);
 const pipelinePulse = ref(false);
 
 const draft = ref({
@@ -522,6 +478,7 @@ const draft = ref({
   model: '',
   targetRepoIds: [] as string[],
   pipelineType: 'hybrid' as EpicPipelineType,
+  pipelineConfig: undefined as PipelineConfig | undefined,
   useGitBranch: false,
   useWorktree: false,
   baseBranch: null as string | null,
@@ -529,6 +486,37 @@ const draft = ref({
   runAfter: null as string | null,
   parallelAgentCount: 1,
 });
+
+const DEFAULT_PIPELINES: Record<EpicPipelineType, AgentNode[]> = {
+  hybrid: [
+    { id: 'architect', role: 'architect', model: DEFAULT_MODEL_ID, dependsOn: [] },
+    { id: 'counterpart', role: 'custom', model: DEFAULT_MODEL_ID, promptOverride: 'Counterpart', dependsOn: ['architect'] },
+    { id: 'scaffold', role: 'custom', model: DEFAULT_MODEL_ID, promptOverride: 'Scaffold', dependsOn: ['counterpart'] },
+    { id: 'builder-fe', role: 'builder-frontend', model: DEFAULT_MODEL_ID, dependsOn: ['scaffold'] },
+    { id: 'builder-be', role: 'builder-backend', model: DEFAULT_MODEL_ID, dependsOn: ['scaffold'] },
+    { id: 'tester', role: 'tester', model: DEFAULT_MODEL_ID, dependsOn: ['builder-fe', 'builder-be'] }
+  ],
+  fix: [
+    { id: 'architect', role: 'architect', model: DEFAULT_MODEL_ID, dependsOn: [] },
+    { id: 'builder', role: 'custom', model: DEFAULT_MODEL_ID, promptOverride: 'Fixer', dependsOn: ['architect'] },
+    { id: 'tester', role: 'tester', model: DEFAULT_MODEL_ID, dependsOn: ['builder'] }
+  ],
+  investigate: [
+    { id: 'investigator', role: 'custom', model: DEFAULT_MODEL_ID, promptOverride: 'Investigator', dependsOn: [] }
+  ],
+  plan: [
+    { id: 'architect', role: 'architect', model: DEFAULT_MODEL_ID, dependsOn: [] }
+  ]
+};
+
+function setPipelineType(type: EpicPipelineType) {
+  draft.value.pipelineType = type;
+  pipelinePulse.value = true;
+  setTimeout(() => { pipelinePulse.value = false; }, 600);
+  
+  // Set default pipeline config when type changes
+  draft.value.pipelineConfig = { nodes: JSON.parse(JSON.stringify(DEFAULT_PIPELINES[type])) };
+}
 
 watch(() => props.epicId, loadDraft, { immediate: true });
 
@@ -549,6 +537,7 @@ watch(() => draft.value?.complexity, () => {
 function loadDraft() {
   const e = epicStore.epicById(props.epicId);
   if (!e) return;
+  
   draft.value = {
     title: e.title,
     column: e.column,
@@ -559,6 +548,7 @@ function loadDraft() {
     model: e.model || '',
     targetRepoIds: [...e.targetRepoIds],
     pipelineType: e.pipelineType || 'hybrid',
+    pipelineConfig: e.pipelineConfig ? JSON.parse(JSON.stringify(e.pipelineConfig)) : { nodes: JSON.parse(JSON.stringify(DEFAULT_PIPELINES[e.pipelineType || 'hybrid'])) },
     useGitBranch: e.useGitBranch ?? true,
     useWorktree: e.useWorktree ?? false,
     baseBranch: e.baseBranch ?? null,
@@ -620,14 +610,6 @@ function setGitMode(mode: 'none' | 'branch' | 'worktree') {
   }
 }
 
-function setParallelCount(n: number) {
-  draft.value.parallelAgentCount = n;
-  if (n > 1) {
-    draft.value.useWorktree = true;
-    gitMode.value = 'worktree';
-  }
-}
-
 async function save() {
   const d = draft.value;
   const originalColumn = epic.value?.column;
@@ -644,6 +626,7 @@ async function save() {
     model: d.model,
     targetRepoIds: d.targetRepoIds,
     pipelineType: d.pipelineType,
+    pipelineConfig: d.pipelineConfig,
     useGitBranch: d.useGitBranch,
     useWorktree: d.useWorktree,
     baseBranch: d.baseBranch,
@@ -694,7 +677,7 @@ const epicRepoIds = computed(() => {
 });
 
 function reasonClass(reason: BlockingReason): string {
-  const base = 'text-[10px] px-1.5 py-0.5 rounded-full inline-block';
+  const base = 'text-[9px] px-1 py-0 rounded inline-block';
   if (reason.type === 'runAfter' || reason.type === 'dependency')
     return `${base} bg-amber-500/10 text-amber-400`;
   if (reason.type === 'repoLock')
@@ -716,6 +699,88 @@ async function reject() {
   await Scheduler.getInstance().rejectEpic(props.epicId, feedback);
   rejectionFeedback.value = '';
   loadDraft();
+}
+
+// ── Agent List Helpers ──────────────────────────────────────────────────
+
+const pipelineNodes = computed(() => draft.value.pipelineConfig?.nodes ?? []);
+
+function getPipelineTypeClass(type: EpicPipelineType): string {
+  const isActive = draft.value.pipelineType === type;
+  return isActive
+    ? 'text-amber-400 border-b border-amber-400'
+    : 'text-txt-muted hover:text-txt-secondary border-b border-transparent';
+}
+
+function getAgentRowClass(node: AgentNode): string {
+  if (node.model === 'disabled') return 'border-l-txt-faint/30 opacity-50';
+  const roleColors: Record<string, string> = {
+    architect: 'border-l-emerald-500/50',
+    counterpart: 'border-l-cyan-500/50',
+    scaffold: 'border-l-amber-500/50',
+    frontend: 'border-l-teal/50',
+    backend: 'border-l-teal/50',
+    tester: 'border-l-purple-500/50',
+    reviewer: 'border-l-orange-500/50',
+  };
+  return roleColors[node.role] || 'border-l-txt-muted/30';
+}
+
+function getRoleBgClass(role: string): string {
+  const colors: Record<string, string> = {
+    architect: 'bg-emerald-500/80',
+    counterpart: 'bg-cyan-500/80',
+    scaffold: 'bg-amber-500/80',
+    frontend: 'bg-teal/80',
+    backend: 'bg-teal/80',
+    tester: 'bg-purple-500/80',
+    reviewer: 'bg-orange-500/80',
+  };
+  return colors[role] || 'bg-txt-muted/50';
+}
+
+function getRoleIconSmall(role: string): string {
+  const icons: Record<string, string> = {
+    architect: '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path stroke-linecap="round" stroke-linejoin="round" d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>',
+    counterpart: '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>',
+    scaffold: '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>',
+    frontend: '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>',
+    backend: '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>',
+    tester: '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>',
+    reviewer: '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>',
+  };
+  return icons[role] || '<svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle></svg>';
+}
+
+function formatRole(node: AgentNode): string {
+  // Use promptOverride for custom agents (like Counterpart, Scaffold, etc.)
+  if (node.role === 'custom' && node.promptOverride) {
+    return node.promptOverride;
+  }
+  return node.role.charAt(0).toUpperCase() + node.role.slice(1).replace(/-/g, ' ');
+}
+
+function getModelLabel(modelId: string): string {
+  if (modelId === 'disabled') return 'Skipped';
+  for (const group of MODEL_GROUPS) {
+    const found = group.items.find(m => m.id === modelId);
+    if (found) return found.name;
+  }
+  return modelId;
+}
+
+function updateNodeModel(nodeId: string, newModel: string) {
+  if (!draft.value.pipelineConfig) return;
+  const newNodes = draft.value.pipelineConfig.nodes.map(n =>
+    n.id === nodeId ? { ...n, model: newModel } : n
+  );
+  draft.value.pipelineConfig = { nodes: newNodes };
+}
+
+function setAllModels(modelId: string) {
+  if (!modelId || !draft.value.pipelineConfig) return;
+  const newNodes = draft.value.pipelineConfig.nodes.map(n => ({ ...n, model: modelId }));
+  draft.value.pipelineConfig = { nodes: newNodes };
 }
 </script>
 
@@ -742,18 +807,18 @@ async function reject() {
 
 .field-input {
   width: 100%;
-  font-size: 13px;
-  padding: 7px 10px;
-  border-radius: 8px;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
   border: 1px solid var(--border-subtle);
-  background: var(--bg-base);
+  background: transparent;
   color: var(--text-primary);
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s, background 0.15s;
   font-family: 'Inter', sans-serif;
 }
-.field-input:hover { border-color: var(--border-standard); }
-.field-input:focus { border-color: var(--accent-ember); box-shadow: 0 0 0 2px rgba(245,158,11,0.12); }
+.field-input:hover { border-color: var(--border-standard); background: rgba(255,255,255,0.02); }
+.field-input:focus { border-color: var(--accent-ember); background: rgba(255,255,255,0.03); }
 .field-input::placeholder { color: var(--text-faint); }
 .field-input:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -773,12 +838,12 @@ textarea.field-input {
 
 .field-input-dashed {
   width: 100%;
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-faint);
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px dashed var(--border-standard);
-  background: var(--bg-base);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px dashed var(--border-subtle);
+  background: transparent;
   outline: none;
   transition: border-color 0.15s, color 0.15s;
   font-family: 'Inter', sans-serif;
@@ -788,55 +853,9 @@ textarea.field-input {
 .field-input-dashed:hover { border-color: rgba(245,158,11,0.25); color: var(--text-secondary); }
 .field-input-dashed:focus { border-color: var(--accent-ember); outline: none; }
 
-.pipe-btn {
-  flex: 1;
-  padding: 7px 0;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 8px;
-  border: 1px solid var(--border-subtle);
-  background: var(--bg-window);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-  text-align: center;
-}
-.pipe-btn:hover {
-  color: var(--text-secondary);
-  border-color: var(--border-standard);
-  background: var(--bg-surface);
-}
-.pipe-btn.active-create {
-  color: var(--accent-green);
-  background: rgba(166,227,161,0.06);
-  border-color: rgba(166,227,161,0.20);
-  box-shadow: inset 0 0 20px -10px rgba(166,227,161,0.12);
-}
-.pipe-btn.active-fix {
-  color: var(--accent-peach);
-  background: rgba(250,179,135,0.06);
-  border-color: rgba(250,179,135,0.20);
-  box-shadow: inset 0 0 20px -10px rgba(250,179,135,0.12);
-}
-.pipe-btn.active-investigate {
-  color: var(--accent-blue);
-  background: rgba(137,180,250,0.06);
-  border-color: rgba(137,180,250,0.20);
-  box-shadow: inset 0 0 20px -10px rgba(137,180,250,0.12);
-}
-.pipe-btn.active-plan {
-  color: #b4befe;
-  background: rgba(180,190,254,0.06);
-  border-color: rgba(180,190,254,0.20);
-  box-shadow: inset 0 0 20px -10px rgba(180,190,254,0.12);
-}
-.pipe-btn.suggested-ring {
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
-}
-
 .git-radio-dot {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
   border: 2px solid var(--border-standard);
   flex-shrink: 0;
@@ -850,10 +869,10 @@ textarea.field-input {
 .dep-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  border-radius: 8px;
-  background: var(--bg-surface);
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: transparent;
   border: 1px solid var(--border-subtle);
 }
 
@@ -880,15 +899,14 @@ textarea.field-input {
 
 .btn-primary {
   width: 100%;
-  padding: 10px;
-  font-size: 13px;
+  padding: 8px;
+  font-size: 11px;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: 6px;
   border: none;
-  color: var(--bg-base);
+  color: white;
   cursor: pointer;
   transition: all 0.15s;
-  letter-spacing: 0.01em;
 }
 .btn-primary:hover { filter: brightness(1.1); }
 .btn-primary:active { transform: scale(0.99); }

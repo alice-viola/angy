@@ -138,6 +138,7 @@ export const useEpicStore = defineStore('epics', () => {
       column: 'idea',
       priorityHint: opts?.priorityHint ?? 'medium',
       complexity: opts?.complexity ?? 'medium',
+      pipelineConfig: undefined,
       model: '',
       targetRepoIds: opts?.targetRepoIds ?? [],
       pipelineType: 'hybrid',

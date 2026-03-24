@@ -22,7 +22,7 @@ import type { HeadlessHandle } from './HeadlessHandle';
 import type { ProcessManager } from './ProcessManager';
 import type { AngyCodeProcessManager } from './AngyCodeProcessManager';
 import type { SessionService } from './SessionService';
-import type { ComplexityEstimate, EpicPipelineType } from './KosTypes';
+import type { ComplexityEstimate, EpicPipelineType, PipelineConfig } from './KosTypes';
 import type { TechProfile } from './TechDetector';
 import type { PipelineSnapshot, PipelinePhase } from './types';
 import type { PipelineStateStore } from './PipelineStateStore';
@@ -149,6 +149,7 @@ export interface HybridPipelineOptions {
   epicId: string;
   autoProfiles: TechProfile[];
   complexity: ComplexityEstimate;
+  pipelineConfig?: PipelineConfig;
   stateStore?: PipelineStateStore;
   healthMonitor?: ClaudeHealthMonitor;
   pipelineType?: EpicPipelineType;
@@ -171,6 +172,7 @@ export class HybridPipelineRunner {
   private epicId: string;
   private autoProfiles: TechProfile[];
   private complexity: ComplexityEstimate;
+  private pipelineConfig?: PipelineConfig;
   private stateStore: PipelineStateStore | null;
   private healthMonitor: ClaudeHealthMonitor | null;
   private pipelineType: EpicPipelineType;
@@ -209,6 +211,7 @@ export class HybridPipelineRunner {
     this.epicId = opts.epicId;
     this.autoProfiles = opts.autoProfiles;
     this.complexity = opts.complexity;
+    this.pipelineConfig = opts.pipelineConfig;
     this.stateStore = opts.stateStore ?? null;
     this.healthMonitor = opts.healthMonitor ?? null;
     this.pipelineType = opts.pipelineType ?? 'hybrid';
@@ -1044,9 +1047,20 @@ export class HybridPipelineRunner {
     }
   }
 
-  // ── Pipeline feature flags based on complexity ───────────────────────
+  // ── Pipeline feature flags based on config / complexity ───────────────────────
 
   private getPipelineFeatures() {
+    if (this.pipelineConfig && this.pipelineConfig.nodes.length > 0) {
+      const nodes = this.pipelineConfig.nodes;
+      return {
+        architectTurns: nodes.some(n => n.id === 'architect' && n.model !== 'disabled') ? 1 : 0,
+        useCounterpart: nodes.some(n => n.id === 'counterpart' && n.model !== 'disabled'),
+        useDesignSystem: false, // simplified for now
+        usePhase4Test: nodes.some(n => n.id === 'tester' && n.model !== 'disabled'),
+      };
+    }
+
+    // Fallback to legacy complexity
     const c = this.complexity;
     return {
       architectTurns: (c === 'trivial') ? 0 : (c === 'small' || c === 'medium') ? 1 : 3,
@@ -1058,20 +1072,9 @@ export class HybridPipelineRunner {
 
   // ── AngyCode (Gemini/Anthropic) helpers ─────────────────────────────
 
-  /** Whether the current model should be routed through AngyCodeProcessManager. */
-  private get useAngyCode(): boolean {
-    if (!this.acpm || !this.model) return false;
-    return this.model.startsWith('gemini') || this.model.startsWith('angy-');
-  }
-
-  /** Derive provider ('gemini' | 'anthropic') from the model string. */
-  private get angyProvider(): 'gemini' | 'anthropic' {
-    return this.model?.includes('gemini') ? 'gemini' : 'anthropic';
-  }
-
   /** Fetch the API key for the current provider from the database. */
-  private async getApiKey(): Promise<string> {
-    const key = this.angyProvider === 'gemini' ? 'gemini_api_key' : 'anthropic_api_key';
+  private async getApiKey(provider: 'gemini' | 'anthropic'): Promise<string> {
+    const key = provider === 'gemini' ? 'gemini_api_key' : 'anthropic_api_key';
     return (await this.sessions.db.getAppSetting(key)) ?? '';
   }
 
@@ -1080,9 +1083,24 @@ export class HybridPipelineRunner {
     return this.model?.replace(/^angy-/, '');
   }
 
+  private getNodeModel(role: string): string | undefined {
+    if (this.pipelineConfig && this.pipelineConfig.nodes.length > 0) {
+      // Find the specific node
+      let node = this.pipelineConfig.nodes.find(n => n.role === role);
+      if (!node) {
+         // Fallback if role has suffix like builder-frontend -> builder
+         node = this.pipelineConfig.nodes.find(n => n.id === role || n.role.startsWith(role));
+      }
+      if (node && node.model !== 'disabled') {
+        return node.model.replace(/^angy-/, '');
+      }
+    }
+    return this.effectiveModel;
+  }
+
   /** Cancel a child process regardless of which process manager owns it. */
   private cancelChild(sessionId: string): void {
-    if (this.useAngyCode && this.acpm?.isRunning(sessionId)) {
+    if (this.acpm?.isRunning(sessionId)) {
       this.acpm.cancel(sessionId);
     } else {
       this.processes.cancelProcess(sessionId);
@@ -1167,6 +1185,11 @@ export class HybridPipelineRunner {
 
     const systemPrompt = this.buildSystemPrompt(role);
 
+    // Determine if it's angy code based on node model
+    const modelForRole = this.getNodeModel(role);
+    const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-'));
+    const provider = modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
+
     const result = await new Promise<string>((resolve, reject) => {
       this.activeProcesses.add(childSid);
 
@@ -1185,15 +1208,15 @@ export class HybridPipelineRunner {
         resolve(r);
       });
 
-      if (this.useAngyCode) {
-        this.getApiKey().then(apiKey => {
+      if (isAngyCode) {
+        this.getApiKey(provider).then(apiKey => {
           this.acpm!.sendMessage({
             sessionId: childSid,
             workingDir: this.workspace,
             goal: task,
-            provider: this.angyProvider,
+            provider,
             apiKey,
-            model: this.effectiveModel,
+            model: modelForRole,
             systemPrompt,
           }, this.handle);
         }).catch(reject);
@@ -1201,7 +1224,7 @@ export class HybridPipelineRunner {
         this.processes.sendMessage(childSid, task, this.handle, {
           workingDir: this.workspace,
           mode,
-          model: this.model,
+          model: modelForRole,
           systemPrompt,
           agentName,
           specialistRole: role,
@@ -1264,22 +1287,26 @@ export class HybridPipelineRunner {
         resolve(result);
       });
 
-      if (this.useAngyCode) {
-        this.getApiKey().then(apiKey => {
+      const modelForRole = this.getNodeModel(role);
+      const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-'));
+      const provider = modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
+
+      if (isAngyCode) {
+        this.getApiKey(provider).then(apiKey => {
           this.acpm!.sendMessage({
             sessionId: sid,
             workingDir: this.workspace,
             goal: task,
-            provider: this.angyProvider,
+            provider,
             apiKey,
-            model: this.effectiveModel,
+            model: modelForRole,
           }, this.handle);
         }).catch(reject);
       } else {
         this.processes.sendMessage(sid, task, this.handle, {
           workingDir: this.workspace,
           mode: 'agent',
-          model: this.model,
+          model: modelForRole,
           resumeSessionId: this.handle.getRealSessionId(sid) || undefined,
         });
       }
@@ -1333,22 +1360,26 @@ export class HybridPipelineRunner {
         resolve(result);
       });
 
-      if (this.useAngyCode) {
-        this.getApiKey().then(apiKey => {
+      const modelForRole = this.getNodeModel(role);
+      const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-'));
+      const provider = modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
+
+      if (isAngyCode) {
+        this.getApiKey(provider).then(apiKey => {
           this.acpm!.sendMessage({
             sessionId: sid,
             workingDir: this.workspace,
             goal: task,
-            provider: this.angyProvider,
+            provider,
             apiKey,
-            model: this.effectiveModel,
+            model: modelForRole,
           }, this.handle);
         }).catch(reject);
       } else {
         this.processes.sendMessage(sid, task, this.handle, {
           workingDir: this.workspace,
           mode: 'agent',
-          model: this.model,
+          model: modelForRole,
           resumeSessionId: this.handle.getRealSessionId(sid) || undefined,
         });
       }
@@ -1416,22 +1447,26 @@ export class HybridPipelineRunner {
         resolve(result);
       });
 
-      if (this.useAngyCode) {
-        this.getApiKey().then(apiKey => {
+      const modelForRole = this.getNodeModel(role);
+      const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-'));
+      const provider = modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
+
+      if (isAngyCode) {
+        this.getApiKey(provider).then(apiKey => {
           this.acpm!.sendMessage({
             sessionId: sid,
             workingDir: this.workspace,
             goal: task,
-            provider: this.angyProvider,
+            provider,
             apiKey,
-            model: this.effectiveModel,
+            model: modelForRole,
           }, this.handle);
         }).catch(reject);
       } else {
         this.processes.sendMessage(sid, task, this.handle, {
           workingDir: this.workspace,
           mode: 'agent',
-          model: this.model,
+          model: modelForRole,
           resumeSessionId: this.handle.getRealSessionId(sid) || undefined,
         });
       }
@@ -1554,6 +1589,7 @@ ${issues}`,
   private async structuredCall<T>(schema: object, prompt: string): Promise<T> {
     const claudeBin = await this.resolveClaudeBinary();
     const schemaJson = JSON.stringify(schema);
+    const modelForRole = this.getNodeModel('architect');
 
     const { writeTextFile, remove } = await import('@tauri-apps/plugin-fs');
     const { join, tempDir } = await import('@tauri-apps/api/path');
@@ -1562,11 +1598,20 @@ ${issues}`,
     await writeTextFile(tmpFile, prompt);
 
     try {
+      let modelArgStr = '--model sonnet';
+      if (modelForRole && modelForRole.startsWith('claude-')) {
+        let clean = modelForRole;
+        if (clean.includes('3-5-sonnet')) clean = 'sonnet';
+        else if (clean.includes('3-7-sonnet')) clean = 'claude-3-7-sonnet-20250219';
+        else if (clean.includes('haiku')) clean = 'haiku';
+        modelArgStr = `--model ${clean}`;
+      }
+
       const escapedSchema = schemaJson.replace(/'/g, "'\\''");
       const escapedTmpFile = tmpFile.replace(/'/g, "'\\''");
       const shellCmd =
         `exec '${claudeBin.replace(/'/g, "'\\''")}' ` +
-        `-p --output-format json --model sonnet ` +
+        `-p --output-format json ${modelArgStr} ` +
         `--json-schema '${escapedSchema}' ` +
         `--tools '' ` +
         `< '${escapedTmpFile}'`;

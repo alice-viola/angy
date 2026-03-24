@@ -296,7 +296,7 @@ async function onExportChat(sessionId: string) {
 
 function deleteVisible() {
   menuOpen.value = false;
-  const ids = filteredGroups.value.flatMap(g => g.agents.map(a => a.sessionId));
+  const ids = filteredAgents.value.map(a => a.sessionId);
   for (const sid of ids) {
     sessionsStore.removeSession(sid);
   }
@@ -309,8 +309,8 @@ function deleteOlderThanToday() {
   todayStart.setHours(0, 0, 0, 0);
   const todayTs = Math.floor(todayStart.getTime() / 1000);
 
-  const ids = filteredGroups.value
-    .flatMap(g => g.agents)
+  const ids = filteredAgents.value
+    
     .filter(a => a.updatedAt < todayTs)
     .map(a => a.sessionId);
   for (const sid of ids) {

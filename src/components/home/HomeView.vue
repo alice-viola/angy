@@ -42,7 +42,7 @@ const subtitleStats = computed(() => {
 <template>
   <div class="flex flex-col h-full">
     <!-- Header bar -->
-    <div class="h-12 bg-window/50 border-b border-border-subtle px-5 flex items-center gap-4 shrink-0">
+    <div class="h-12 border-b border-border-subtle px-5 flex items-center gap-4 shrink-0">
       <span class="text-sm font-semibold text-txt-primary">Projects</span>
       <span class="text-xs text-txt-muted">{{ projectsStore.projects.length }} projects</span>
       <div class="flex-1" />
@@ -69,12 +69,13 @@ const subtitleStats = computed(() => {
 
       <!-- Loading skeletons -->
       <template v-if="projectsStore.loading">
-        <div class="grid grid-cols-3 gap-4 max-w-5xl">
-          <div v-for="i in 3" :key="i" class="bg-surface rounded-2xl p-5 animate-pulse">
-            <div class="w-10 h-10 rounded-xl bg-raised mb-3" />
-            <div class="h-4 bg-raised rounded w-3/4 mb-2" />
-            <div class="h-3 bg-raised rounded w-full mb-1" />
-            <div class="h-3 bg-raised rounded w-2/3" />
+        <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-w-6xl">
+          <div v-for="i in 4" :key="i" class="flex items-center gap-2.5 px-3 py-2 rounded-md border-l-2 border-l-txt-faint/20 animate-pulse">
+            <div class="w-7 h-7 rounded-md bg-raised" />
+            <div class="flex-1">
+              <div class="h-3 bg-raised rounded w-3/4 mb-1.5" />
+              <div class="h-2 bg-raised rounded w-1/2" />
+            </div>
           </div>
         </div>
       </template>
@@ -98,7 +99,7 @@ const subtitleStats = computed(() => {
 
       <!-- Card grid -->
       <template v-else>
-        <div class="grid grid-cols-3 gap-4 max-w-5xl">
+        <div class="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 max-w-6xl">
           <ProjectCard
             v-for="(project, idx) in projectsStore.projects"
             :key="project.id"

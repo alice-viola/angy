@@ -4,7 +4,6 @@ import type { Project } from '@/engine/KosTypes';
 import type { AgentSummary } from '@/engine/types';
 import { useUiStore } from '@/stores/ui';
 import { useEpicStore } from '@/stores/epics';
-import WaveBar from '@/components/common/WaveBar.vue';
 
 const props = defineProps<{
   project: Project;
@@ -24,36 +23,26 @@ const epicStore = useEpicStore();
 const ACCENT_COLORS = ['ember', 'cyan', 'teal', 'rose', 'mauve', 'blue'] as const;
 const accent = computed(() => ACCENT_COLORS[props.index % ACCENT_COLORS.length]);
 
-const accentColorVar = computed(() => `var(--accent-${accent.value})`);
-const accentHoverClass = computed(() => {
+const borderColorClass = computed(() => {
   const map: Record<string, string> = {
-    ember: 'group-hover:text-ember-400',
-    cyan: 'group-hover:text-cyan-400',
-    teal: 'group-hover:text-teal-400',
-    rose: 'group-hover:text-rose-400',
-    mauve: 'group-hover:text-[var(--accent-mauve)]',
-    blue: 'group-hover:text-[var(--accent-blue)]',
+    ember: 'border-l-ember-500/50',
+    cyan: 'border-l-cyan-500/50',
+    teal: 'border-l-teal/50',
+    rose: 'border-l-rose-500/50',
+    mauve: 'border-l-purple-500/50',
+    blue: 'border-l-blue-500/50',
   };
-  return map[accent.value] ?? 'group-hover:text-ember-400';
+  return map[accent.value] ?? 'border-l-ember-500/50';
 });
 
+const accentColorVar = computed(() => `var(--accent-${accent.value})`);
+
 const isActive = computed(() => props.activeEpicCount > 0 || props.agents.some(a => a.status !== 'idle'));
-const activeAgents = computed(() => props.agents.filter(a => a.status !== 'idle'));
 const epicCount = computed(() => epicStore.epicsByProject(props.project.id).length);
 const nextTodoEpic = computed(() =>
   epicStore.epicsByProject(props.project.id).find(e => e.column === 'todo')
 );
 
-const AVATAR_GRADIENTS = [
-  'linear-gradient(135deg, #f59e0b, #ea580c)',
-  'linear-gradient(135deg, #10b981, #059669)',
-  'linear-gradient(135deg, #22d3ee, #0891b2)',
-  'linear-gradient(135deg, #cba6f7, #a855f7)',
-];
-
-function goToBoard() { ui.navigateToKanban(props.project.id); }
-function goToAgents() { ui.navigateToEpic(null, props.project.id); }
-function goToCode() { ui.openProjectTab(props.project.id); ui.switchToMode('code'); }
 function handleRun() {
   if (nextTodoEpic.value) {
     epicStore.moveEpic(nextTodoEpic.value.id, 'in-progress');
@@ -63,107 +52,59 @@ function handleRun() {
 
 <template>
   <div
-    class="bg-surface rounded-2xl p-5 overflow-hidden relative cursor-pointer group card-lift anim-fade-in"
-    :class="isActive
-      ? 'border border-teal/20 anim-shimmer'
-      : 'border border-border-subtle hover:border-ember/20'"
-    :style="{ animationDelay: props.index * 50 + 'ms' }"
+    class="group relative flex items-center gap-2.5 px-3 py-2 rounded-md transition-colors cursor-pointer border-l-2"
+    :class="[
+      borderColorClass,
+      isActive ? 'bg-white/[0.02]' : 'hover:bg-white/[0.03]'
+    ]"
     @click="ui.navigateToProject(props.project.id)"
   >
-    <!-- Accent stripe -->
+    <!-- Icon -->
     <div
-      class="accent-stripe"
-      :style="isActive ? { backgroundColor: accentColorVar } : { backgroundColor: 'var(--text-faint)' }"
-    />
+      class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
+      :style="{ backgroundColor: `color-mix(in srgb, ${accentColorVar} 12%, transparent)` }"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" :stroke="accentColorVar" stroke-width="2">
+        <rect x="3" y="3" width="18" height="18" rx="3" /><path d="M9 3v18M3 9h18" />
+      </svg>
+    </div>
 
-    <div class="pl-3">
-      <!-- Row 1: Icon + Status -->
-      <div class="flex items-center justify-between mb-3">
-        <div
-          class="w-10 h-10 rounded-xl flex items-center justify-center"
-          :style="{ backgroundColor: `color-mix(in srgb, ${accentColorVar} 10%, transparent)` }"
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" :stroke="accentColorVar" stroke-width="2">
-            <rect x="3" y="3" width="18" height="18" rx="3" /><path d="M9 3v18M3 9h18" />
-          </svg>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <template v-if="isActive">
-            <span class="w-2 h-2 rounded-full bg-teal anim-breathe" />
-            <span class="text-[10px] text-teal font-medium uppercase tracking-wider">active</span>
-          </template>
-          <template v-else>
-            <span class="text-[10px] text-txt-faint font-medium uppercase tracking-wider">idle</span>
-          </template>
-        </div>
+    <!-- Main content -->
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center gap-2">
+        <span class="text-[12px] font-medium text-txt-primary truncate">{{ project.name }}</span>
+        <span v-if="isActive" class="w-1.5 h-1.5 rounded-full bg-teal flex-shrink-0" />
       </div>
-
-      <!-- Row 2: Title -->
-      <h3
-        class="text-base font-semibold text-txt-primary mb-1 transition-colors"
-        :class="accentHoverClass"
-      >{{ project.name }}</h3>
-
-      <!-- Row 3: Description -->
-      <p v-if="project.description" class="text-xs text-txt-muted mb-4 line-clamp-2">
-        {{ project.description }}
-      </p>
-
-      <!-- Row 4: Stats -->
-      <div class="flex items-center gap-4 text-xs text-txt-muted">
-        <span class="flex items-center gap-1.5">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" />
-          </svg>
-          {{ repoCount }} repo{{ repoCount !== 1 ? 's' : '' }}
-        </span>
-        <span class="flex items-center gap-1.5">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" />
-          </svg>
-          {{ epicCount }} epic{{ epicCount !== 1 ? 's' : '' }}
-        </span>
-        <span v-if="activeEpicCount > 0" class="flex items-center gap-1.5 text-teal">
-          <span class="w-1.5 h-1.5 rounded-full bg-teal" />
-          {{ activeEpicCount }} active
-        </span>
-      </div>
-
-      <!-- Row 5: Agent activity strip -->
-      <div class="mt-4 pt-3 border-t border-white/[0.04] flex items-center gap-2">
-        <template v-if="activeAgents.length > 0">
-          <div class="flex -space-x-1.5">
-            <div
-              v-for="(agent, i) in activeAgents.slice(0, 3)"
-              :key="agent.sessionId"
-              class="w-5 h-5 rounded-md border border-base text-[8px] font-bold text-white flex items-center justify-center"
-              :style="{ background: AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length] }"
-            >
-              {{ agent.title?.charAt(0).toUpperCase() ?? '?' }}
-            </div>
-          </div>
-          <WaveBar :count="3" />
-          <span class="text-[10px] text-txt-muted truncate">
-            {{ activeAgents[0]?.title ?? 'Agent' }} working…
-          </span>
-        </template>
-        <template v-else>
-          <span class="text-[10px] text-txt-faint">No active agents</span>
+      <div class="flex items-center gap-2 text-[10px] text-txt-faint">
+        <span>{{ repoCount }} repo{{ repoCount !== 1 ? 's' : '' }}</span>
+        <span class="text-txt-faint/50">·</span>
+        <span>{{ epicCount }} epic{{ epicCount !== 1 ? 's' : '' }}</span>
+        <template v-if="activeEpicCount > 0">
+          <span class="text-txt-faint/50">·</span>
+          <span class="text-teal">{{ activeEpicCount }} running</span>
         </template>
       </div>
+    </div>
 
-      <!-- Row 6: Quick actions (hover) -->
-      <div class="mt-3 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity" @click.stop>
-        <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors" @click="goToBoard">Board</button>
-        <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors" @click="goToAgents">Agents</button>
-        <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors" @click="goToCode">Code</button>
-        <button class="text-[10px] px-2.5 py-1 rounded-md bg-raised hover:bg-raised-hover text-txt-secondary transition-colors" @click="emit('open-settings')">Settings</button>
-        <button
-          v-if="nextTodoEpic"
-          class="text-[10px] px-2.5 py-1 rounded-md bg-ember/10 hover:bg-ember/20 text-ember transition-colors ml-auto"
-          @click="handleRun"
-        >Run</button>
-      </div>
+    <!-- Right side: Quick actions (visible on hover) -->
+    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" @click.stop>
+      <button
+        class="text-[9px] px-1.5 py-0.5 rounded bg-raised hover:bg-raised-hover text-txt-secondary transition-colors"
+        @click="ui.navigateToKanban(props.project.id)"
+      >Board</button>
+      <button
+        class="text-[9px] px-1.5 py-0.5 rounded bg-raised hover:bg-raised-hover text-txt-secondary transition-colors"
+        @click="emit('open-settings')"
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/><path d="M12 1v4m0 14v4m-9-9h4m14 0h4m-3.3-6.3-2.8 2.8m-9.8 9.8-2.8 2.8m0-15.6 2.8 2.8m9.8 9.8 2.8 2.8"/>
+        </svg>
+      </button>
+      <button
+        v-if="nextTodoEpic"
+        class="text-[9px] px-1.5 py-0.5 rounded bg-ember-500/10 hover:bg-ember-500/20 text-ember-400 transition-colors"
+        @click="handleRun"
+      >Run</button>
     </div>
   </div>
 </template>

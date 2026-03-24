@@ -3,12 +3,11 @@
     <button
       v-for="projectId in ui.openProjectIds"
       :key="projectId"
-      class="group relative flex items-center h-8 min-w-[120px] max-w-[200px] px-3 rounded-t-lg transition-colors border border-b-0 border-transparent cursor-pointer"
+      class="group relative flex items-center h-8 min-w-[120px] max-w-[200px] px-3 rounded-t-lg transition-colors border-b-2 cursor-pointer"
       :class="[
-        ui.activeProjectId === projectId 
-          ? 'bg-[var(--bg-window)] border-[var(--border-subtle)] !border-b-transparent shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-10' 
-          : 'bg-transparent hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-secondary)] border-transparent',
-        ui.activeProjectId === projectId ? 'text-[var(--text-primary)] font-medium' : ''
+        ui.activeProjectId === projectId
+          ? 'border-amber-500 text-[var(--text-primary)] font-medium'
+          : 'border-transparent hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
       ]"
       @click="ui.switchProjectTab(projectId)"
     >
@@ -30,8 +29,6 @@
         </svg>
       </div>
       
-      <!-- Bottom cover to blend with content area -->
-      <div v-if="ui.activeProjectId === projectId" class="absolute -bottom-[1px] left-0 right-0 h-[1px] bg-[var(--bg-window)]" />
     </button>
     
     <!-- Add new project tab button -->

@@ -1,23 +1,23 @@
 <template>
-  <div class="grid grid-cols-4 gap-3">
+  <div class="grid grid-cols-4 gap-2">
     <div
-      v-for="(card, i) in cards"
+      v-for="card in cards"
       :key="card.label"
-      class="bg-window rounded-lg border border-border-subtle px-3.5 py-3 card-lift anim-fade-in"
-      :style="{ animationDelay: `${i * 50}ms` }"
+      class="flex items-center gap-3 px-3 py-2.5 rounded-md border-l-2 hover:bg-white/[0.02] transition-colors"
+      :style="{ borderLeftColor: card.color }"
     >
-      <div class="flex items-center gap-2 mb-1.5">
-        <div
-          class="w-6 h-6 rounded flex items-center justify-center shrink-0"
-          :style="{ background: `color-mix(in srgb, ${card.color} 10%, transparent)` }"
-        >
-          <svg class="w-3.5 h-3.5" :style="{ color: card.color }" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" :d="card.icon" />
-          </svg>
-        </div>
-        <div class="text-[11px] text-txt-muted">{{ card.label }}</div>
+      <div
+        class="w-8 h-8 rounded-md flex items-center justify-center shrink-0"
+        :style="{ background: `color-mix(in srgb, ${card.color} 12%, transparent)` }"
+      >
+        <svg class="w-4 h-4" :style="{ color: card.color }" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" :d="card.icon" />
+        </svg>
       </div>
-      <div class="text-xl font-bold text-txt-primary font-mono">{{ card.value }}</div>
+      <div class="min-w-0">
+        <div class="text-lg font-bold text-txt-primary font-mono">{{ card.value }}</div>
+        <div class="text-[10px] text-txt-muted">{{ card.label }}</div>
+      </div>
     </div>
   </div>
 </template>

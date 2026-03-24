@@ -304,8 +304,21 @@ export class AgentLoop {
         return this.sessionStore.getSession(session.id)!;
       }
 
-      // If no tool calls, we're done
+      // If no tool calls, we might be done, or we might need to nudge the model
       if (pendingToolCalls.size === 0) {
+        const hasText = assistantParts.some(p => p.type === 'text' && ('text' in p) && typeof p.text === 'string' && p.text.trim().length > 0);
+
+        if (stopReason === 'max_tokens' || !hasText) {
+          const nudgeText = stopReason === 'max_tokens'
+            ? 'System: Your response was truncated (max_tokens). Please continue where you left off.'
+            : 'System: You returned an empty response. If you are finished, summarize your actions to the user. If you are not finished, please call the next tool.';
+
+          const nudgeMessage: Message = { role: 'user', content: [{ type: 'text', text: nudgeText }] };
+          messages.push(nudgeMessage);
+          this.messageStore.addMessage(session.id, nudgeMessage);
+          continue;
+        }
+
         this.sessionStore.updateSession(session.id, { status: 'done' });
         this.emit({
           type: 'done',

@@ -419,6 +419,7 @@ export class AngyEngine {
       epicId,
       autoProfiles: detectedProfiles,
       complexity: epic.complexity,
+      pipelineConfig: epic.pipelineConfig,
       stateStore: this.pipelineStateStore,
       healthMonitor: this.healthMonitor,
       pipelineType,
@@ -542,6 +543,7 @@ export class AngyEngine {
       epicId,
       autoProfiles: detectedProfiles,
       complexity: epic.complexity,
+      pipelineConfig: epic.pipelineConfig,
       stateStore: this.pipelineStateStore,
       healthMonitor: this.healthMonitor,
     });

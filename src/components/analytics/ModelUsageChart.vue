@@ -1,6 +1,6 @@
 <template>
-  <div class="bg-window rounded-lg border border-border-subtle p-3.5">
-    <div class="text-xs font-semibold text-txt-primary mb-2.5">Model Usage</div>
+  <div class="border border-border-subtle rounded-md p-3">
+    <div class="text-[11px] font-semibold uppercase tracking-wider text-txt-muted mb-3">Model Usage</div>
     <div class="relative h-40">
       <template v-if="hasData">
         <Doughnut :data="chartData" :options="chartOptions" />

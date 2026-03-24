@@ -1,63 +1,51 @@
 <template>
   <div
-    class="group relative rounded-xl p-4 cursor-pointer transition-all anim-shimmer select-none"
+    class="group relative rounded-lg border p-3 cursor-pointer transition-all select-none"
     :class="cardClasses"
-    style="box-shadow: 0 0 24px -6px rgba(16,185,129,0.10)"
     @click="actions.onSingleClick"
     @dblclick="actions.onDoubleClick"
     @pointerdown="actions.onPointerDown"
   >
-    <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r" :style="{ backgroundColor: projectColor }" />
+    <div class="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-teal" />
 
-    <div class="pl-3">
-      <!-- Top row: Epic ID + project dot + project name + priority | progress ring -->
-      <div class="flex items-center justify-between mb-2">
+    <div class="pl-2.5">
+      <!-- Top row: project dot + project name + priority | progress ring -->
+      <div class="flex items-center justify-between mb-1.5">
         <div class="flex items-center gap-2">
           <span class="w-1.5 h-1.5 rounded-full" :style="{ backgroundColor: projectColor }" />
           <span class="text-[10px] text-txt-faint">{{ projectName }}</span>
-          <PriorityBadge :priority="epic.priorityHint" />
+          <PriorityBadge v-if="epic.priorityHint !== 'none'" :priority="epic.priorityHint" />
         </div>
-        <ProgressRing :progress="epic.progress ?? 0" :size="28" class="flex-shrink-0" />
+        <ProgressRing :progress="epic.progress ?? 0" :size="24" class="flex-shrink-0" />
       </div>
 
       <!-- Title -->
-      <p class="text-sm text-txt-primary font-semibold leading-snug mb-1.5">{{ epic.title }}</p>
-
-      <!-- Description -->
-      <p v-if="epic.description" class="text-[11px] text-txt-muted leading-relaxed mb-2">{{ epic.description.length > 200 ? epic.description.slice(0, 200) + '…' : epic.description }}</p>
-
-      <!-- Branch -->
-      <div v-if="actions.branchName.value" class="flex items-center gap-1 mb-3">
-        <svg class="w-3 h-3 text-teal flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="6" y1="3" x2="6" y2="15" /><circle cx="18" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M18 9a9 9 0 0 1-9 9" />
-        </svg>
-        <span class="text-[10px] text-teal font-mono truncate">{{ actions.branchName.value }}</span>
-      </div>
+      <p class="text-xs text-txt-primary font-medium leading-snug">{{ epic.title }}</p>
 
       <!-- Agent activity strip -->
-      <div class="flex items-center gap-2 pt-2.5 border-t border-border-subtle">
+      <div class="flex items-center gap-2 mt-2">
         <!-- Agent avatars -->
         <div v-if="agentAvatars.length > 0" class="flex -space-x-1.5">
           <div
             v-for="(av, i) in agentAvatars"
             :key="i"
-            class="w-5 h-5 rounded-md border border-base flex items-center justify-center"
+            class="w-4 h-4 rounded border border-base flex items-center justify-center"
             :style="{ background: av.gradient }"
           >
-            <span class="text-[8px] font-bold" :style="{ color: av.textColor }">{{ av.initial }}</span>
+            <span class="text-[7px] font-bold" :style="{ color: av.textColor }">{{ av.initial }}</span>
           </div>
         </div>
 
         <!-- Wave bars -->
-        <div class="flex items-end gap-[3px] h-4">
-          <div class="wave-bar wave-bar-teal" style="height:8px;width:2px" />
-          <div class="wave-bar wave-bar-teal" style="height:12px;width:2px" />
+        <div class="flex items-end gap-[2px] h-3">
           <div class="wave-bar wave-bar-teal" style="height:6px;width:2px" />
           <div class="wave-bar wave-bar-teal" style="height:10px;width:2px" />
+          <div class="wave-bar wave-bar-teal" style="height:5px;width:2px" />
+          <div class="wave-bar wave-bar-teal" style="height:8px;width:2px" />
         </div>
 
-        <span class="text-[10px] text-teal truncate ml-0.5">
-          {{ actions.agentCount.value }} agent{{ actions.agentCount.value !== 1 ? 's' : '' }} running
+        <span class="text-[10px] text-teal truncate">
+          {{ actions.agentCount.value }} running
         </span>
         <span class="text-[10px] text-txt-faint ml-auto">${{ epic.costTotal?.toFixed(2) ?? '0.00' }}</span>
       </div>
@@ -134,8 +122,8 @@ const agentAvatars = computed(() => {
 
 const cardClasses = computed(() => {
   if (props.selectable && props.selected) {
-    return 'border border-[var(--accent-teal)] bg-[var(--accent-teal)]/5 cursor-pointer';
+    return 'border-[var(--accent-teal)] bg-[var(--accent-teal)]/5 cursor-pointer';
   }
-  return 'border border-teal/25 bg-surface';
+  return 'border-teal/20 bg-white/[0.02] hover:bg-white/[0.04]';
 });
 </script>
