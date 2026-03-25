@@ -137,7 +137,7 @@ export interface GitFileEntry {
   staged: boolean;
 }
 
-import type { Epic, EpicColumn, BlockingReason } from './KosTypes';
+import type { Epic, EpicColumn, BlockingReason, SchedulerConfig } from './KosTypes';
 
 // ── Engine Event Bus Types ────────────────────────────────────────────────
 
@@ -164,6 +164,7 @@ export type EngineEvents = {
   'epic:subOrchestratorSpawned': { task: string; depth: number; epicId: string };
   'scheduler:error': { epicId?: string; title: string; message: string };
   'scheduler:info': { epicId?: string; title: string; message: string };
+  'scheduler:configChanged': { config: SchedulerConfig };
   'scheduler:blockingReasons': { reasons: Record<string, BlockingReason[]> };
   'epic:requestStart': { epicId: string };
   'epic:requestStop': { epicId: string; targetColumn?: EpicColumn };
