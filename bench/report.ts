@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
 import type { RunMetrics, AggregateScore, TaskResult } from './types.js';
 
@@ -142,7 +143,8 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  const benchDir = resolve(process.cwd());
+  const __filename = fileURLToPath(import.meta.url);
+  const benchDir = dirname(__filename);
   const resultsDir = join(benchDir, 'results');
 
   // Parse --runs or --compare from positional args after the flag

@@ -15,8 +15,12 @@ export function scoreTask(
 ): TaskResult {
   const events = trace.events as TraceEvent[];
 
-  // Count turns (tool_start events)
-  const turns = events.filter((e) => e.type === 'tool_start').length;
+  // Count turns (usage events — one per provider round-trip)
+  // Falls back to counting 'done' events if no usage events (e.g. error-only traces)
+  let turns = events.filter((e) => e.type === 'usage').length;
+  if (turns === 0) {
+    turns = events.filter((e) => e.type === 'done').length;
+  }
 
   // Sum tokens from usage events
   let inputTokens = 0;

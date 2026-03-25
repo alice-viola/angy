@@ -90,6 +90,12 @@ export async function runClaudeCode(
     let stdoutBuffer = '';
     let killed = false;
 
+    // Track tool_use id → name mapping so we can attach names to tool_result events
+    const toolNameById = new Map<string, string>();
+    // Track the last tool_use id so we can pair sequential tool_result events
+    let lastToolUseIds: string[] = [];
+    let toolResultIndex = 0;
+
     // Set up timeout
     const timeoutId = setTimeout(() => {
       trace.timedOut = true;
@@ -141,6 +147,10 @@ export async function runClaudeCode(
             }
 
             if (event.type === 'assistant') {
+              // Reset tool pairing state for this assistant message
+              lastToolUseIds = [];
+              toolResultIndex = 0;
+
               // Walk content array
               for (const block of event.message.content) {
                 if (block.type === 'text') {
@@ -151,6 +161,8 @@ export async function runClaudeCode(
                     text: block.text,
                   });
                 } else if (block.type === 'tool_use') {
+                  toolNameById.set(block.id, block.name);
+                  lastToolUseIds.push(block.id);
                   trace.events.push({
                     type: 'tool_start',
                     timestamp,
@@ -161,13 +173,30 @@ export async function runClaudeCode(
                 }
               }
             } else if (event.type === 'tool_result') {
+              // Pair with the corresponding tool_use by sequential order
+              const pairedId = lastToolUseIds[toolResultIndex] ?? '';
+              const pairedName = pairedId ? (toolNameById.get(pairedId) ?? '') : '';
+              toolResultIndex++;
+
+              // Detect is_error from content
+              let isError = false;
+              if (Array.isArray(event.content)) {
+                isError = event.content.some(
+                  (block: any) => block && typeof block === 'object' && block.is_error === true
+                );
+              } else if (typeof event.content === 'string') {
+                isError = event.content.startsWith('Error:');
+              }
+
               trace.events.push({
                 type: 'tool_output',
                 timestamp,
+                id: pairedId,
+                name: pairedName,
                 output: typeof event.content === 'string'
                   ? event.content
                   : JSON.stringify(event.content),
-                is_error: false,
+                is_error: isError,
               });
             } else if (event.type === 'result') {
               trace.events.push({

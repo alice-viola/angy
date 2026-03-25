@@ -8,7 +8,13 @@ export function makeTempDir(prefix: string): string {
 }
 
 export function cloneDir(src: string, dest: string): void {
-  cpSync(src, dest, { recursive: true });
+  cpSync(src, dest, {
+    recursive: true,
+    filter: (source: string) => {
+      // Skip node_modules — verify.sh will npm install as needed
+      return !source.includes('node_modules');
+    },
+  });
 }
 
 export function getGitSha(dir: string): string {

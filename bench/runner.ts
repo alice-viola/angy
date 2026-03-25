@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync, unlinkSync } from 'node:fs';
+import { resolve, join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import minimist from 'minimist';
 import type { Task } from './task.schema.js';
 import type { RunConfig, RawTrace, RunMetrics, TaskResult } from './types.js';
@@ -139,8 +140,9 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
-  // Load tasks
-  const benchDir = resolve(process.cwd());
+  // Load tasks — resolve relative to this script, not cwd
+  const __filename = fileURLToPath(import.meta.url);
+  const benchDir = dirname(__filename);
   const tasksDir = join(benchDir, 'tasks');
   let allTasks = loadTasks(tasksDir);
 
@@ -233,9 +235,14 @@ async function main(): Promise<void> {
       const verifyScriptPath = join(tasksDir, task.id, task.verifyScript);
       const workDir = tempDir ?? makeTempDir(`bench-verify-${task.id}-`);
 
+      // Write agent text output to a temp file so verify.sh can access it as $2
+      // (needed for tasks like large-codebase-nav that check the agent's answer)
+      const agentOutputFile = join(workDir, '.agent-output.txt');
+      writeFileSync(agentOutputFile, trace.agentTextOutput ?? '');
+
       let verifyResult = { exitCode: 1, stdout: '', stderr: '' };
       try {
-        verifyResult = await runScript(verifyScriptPath, [workDir]);
+        verifyResult = await runScript(verifyScriptPath, [workDir, agentOutputFile]);
       } catch (err) {
         console.error(`[${task.id}] Verify script error:`, err);
       }
