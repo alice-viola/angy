@@ -1,0 +1,12 @@
+{
+  "id": "debug-test-failure",
+  "name": "Debug Failing Tests",
+  "description": "Fix two failing tests in a TypeScript utility library",
+  "difficulty": "medium",
+  "goal": "Two tests in this project are failing. Debug and fix the source code (not the tests) so that all tests pass. Do not modify any test files.",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 240,
+  "maxTurns": 30,
+  "tags": ["medium", "debugging", "tests"]
+}

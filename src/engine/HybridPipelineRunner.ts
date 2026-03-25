@@ -22,7 +22,7 @@ import type { HeadlessHandle } from './HeadlessHandle';
 import type { ProcessManager } from './ProcessManager';
 import type { AngyCodeProcessManager } from './AngyCodeProcessManager';
 import type { SessionService } from './SessionService';
-import type { ComplexityEstimate, EpicPipelineType, PipelineConfig } from './KosTypes';
+import type { AgentNode, ComplexityEstimate, EpicPipelineType, PipelineConfig } from './KosTypes';
 import type { TechProfile } from './TechDetector';
 import type { PipelineSnapshot, PipelinePhase } from './types';
 import type { PipelineStateStore } from './PipelineStateStore';
@@ -126,6 +126,12 @@ interface VerifyResult {
   errors?: string[];
 }
 
+interface PipelineFeatures {
+  architectTurns: number;
+  useCounterpart: boolean;
+  useTester: boolean;
+}
+
 interface TestResult {
   buildPassed: boolean;
   testsPassed: boolean;
@@ -197,6 +203,7 @@ export class HybridPipelineRunner {
   private designPlan = '';
   private finalizeCycle = 0;
   private replansRemaining = 3;
+  private features: PipelineFeatures = { architectTurns: 2, useCounterpart: true, useTester: true };
 
   static readonly AGENT_TIMEOUT_MS = 120 * 60 * 1000;
   static readonly BUILDER_SESSION_MAX_MS = 25 * 60 * 1000;
@@ -286,8 +293,9 @@ export class HybridPipelineRunner {
 
       await this.checkpointState('planning');
 
-      const features = this.getPipelineFeatures();
-      this.log(`Pipeline features for complexity "${this.complexity}": architectTurns=${features.architectTurns}, useCounterpart=${features.useCounterpart}, useDesignSystem=${features.useDesignSystem}`);
+      this.features = this.getPipelineFeatures();
+      const features = this.features;
+      this.log(`Pipeline features for complexity "${this.complexity}": architectTurns=${features.architectTurns}, useCounterpart=${features.useCounterpart}, useTester=${features.useTester}`);
 
       // ── Trivial: skip architect, single builder + tester ─────────
       if (this.complexity === 'trivial') {
@@ -374,6 +382,8 @@ export class HybridPipelineRunner {
       todosTotal: totalTodos,
     });
 
+    this.features = this.getPipelineFeatures();
+
     try {
       // Determine resume point
       const hasPendingTodos = this.todoQueue.some(e => e.status === 'pending');
@@ -389,8 +399,8 @@ export class HybridPipelineRunner {
         } else {
           // No plan saved — must restart planning from scratch
           this.log('Resuming: No plan saved, restarting planning phase');
-          const features = this.getPipelineFeatures();
-          await this.executePhase1Plan(this._goal, this._acceptanceCriteria, features);
+          this.features = this.getPipelineFeatures();
+          await this.executePhase1Plan(this._goal, this._acceptanceCriteria, this.features);
           if (this._cancelled) return;
           await this.executePhase2Implement();
           if (this._cancelled) return;
@@ -429,60 +439,70 @@ export class HybridPipelineRunner {
   private async executePhase1Plan(
     goal: string,
     acceptanceCriteria: string,
-    features: ReturnType<typeof HybridPipelineRunner.prototype.getPipelineFeatures>,
+    features: PipelineFeatures,
   ): Promise<void> {
     this.setPhase('planning');
-    this.log('Phase 1: Architect planning');
     await this.checkpointState('planning');
 
-    const structurePlan = await this.healthCheckedArchitect(this.architectStructureTask(goal, acceptanceCriteria));
-    if (this._cancelled) return;
+    let approvedPlan: string;
 
-    // Counterpart reviews and corrects the plan in a single pass
-    let approvedPlan = structurePlan;
-    if (features.useCounterpart) {
-      this.setPhase('verifying plan');
-      const counterpartOutput = await this.healthCheckedCounterpart(
-        this.planReviewTask(structurePlan, acceptanceCriteria),
-      );
+    if (features.architectTurns > 0) {
+      // ── Architect planning ──────────────────────────────────────
+      this.log('Phase 1: Architect planning');
+
+      const structurePlan = await this.healthCheckedArchitect(this.architectStructureTask(goal, acceptanceCriteria));
       if (this._cancelled) return;
 
-      if (this.isRejected(counterpartOutput)) {
-        // Plan fundamentally flawed — architect must redo (max 1 retry)
-        const reason = counterpartOutput.replace(/^REJECTED:?\s*/i, '').trim();
-        this.log(`Plan rejected by counterpart: ${reason.substring(0, 100)}...`);
-        this.setPhase('revising plan (rejected)');
-
-        const revisedPlan = await this.healthCheckedArchitect(
-          `Your plan was rejected by the counterpart as fundamentally flawed.\n\n# Rejection Reason\n${reason}\n\n# Instructions\nProduce a COMPLETE revised plan from scratch, addressing the rejection reason. Follow the same output format as your original plan.`,
+      // Counterpart reviews and corrects the plan in a single pass
+      approvedPlan = structurePlan;
+      if (features.useCounterpart) {
+        this.setPhase('verifying plan');
+        const counterpartOutput = await this.healthCheckedCounterpart(
+          this.planReviewTask(structurePlan, acceptanceCriteria),
         );
         if (this._cancelled) return;
 
-        this.setPhase('re-verifying plan');
-        const secondOutput = await this.healthCheckedCounterpart(
-          this.planReviewTask(revisedPlan, acceptanceCriteria),
-        );
-        if (this._cancelled) return;
+        if (this.isRejected(counterpartOutput)) {
+          // Plan fundamentally flawed — architect must redo (max 1 retry)
+          const reason = counterpartOutput.replace(/^REJECTED:?\s*/i, '').trim();
+          this.log(`Plan rejected by counterpart: ${reason.substring(0, 100)}...`);
+          this.setPhase('revising plan (rejected)');
 
-        if (this.isRejected(secondOutput)) {
-          this.log('Plan rejected twice — proceeding with architect version');
-          approvedPlan = revisedPlan;
+          const revisedPlan = await this.healthCheckedArchitect(
+            `Your plan was rejected by the counterpart as fundamentally flawed.\n\n# Rejection Reason\n${reason}\n\n# Instructions\nProduce a COMPLETE revised plan from scratch, addressing the rejection reason. Follow the same output format as your original plan.`,
+          );
+          if (this._cancelled) return;
+
+          this.setPhase('re-verifying plan');
+          const secondOutput = await this.healthCheckedCounterpart(
+            this.planReviewTask(revisedPlan, acceptanceCriteria),
+          );
+          if (this._cancelled) return;
+
+          if (this.isRejected(secondOutput)) {
+            this.log('Plan rejected twice — proceeding with architect version');
+            approvedPlan = revisedPlan;
+          } else {
+            approvedPlan = secondOutput;
+          }
         } else {
-          approvedPlan = secondOutput;
+          approvedPlan = counterpartOutput;
         }
-      } else {
-        approvedPlan = counterpartOutput;
       }
-    }
 
-    if (features.architectTurns >= 3) {
-      const hasFrontend = await this.detectFrontendScope(approvedPlan);
-      if (hasFrontend && features.useDesignSystem) {
-        this.setPhase('designing UI');
-        this.log('Architect Turn 2: Design system');
-        this.designPlan = await this.healthCheckedArchitect(this.architectDesignTask(approvedPlan));
-        if (this._cancelled) return;
+      if (features.architectTurns >= 3) {
+        const hasFrontend = await this.detectFrontendScope(approvedPlan);
+        if (hasFrontend) {
+          this.setPhase('designing UI');
+          this.log('Architect Turn 2: Design system');
+          this.designPlan = await this.healthCheckedArchitect(this.architectDesignTask(approvedPlan));
+          if (this._cancelled) return;
+        }
       }
+    } else {
+      // ── Architect disabled — pass goal directly to todo extraction ──
+      this.log('Phase 1: Architect disabled, skipping planning — extracting todos from goal');
+      approvedPlan = `# Goal\n${goal}\n\n# Acceptance Criteria\n${acceptanceCriteria || 'None specified'}`;
     }
 
     this.architectContext = this.designPlan
@@ -515,65 +535,76 @@ export class HybridPipelineRunner {
     this.log('Phase 3: Finalize');
     await this.checkpointState('finalizing');
 
-    const MAX_FINALIZE_CYCLES = 5;
-    let finalized = false;
+    // If both counterpart and tester are disabled, skip the finalize loop entirely
+    if (!this.features.useCounterpart && !this.features.useTester) {
+      this.log('Both counterpart and tester disabled — skipping finalize cycle');
+    } else {
+      const MAX_FINALIZE_CYCLES = 5;
+      let finalized = false;
 
-    for (let cycle = this.finalizeCycle; cycle < MAX_FINALIZE_CYCLES; cycle++) {
-      if (this._cancelled) return;
-      this.finalizeCycle = cycle;
+      for (let cycle = this.finalizeCycle; cycle < MAX_FINALIZE_CYCLES; cycle++) {
+        if (this._cancelled) return;
+        this.finalizeCycle = cycle;
 
-      this.setPhase('reviewing implementation');
-      this.log(`Finalize cycle ${cycle + 1}: counterpart review`);
-      const allOutput = this.getAllCompletedTodoOutput();
-      const codeVerdict = await this.extractVerdict(
-        await this.healthCheckedCounterpart(this.codeReviewTask(this.architectContext, allOutput, acceptanceCriteria)),
-      );
-      if (this._cancelled) return;
-
-      if (this.hasChangesRequested(codeVerdict)) {
-        this.setPhase('generating fix-todos (counterpart)');
-        const fixTodos = await this.generateFixTodos(this.formatIssues(codeVerdict), 'counterpart');
-        if (fixTodos.length > 0) {
-          this.appendTodos(fixTodos);
-          await this.checkpointState('finalizing');
-          await this.executeTodoLoop();
+        // ── Counterpart code review (gated) ─────────────────────────
+        if (this.features.useCounterpart) {
+          this.setPhase('reviewing implementation');
+          this.log(`Finalize cycle ${cycle + 1}: counterpart review`);
+          const allOutput = this.getAllCompletedTodoOutput();
+          const codeVerdict = await this.extractVerdict(
+            await this.healthCheckedCounterpart(this.codeReviewTask(this.architectContext, allOutput, acceptanceCriteria)),
+          );
           if (this._cancelled) return;
+
+          if (this.hasChangesRequested(codeVerdict)) {
+            this.setPhase('generating fix-todos (counterpart)');
+            const fixTodos = await this.generateFixTodos(this.formatIssues(codeVerdict), 'counterpart');
+            if (fixTodos.length > 0) {
+              this.appendTodos(fixTodos);
+              await this.checkpointState('finalizing');
+              await this.executeTodoLoop();
+              if (this._cancelled) return;
+            }
+            continue;
+          }
         }
-        continue;
+
+        // ── Integration tester (gated) ──────────────────────────────
+        if (this.features.useTester) {
+          this.setPhase('testing');
+          this.log(`Finalize cycle ${cycle + 1}: integration test`);
+          const testerOutput = await this.healthCheckedDelegate('tester', this.testTask());
+          if (this._cancelled) return;
+          const testResult = await this.extractTestResult(testerOutput);
+
+          if (!testResult.buildPassed || !testResult.testsPassed) {
+            const failureText = (testResult.failures || []).join('\n');
+            this.setPhase('generating fix-todos (test)');
+            const fixTodos = await this.generateFixTodos(
+              `Test failures:\n${failureText}\n\nFull tester output:\n${testerOutput}`,
+              'test',
+            );
+            if (fixTodos.length > 0) {
+              this.appendTodos(fixTodos);
+              await this.checkpointState('finalizing');
+              await this.executeTodoLoop();
+              if (this._cancelled) return;
+            }
+            continue;
+          }
+        }
+
+        finalized = true;
+        break;
       }
 
-      this.setPhase('testing');
-      this.log(`Finalize cycle ${cycle + 1}: integration test`);
-      const testerOutput = await this.healthCheckedDelegate('tester', this.testTask());
-      if (this._cancelled) return;
-      const testResult = await this.extractTestResult(testerOutput);
-
-      if (!testResult.buildPassed || !testResult.testsPassed) {
-        const failureText = (testResult.failures || []).join('\n');
-        this.setPhase('generating fix-todos (test)');
-        const fixTodos = await this.generateFixTodos(
-          `Test failures:\n${failureText}\n\nFull tester output:\n${testerOutput}`,
-          'test',
-        );
-        if (fixTodos.length > 0) {
-          this.appendTodos(fixTodos);
-          await this.checkpointState('finalizing');
-          await this.executeTodoLoop();
-          if (this._cancelled) return;
-        }
-        continue;
+      if (!finalized) {
+        this._running = false;
+        this.setPhase('failed');
+        await this.checkpointState('failed');
+        this.events.emit('failed', { reason: `Finalization still failing after ${MAX_FINALIZE_CYCLES} cycles` });
+        return;
       }
-
-      finalized = true;
-      break;
-    }
-
-    if (!finalized) {
-      this._running = false;
-      this.setPhase('failed');
-      await this.checkpointState('failed');
-      this.events.emit('failed', { reason: `Finalization still failing after ${MAX_FINALIZE_CYCLES} cycles` });
-      return;
     }
 
     this._running = false;
@@ -583,7 +614,9 @@ export class HybridPipelineRunner {
 
     const doneTodos = this.todoQueue.filter(e => e.status === 'done').length;
     const summary = `Hybrid pipeline completed for epic ${this.epicId} (complexity: ${this.complexity}). ` +
-      `${doneTodos} todos completed, counterpart approved, tests passed.`;
+      `${doneTodos} todos completed` +
+      `${this.features.useCounterpart ? ', counterpart approved' : ''}` +
+      `${this.features.useTester ? ', tests passed' : ''}.`;
 
     this.events.emit('completed', { summary });
     this.log(summary);
@@ -911,13 +944,25 @@ export class HybridPipelineRunner {
       this.resetBuilderSession(batch[0].todo.scope);
       this.log(`Batch [${failedTitles}] failed, re-planning (${this.replansRemaining} replans left)`);
 
-      const remainingTodos = this.todoQueue.filter(e => e.status === 'pending').map(e => e.todo);
-      const replanProse = await this.healthCheckedArchitect(
-        this.replanTask(batch[0].todo, ['Batch verification failed for multiple todos'], remainingTodos),
-      );
-      if (this._cancelled) return;
+      let revisedTodos: PipelineTodo[];
 
-      const revisedTodos = await this.extractTodos(replanProse);
+      if (this.features.architectTurns > 0) {
+        // Architect-assisted replan
+        const remainingTodos = this.todoQueue.filter(e => e.status === 'pending').map(e => e.todo);
+        const replanProse = await this.healthCheckedArchitect(
+          this.replanTask(batch[0].todo, ['Batch verification failed for multiple todos'], remainingTodos),
+        );
+        if (this._cancelled) return;
+        revisedTodos = await this.extractTodos(replanProse);
+      } else {
+        // Architect disabled — generate fix todos directly from the failures
+        this.log('Architect disabled, generating fix todos without architect');
+        const failedIssues = batch
+          .map(e => `- ${e.todo.title} [${e.todo.scope}]: verification failed`)
+          .join('\n');
+        revisedTodos = await this.generateFixTodos(failedIssues, 'test');
+      }
+
       this.validateTodos(revisedTodos);
       this.log(`Re-plan produced ${revisedTodos.length} revised todos`);
 
@@ -1049,14 +1094,13 @@ export class HybridPipelineRunner {
 
   // ── Pipeline feature flags based on config / complexity ───────────────────────
 
-  private getPipelineFeatures() {
+  private getPipelineFeatures(): PipelineFeatures {
     if (this.pipelineConfig && this.pipelineConfig.nodes.length > 0) {
       const nodes = this.pipelineConfig.nodes;
       return {
         architectTurns: nodes.some(n => n.id === 'architect' && n.model !== 'disabled') ? 1 : 0,
         useCounterpart: nodes.some(n => n.id === 'counterpart' && n.model !== 'disabled'),
-        useDesignSystem: false, // simplified for now
-        usePhase4Test: nodes.some(n => n.id === 'tester' && n.model !== 'disabled'),
+        useTester: nodes.some(n => n.id === 'tester' && n.model !== 'disabled'),
       };
     }
 
@@ -1065,8 +1109,7 @@ export class HybridPipelineRunner {
     return {
       architectTurns: (c === 'trivial') ? 0 : (c === 'small' || c === 'medium') ? 1 : 3,
       useCounterpart: c !== 'trivial' && c !== 'small',
-      useDesignSystem: c === 'large' || c === 'epic',
-      usePhase4Test: c !== 'trivial',
+      useTester: c !== 'trivial',
     };
   }
 
@@ -1083,17 +1126,33 @@ export class HybridPipelineRunner {
     return this.model?.replace(/^angy-/, '');
   }
 
+  /**
+   * Resolve a pipeline config node for a given role string.
+   *
+   * Resolution order:
+   *  1. Exact role match  (e.g. 'builder-frontend' → node role 'builder-frontend')
+   *  2. Exact id match    (e.g. 'counterpart' → node id 'counterpart')
+   *  3. Prefix match in either direction:
+   *     - node role is prefix of requested role  (e.g. node 'tester' matches 'tester-frontend')
+   *     - requested role is prefix of node role  (e.g. 'builder' matches node 'builder-frontend')
+   */
+  private findPipelineNode(role: string): AgentNode | undefined {
+    if (!this.pipelineConfig || this.pipelineConfig.nodes.length === 0) return undefined;
+    const nodes = this.pipelineConfig.nodes;
+    let node = nodes.find(n => n.role === role);
+    if (!node) node = nodes.find(n => n.id === role);
+    if (!node) {
+      node = nodes.find(n =>
+        n.role.startsWith(role) || role.startsWith(n.role)
+      );
+    }
+    return node;
+  }
+
   private getNodeModel(role: string): string | undefined {
-    if (this.pipelineConfig && this.pipelineConfig.nodes.length > 0) {
-      // Find the specific node
-      let node = this.pipelineConfig.nodes.find(n => n.role === role);
-      if (!node) {
-         // Fallback if role has suffix like builder-frontend -> builder
-         node = this.pipelineConfig.nodes.find(n => n.id === role || n.role.startsWith(role));
-      }
-      if (node && node.model !== 'disabled') {
-        return node.model.replace(/^angy-/, '');
-      }
+    const node = this.findPipelineNode(role);
+    if (node && node.model !== 'disabled') {
+      return node.model.replace(/^angy-/, '');
     }
     return this.effectiveModel;
   }

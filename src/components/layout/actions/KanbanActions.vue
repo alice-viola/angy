@@ -102,8 +102,19 @@ const projectsStore = useProjectsStore();
 function goToMode(mode: 'agents' | 'code') {
   if (ui.activeProjectId) {
     const repos = projectsStore.reposByProjectId(ui.activeProjectId);
-    if (repos.length > 0) {
+    if (repos.length === 1) {
       ui.workspacePath = repos[0].path;
+    } else if (repos.length > 1) {
+      // Multi-repo: compute common ancestor path
+      const paths = repos.map(r => r.path).filter(Boolean);
+      const segments = paths.map(p => p.split('/'));
+      const commonParts: string[] = [];
+      for (let i = 0; i < segments[0].length; i++) {
+        const seg = segments[0][i];
+        if (segments.every(s => s[i] === seg)) commonParts.push(seg);
+        else break;
+      }
+      ui.workspacePath = commonParts.join('/') || '/';
     }
   }
   ui.switchToMode(mode);

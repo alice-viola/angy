@@ -1,0 +1,12 @@
+{
+  "id": "add-feature",
+  "name": "Add Feature to Express API",
+  "description": "Add a DELETE endpoint to an existing Express REST API",
+  "difficulty": "medium",
+  "goal": "This Express API has GET, POST, and PUT endpoints for /api/items. Add a DELETE /api/items/:id endpoint that removes an item from the in-memory store. Return 200 { deleted: true } on success, 404 { error: 'not found' } if the item does not exist. All existing tests must continue to pass and the new endpoint must be tested.",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 240,
+  "maxTurns": 30,
+  "tags": ["medium", "feature", "express", "api"]
+}

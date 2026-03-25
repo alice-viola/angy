@@ -1,0 +1,7 @@
+node_modules/
+dist/
+results/*/
+!results/.gitkeep
+/tmp-bench-*/
+*.tmp
+.agent-output.txt

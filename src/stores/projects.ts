@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { Project, ProjectRepo } from '@/engine/KosTypes';
 import { PROJECT_COLORS } from '@/engine/KosTypes';
 import { getDatabase } from './sessions';
+import { broadcastSync } from '@/engine/WindowSync';
 
 export const useProjectsStore = defineStore('projects', () => {
   // ── State ──────────────────────────────────────────────────────────
@@ -27,7 +28,14 @@ export const useProjectsStore = defineStore('projects', () => {
     loading.value = true;
     try {
       const db = getDatabase();
+      // Ensure database is open before querying
+      const isOpen = await db.open();
+      if (!isOpen) {
+        console.error('[ProjectsStore] Database not open, cannot load projects');
+        return;
+      }
       const loadedProjects = await db.loadProjects();
+      console.log('[ProjectsStore] Loaded', loadedProjects.length, 'projects from DB');
       const loadedRepos = (await Promise.all(
         loadedProjects.map((p) => db.loadProjectRepos(p.id))
       )).flat();
@@ -59,6 +67,7 @@ export const useProjectsStore = defineStore('projects', () => {
     const db = getDatabase();
     await db.saveProject(project);
     projects.value.push(project);
+    broadcastSync('projects');
     return project;
   }
 
@@ -73,6 +82,7 @@ export const useProjectsStore = defineStore('projects', () => {
 
     const db = getDatabase();
     await db.saveProject(project);
+    broadcastSync('projects');
   }
 
   async function deleteProject(id: string) {
@@ -82,6 +92,7 @@ export const useProjectsStore = defineStore('projects', () => {
     // Remove associated repos from state
     repos.value = repos.value.filter((r) => r.projectId !== id);
     projects.value = projects.value.filter((p) => p.id !== id);
+    broadcastSync('projects');
   }
 
   async function addRepo(projectId: string, repo: Omit<ProjectRepo, 'id'>): Promise<ProjectRepo> {
@@ -101,6 +112,7 @@ export const useProjectsStore = defineStore('projects', () => {
       await db.saveProject(project);
     }
 
+    broadcastSync('projects');
     return fullRepo;
   }
 
@@ -115,6 +127,8 @@ export const useProjectsStore = defineStore('projects', () => {
       project.updatedAt = new Date().toISOString();
       await db.saveProject(project);
     }
+
+    broadcastSync('projects');
   }
 
   async function initialize() {

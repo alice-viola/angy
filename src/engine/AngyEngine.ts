@@ -106,8 +106,10 @@ export class AngyEngine {
 
   // ── Initialization / Shutdown ──────────────────────────────────────
 
-  async initialize(dbPath?: string): Promise<void> {
+  async initialize(dbPath?: string, options?: { primaryWindow?: boolean }): Promise<void> {
     if (this._initialized) return;
+
+    const isPrimary = options?.primaryWindow ?? true;
 
     // 1. Open database
     const ok = await this.db.open(dbPath);
@@ -115,42 +117,49 @@ export class AngyEngine {
 
     // 2. Load persisted data
     await this.sessions.loadFromDatabase();
-    await this.sessions.deleteStalePendingSessions();
+    if (isPrimary) {
+      await this.sessions.deleteStalePendingSessions();
+    }
     await (this.epics as DatabaseEpicRepository).reload();
     await (this.projects as DatabaseProjectRepository).reload();
 
-    // 3. Wire orchestrator pool
-    this.pool.setOrchestratorFactory(
-      (epicId, options, epic, repos) => this.spawnEpicOrchestrator(epicId, options, epic, repos),
-    );
-    this.pool.setResumeFactory(
-      (epicId, epic, repos) => this.resumeHybridPipeline(epicId, epic, repos),
-    );
-
-    // 4. Wire scheduler (but don't initialize — caller decides when to start)
-    this.scheduler.setPool(this.pool);
+    // All windows need DB access on the scheduler (for config read/write)
     this.scheduler.setDatabase(this.db);
-    this.scheduler.setRepositories(this.epics, this.projects);
 
-    // 6. Listen for epic lifecycle events
-    this.wireEpicLifecycleEvents();
+    // Primary-only: wire orchestration, scheduler, lifecycle, and server
+    if (isPrimary) {
+      // 3. Wire orchestrator pool
+      this.pool.setOrchestratorFactory(
+        (epicId, options, epic, repos) => this.spawnEpicOrchestrator(epicId, options, epic, repos),
+      );
+      this.pool.setResumeFactory(
+        (epicId, epic, repos) => this.resumeHybridPipeline(epicId, epic, repos),
+      );
 
-    // 7. Reconcile orphaned worktrees
-    await this.reconcileWorktrees();
+      // 4. Wire scheduler (but don't initialize — caller decides when to start)
+      this.scheduler.setPool(this.pool);
+      this.scheduler.setRepositories(this.epics, this.projects);
 
-    // 8. Start angycode-server (non-blocking — Gemini models unavailable if this fails)
-    try {
-      await this.serverProcess.start();
-      this.acpm = new AngyCodeProcessManager(this.db);
-      this.acpm.setBaseUrl(this.serverProcess.getBaseUrl());
-      setAngyCodeProcessManager(this.acpm);
-      console.log('[AngyEngine] angycode-server started at', this.serverProcess.getBaseUrl());
-    } catch (err) {
-      console.error('[AngyEngine] Failed to start angycode-server — Gemini models will be unavailable:', err);
+      // 5. Listen for epic lifecycle events
+      this.wireEpicLifecycleEvents();
+
+      // 6. Reconcile orphaned worktrees
+      await this.reconcileWorktrees();
+
+      // 7. Start angycode-server (non-blocking — Gemini models unavailable if this fails)
+      try {
+        await this.serverProcess.start();
+        this.acpm = new AngyCodeProcessManager(this.db);
+        this.acpm.setBaseUrl(this.serverProcess.getBaseUrl());
+        setAngyCodeProcessManager(this.acpm);
+        console.log('[AngyEngine] angycode-server started at', this.serverProcess.getBaseUrl());
+      } catch (err) {
+        console.error('[AngyEngine] Failed to start angycode-server — Gemini models will be unavailable:', err);
+      }
     }
 
     this._initialized = true;
-    console.log('[AngyEngine] Initialized');
+    console.log(`[AngyEngine] Initialized (${isPrimary ? 'primary' : 'secondary'} window)`);
   }
 
   async shutdown(): Promise<void> {

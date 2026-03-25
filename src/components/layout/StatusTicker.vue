@@ -47,7 +47,10 @@ const activeCount = computed(() => fleetStore.activeCount);
 </script>
 
 <template>
-  <div class="fixed bottom-0 left-14 right-0 h-7 z-40 bg-base/90 backdrop-blur-sm border-t border-border-subtle flex items-center px-3 gap-4 overflow-hidden">
+  <div
+    class="fixed bottom-0 right-0 h-7 z-40 bg-base/90 backdrop-blur-sm border-t border-border-subtle flex items-center px-3 gap-4 overflow-hidden transition-all duration-200"
+    :class="ui.navRailExpanded ? 'left-36' : 'left-14'"
+  >
     <!-- Left zone: project progress badges -->
     <div class="flex items-center gap-3 shrink-0 px-4 mr-3 border-r border-border-standard pr-4">
       <template v-for="proj in projectProgress" :key="proj.projectId">

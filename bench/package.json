@@ -1,0 +1,19 @@
+{
+  "name": "angy-bench",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "run": "tsx bench/runner.ts",
+    "report": "tsx bench/report.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "minimist": "^1.2.8",
+    "mitt": "^3.0.1"
+  },
+  "devDependencies": {
+    "@types/minimist": "^1.2.5",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0"
+  }
+}

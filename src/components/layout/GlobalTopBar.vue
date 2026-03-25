@@ -54,6 +54,7 @@ import { useUiStore } from '../../stores/ui';
 import { useProjectsStore } from '../../stores/projects';
 import { useEpicStore } from '../../stores/epics';
 import { Scheduler } from '../../engine/Scheduler';
+import { engineBus } from '@/engine/EventBus';
 
 const ui = useUiStore();
 
@@ -87,12 +88,16 @@ function pollSchedulerStatus() {
   }
 }
 
+const onConfigChanged = () => { pollSchedulerStatus(); };
+engineBus.on('scheduler:configChanged', onConfigChanged);
+
 onMounted(() => {
   pollSchedulerStatus();
   pollTimer = setInterval(pollSchedulerStatus, 5000);
 });
 
 onUnmounted(() => {
+  engineBus.off('scheduler:configChanged', onConfigChanged);
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;

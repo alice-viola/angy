@@ -1,25 +1,34 @@
 <template>
   <div class="flex flex-col flex-1 min-w-0 bg-[var(--bg-base)]">
     <!-- Tab bar -->
-    <div v-if="tabs.length > 0" class="h-9 flex items-end border-b border-[var(--border-subtle)] px-1 bg-[var(--bg-surface)] overflow-x-auto">
-      <div
-        v-for="tab in tabs"
-        :key="tab.filePath"
-        class="group flex items-center gap-1 px-3 py-1.5 text-[11px] cursor-pointer whitespace-nowrap select-none"
-        :class="tab.filePath === activeFile
-          ? 'bg-[var(--bg-surface)] text-txt-primary border-b-2 border-ember-500'
-          : 'text-txt-muted hover:text-txt-secondary'"
-        @click="codeViewerRef?.loadFile(tab.filePath)"
-        @mousedown.middle.prevent="codeViewerRef?.closeFile(tab.filePath)"
-      >
-        <span class="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" v-if="tab.dirty" />
-        <span>{{ fileName(tab.filePath) }}</span>
-        <span
-          @click.stop="codeViewerRef?.closeFile(tab.filePath)"
-          @mousedown.prevent
-          class="ml-1 text-txt-faint hover:text-txt-muted opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"
-        >&times;</span>
+    <div v-if="tabs.length > 0" class="h-9 flex items-center border-b border-[var(--border-subtle)] px-1 bg-[var(--bg-base)] overflow-x-auto">
+      <div class="flex items-end flex-1 min-w-0 overflow-x-auto">
+        <div
+          v-for="tab in tabs"
+          :key="tab.filePath"
+          class="group flex items-center gap-1 px-3 py-1.5 text-[11px] cursor-pointer whitespace-nowrap select-none"
+          :class="tab.filePath === activeFile
+            ? 'text-txt-primary border-b-2 border-ember-500'
+            : 'text-txt-muted hover:text-txt-secondary'"
+          @click="codeViewerRef?.loadFile(tab.filePath)"
+          @mousedown.middle.prevent="codeViewerRef?.closeFile(tab.filePath)"
+        >
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" v-if="tab.dirty" />
+          <span>{{ fileName(tab.filePath) }}</span>
+          <span
+            @click.stop="codeViewerRef?.closeFile(tab.filePath)"
+            @mousedown.prevent
+            class="ml-1 text-txt-faint hover:text-txt-muted opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity"
+          >&times;</span>
+        </div>
       </div>
+      <!-- Close all button -->
+      <button
+        v-if="tabs.length > 1"
+        @click="codeViewerRef?.closeAllFiles()"
+        class="ml-2 px-2 py-1 text-[10px] text-txt-faint hover:text-txt-muted transition-colors flex-shrink-0"
+        title="Close all tabs"
+      >Close All</button>
     </div>
 
     <!-- Breadcrumb bar -->

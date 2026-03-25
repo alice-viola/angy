@@ -5,6 +5,7 @@ import { createMessageStore } from '../db/messageStore.js';
 import { createUsageStore } from '../db/usageStore.js';
 import { buildSystemPrompt } from './systemPrompt.js';
 import { estimateCost } from './cost.js';
+import { compactMessages } from './contextCompactor.js';
 import type {
   AgentLoopOptions,
   AgentEvent,
@@ -21,6 +22,18 @@ import type { MessageStore } from '../db/messageStore.js';
 import type { UsageStore } from '../db/usageStore.js';
 
 const DEFAULT_MODEL = 'claude-opus-4-6';
+
+const CONTEXT_WINDOWS: Record<string, number> = {
+  'claude-sonnet-4-20250514': 200_000,
+  'claude-sonnet-4-6':        200_000,
+  'claude-opus-4-20250514':   200_000,
+  'claude-opus-4-6':          200_000,
+  'claude-haiku-4-5-20251001':200_000,
+  'gemini-2.5-flash':       1_000_000,
+  'gemini-2.5-pro':         2_000_000,
+  'gemini-2.0-flash':       1_000_000,
+  'gemini-2.0-pro':         1_000_000,
+};
 
 export class AgentLoop {
   private options: AgentLoopOptions;
@@ -222,10 +235,20 @@ export class AgentLoop {
 
       try {
         this.abortController = new AbortController();
+
+        // Compact stale context before sending to provider
+        const contextWindow = CONTEXT_WINDOWS[this.model] ?? 200_000;
+        const { messages: compactedMessages } = compactMessages(messages, {
+          contextWindow,
+          workingTurns: 6,
+          systemTokens: Math.ceil(system.length / 3.5),
+          toolTokens: toolDefs.length * 200,
+        });
+
         const stream = this.options.provider.streamMessage({
           model: this.model,
           system,
-          messages,
+          messages: compactedMessages,
           tools: toolDefs,
           maxTokens: this.options.maxTokens,
           signal: this.abortController.signal,

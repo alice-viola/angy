@@ -1,0 +1,12 @@
+{
+  "id": "multi-file-refactor",
+  "name": "Multi-File Refactor: Extract JWT Module",
+  "description": "Extract JWT logic scattered across a 40-file codebase into a dedicated module",
+  "difficulty": "hard",
+  "goal": "JWT-related logic is currently duplicated across multiple files in this codebase. Extract all JWT signing, verification, and token generation logic into a single module at src/lib/jwt.ts. Update all imports to use the new module. All tests must pass after the refactor.",
+  "repoDir": "repo",
+  "verifyScript": "verify.sh",
+  "maxTimeSeconds": 480,
+  "maxTurns": 60,
+  "tags": ["hard", "refactor", "jwt", "multi-file"]
+}

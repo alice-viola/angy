@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import { useFilterStore } from '@/stores/filter';
 import { useProjectsStore } from '@/stores/projects';
 import { DEFAULT_MODEL_ID } from '@/constants/models';
@@ -44,6 +45,7 @@ export const useUiStore = defineStore('ui', () => {
   const kanbanFilterText = ref('');
   const pipelineActivity = ref<string | null>(null);
   const pipelineTodoProgress = ref<{ current: number; total: number } | null>(null);
+  const navRailExpanded = ref(true);
 
   // Diff view state (git diff shown in Monaco DiffSplitView)
   const diffView = ref<{
@@ -157,15 +159,29 @@ export const useUiStore = defineStore('ui', () => {
   function selectFirstRepo(projectId: string) {
     const projectsStore = useProjectsStore();
     const projectRepos = projectsStore.reposByProjectId(projectId);
-    if (projectRepos.length > 0) {
-      workspacePath.value = projectRepos[0].path;
+    if (projectRepos.length === 0) {
+      return;
     }
+    if (projectRepos.length === 1) {
+      workspacePath.value = projectRepos[0].path;
+      return;
+    }
+    // Multi-repo: compute common ancestor path
+    const paths = projectRepos.map(r => r.path).filter(Boolean);
+    const segments = paths.map(p => p.split('/'));
+    const commonParts: string[] = [];
+    for (let i = 0; i < segments[0].length; i++) {
+      const seg = segments[0][i];
+      if (segments.every(s => s[i] === seg)) commonParts.push(seg);
+      else break;
+    }
+    workspacePath.value = commonParts.join('/') || '/';
   }
 
   function navigateToProject(projectId: string) {
     window.dispatchEvent(new CustomEvent('angy:close-popovers'));
     openProjectTab(projectId);
-    viewMode.value = 'kanban';
+    viewMode.value = 'agents';
   }
 
   function navigateToEpic(epicId: string | null, projectId: string) {
@@ -226,13 +242,30 @@ export const useUiStore = defineStore('ui', () => {
     viewMode.value = 'kanban';
   }
 
+  function toggleNavRail() {
+    navRailExpanded.value = !navRailExpanded.value;
+  }
+
+  async function openNewWindow(projectId?: string | null) {
+    try {
+      const windowId = await invoke<string>('new_window', {
+        projectId: projectId ?? undefined,
+      });
+      console.log(`[UI] Opened new window: ${windowId}`);
+      return windowId;
+    } catch (err) {
+      console.error('[UI] Failed to open new window:', err);
+      throw err;
+    }
+  }
+
   return {
     viewMode, activeProjectId, activeEpicId, terminalVisible, activeLeftTab,
     workspacePath, currentFile, currentBranch, currentModel, isProcessing,
     inlinePreviewFile, effectsPanelVisible, editorChatVisible, rightPanelMode, diffView,
     missionControlFilter, autoCommitEnabled, openProjectIds, notifications, repoSwitchOnly,
     managerSizes, editorSizes, kanbanFilterText, pipelineActivity, pipelineTodoProgress,
-    epicActivities, activityLogVisible, geminiApiKey, anthropicApiKey,
+    epicActivities, activityLogVisible, geminiApiKey, anthropicApiKey, navRailExpanded,
     switchToMode, toggleViewMode, toggleTerminal, dismissInlinePreview,
     toggleEffectsPanel, toggleEditorChat, toggleRightPanelMode, setRightPanelMode,
     showDiffView, closeDiffView,
@@ -240,6 +273,7 @@ export const useUiStore = defineStore('ui', () => {
     addNotification, dismissNotification, clearNotifications,
     navigateHome, navigateToProject, navigateToEpic, navigateToKanban,
     openProjectTab, switchProjectTab, closeProjectTab,
-    openCommandPalette, toggleActivityLog, setEpicActivity,
+    openCommandPalette, toggleActivityLog, setEpicActivity, toggleNavRail,
+    openNewWindow,
   };
 });

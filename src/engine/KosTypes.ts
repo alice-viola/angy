@@ -77,7 +77,7 @@ export interface ProjectRepo {
 
 // ── Epic ─────────────────────────────────────────────────────────────────────
 
-export type AgentRole = 'architect' | 'builder-frontend' | 'builder-backend' | 'tester' | 'custom';
+export type AgentRole = 'architect' | 'builder-frontend' | 'builder-backend' | 'builder-scaffold' | 'tester' | 'custom';
 
 export interface AgentNode {
   id: string;

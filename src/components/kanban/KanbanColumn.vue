@@ -125,7 +125,7 @@ const columnEpics = computed(() => {
 });
 
 const showClearAll = computed(() =>
-  props.boardColumn.key === 'done' || props.boardColumn.key === 'discarded',
+  ['done', 'discarded', 'icebox', 'review-inbox'].includes(props.boardColumn.key),
 );
 
 const emptyDescriptions: Record<string, string> = {

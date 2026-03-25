@@ -491,7 +491,7 @@ const DEFAULT_PIPELINES: Record<EpicPipelineType, AgentNode[]> = {
   hybrid: [
     { id: 'architect', role: 'architect', model: DEFAULT_MODEL_ID, dependsOn: [] },
     { id: 'counterpart', role: 'custom', model: DEFAULT_MODEL_ID, promptOverride: 'Counterpart', dependsOn: ['architect'] },
-    { id: 'scaffold', role: 'custom', model: DEFAULT_MODEL_ID, promptOverride: 'Scaffold', dependsOn: ['counterpart'] },
+    { id: 'scaffold', role: 'builder-scaffold', model: DEFAULT_MODEL_ID, promptOverride: 'Scaffold', dependsOn: ['counterpart'] },
     { id: 'builder-fe', role: 'builder-frontend', model: DEFAULT_MODEL_ID, dependsOn: ['scaffold'] },
     { id: 'builder-be', role: 'builder-backend', model: DEFAULT_MODEL_ID, dependsOn: ['scaffold'] },
     { id: 'tester', role: 'tester', model: DEFAULT_MODEL_ID, dependsOn: ['builder-fe', 'builder-be'] }

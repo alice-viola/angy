@@ -212,11 +212,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import type { SchedulerConfig } from '@/engine/KosTypes';
 import { useUiStore } from '@/stores/ui';
 import { useEpicStore } from '@/stores/epics';
 import { Scheduler } from '@/engine/Scheduler';
+import { engineBus } from '@/engine/EventBus';
 import KanbanColumn from './KanbanColumn.vue';
 import LiveExecutionGraph from './LiveExecutionGraph.vue';
 import type { BoardColumn } from './KanbanColumn.vue';
@@ -227,6 +228,15 @@ import MergeEpicsDialog from './MergeEpicsDialog.vue';
 
 const ui = useUiStore();
 const epicStore = useEpicStore();
+
+// Keep local UI in sync when config changes (from this or another window)
+const onConfigChanged = ({ config }: { config: SchedulerConfig }) => {
+  schedulerEnabled.value = config.enabled;
+};
+engineBus.on('scheduler:configChanged', onConfigChanged);
+onUnmounted(() => {
+  engineBus.off('scheduler:configChanged', onConfigChanged);
+});
 
 onMounted(async () => {
   try {

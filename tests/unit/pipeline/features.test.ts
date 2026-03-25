@@ -2,9 +2,9 @@ import { HybridPipelineRunner } from '@/engine/HybridPipelineRunner';
 import type { HeadlessHandle } from '@/engine/HeadlessHandle';
 import type { ProcessManager } from '@/engine/ProcessManager';
 import type { SessionService } from '@/engine/SessionService';
-import type { ComplexityEstimate } from '@/engine/KosTypes';
+import type { ComplexityEstimate, PipelineConfig } from '@/engine/KosTypes';
 
-const makeRunner = (complexity: ComplexityEstimate = 'medium') =>
+const makeRunner = (complexity: ComplexityEstimate = 'medium', pipelineConfig?: PipelineConfig) =>
   new HybridPipelineRunner({
     handle: {
       onDelegateFinished: null,
@@ -21,61 +21,117 @@ const makeRunner = (complexity: ComplexityEstimate = 'medium') =>
     epicId: 'epic-1',
     autoProfiles: [],
     complexity,
+    pipelineConfig,
   });
 
 describe('HybridPipelineRunner.getPipelineFeatures()', () => {
-  it('trivial → architectTurns=0, no counterpart, no design system, no phase4 test', () => {
+  it('trivial → architectTurns=0, no counterpart, no tester', () => {
     const runner = makeRunner('trivial');
     const features = runner['getPipelineFeatures']();
     expect(features).toEqual({
       architectTurns: 0,
       useCounterpart: false,
-      useDesignSystem: false,
-      usePhase4Test: false,
+      useTester: false,
     });
   });
 
-  it('small → architectTurns=1, no counterpart, no design system, phase4 test', () => {
+  it('small → architectTurns=1, no counterpart, tester', () => {
     const runner = makeRunner('small');
     const features = runner['getPipelineFeatures']();
     expect(features).toEqual({
       architectTurns: 1,
       useCounterpart: false,
-      useDesignSystem: false,
-      usePhase4Test: true,
+      useTester: true,
     });
   });
 
-  it('medium → architectTurns=1, counterpart, no design system, phase4 test', () => {
+  it('medium → architectTurns=1, counterpart, tester', () => {
     const runner = makeRunner('medium');
     const features = runner['getPipelineFeatures']();
     expect(features).toEqual({
       architectTurns: 1,
       useCounterpart: true,
-      useDesignSystem: false,
-      usePhase4Test: true,
+      useTester: true,
     });
   });
 
-  it('large → architectTurns=3, counterpart, design system, phase4 test', () => {
+  it('large → architectTurns=3, counterpart, tester', () => {
     const runner = makeRunner('large');
     const features = runner['getPipelineFeatures']();
     expect(features).toEqual({
       architectTurns: 3,
       useCounterpart: true,
-      useDesignSystem: true,
-      usePhase4Test: true,
+      useTester: true,
     });
   });
 
-  it('epic → architectTurns=3, counterpart, design system, phase4 test', () => {
+  it('epic → architectTurns=3, counterpart, tester', () => {
     const runner = makeRunner('epic');
     const features = runner['getPipelineFeatures']();
     expect(features).toEqual({
       architectTurns: 3,
       useCounterpart: true,
-      useDesignSystem: true,
-      usePhase4Test: true,
+      useTester: true,
+    });
+  });
+
+  describe('pipelineConfig overrides', () => {
+    it('disabled architect → architectTurns=0', () => {
+      const runner = makeRunner('large', {
+        nodes: [
+          { id: 'architect', role: 'architect', model: 'disabled', promptOverride: '', dependsOn: [] },
+          { id: 'counterpart', role: 'custom', model: 'claude-sonnet', promptOverride: '', dependsOn: [] },
+          { id: 'tester', role: 'tester', model: 'claude-sonnet', promptOverride: '', dependsOn: [] },
+        ],
+      });
+      const features = runner['getPipelineFeatures']();
+      expect(features.architectTurns).toBe(0);
+      expect(features.useCounterpart).toBe(true);
+      expect(features.useTester).toBe(true);
+    });
+
+    it('disabled counterpart → useCounterpart=false', () => {
+      const runner = makeRunner('large', {
+        nodes: [
+          { id: 'architect', role: 'architect', model: 'claude-sonnet', promptOverride: '', dependsOn: [] },
+          { id: 'counterpart', role: 'custom', model: 'disabled', promptOverride: '', dependsOn: [] },
+          { id: 'tester', role: 'tester', model: 'claude-sonnet', promptOverride: '', dependsOn: [] },
+        ],
+      });
+      const features = runner['getPipelineFeatures']();
+      expect(features.architectTurns).toBe(1);
+      expect(features.useCounterpart).toBe(false);
+      expect(features.useTester).toBe(true);
+    });
+
+    it('disabled tester → useTester=false', () => {
+      const runner = makeRunner('large', {
+        nodes: [
+          { id: 'architect', role: 'architect', model: 'claude-sonnet', promptOverride: '', dependsOn: [] },
+          { id: 'counterpart', role: 'custom', model: 'claude-sonnet', promptOverride: '', dependsOn: [] },
+          { id: 'tester', role: 'tester', model: 'disabled', promptOverride: '', dependsOn: [] },
+        ],
+      });
+      const features = runner['getPipelineFeatures']();
+      expect(features.architectTurns).toBe(1);
+      expect(features.useCounterpart).toBe(true);
+      expect(features.useTester).toBe(false);
+    });
+
+    it('all disabled → all features off', () => {
+      const runner = makeRunner('epic', {
+        nodes: [
+          { id: 'architect', role: 'architect', model: 'disabled', promptOverride: '', dependsOn: [] },
+          { id: 'counterpart', role: 'custom', model: 'disabled', promptOverride: '', dependsOn: [] },
+          { id: 'tester', role: 'tester', model: 'disabled', promptOverride: '', dependsOn: [] },
+        ],
+      });
+      const features = runner['getPipelineFeatures']();
+      expect(features).toEqual({
+        architectTurns: 0,
+        useCounterpart: false,
+        useTester: false,
+      });
     });
   });
 });

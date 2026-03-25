@@ -1,0 +1,19 @@
+{
+  "name": "bench-ambiguous-spec",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.1.1",
+    "typescript": "^5.8.3",
+    "supertest": "^7.1.0",
+    "@types/express": "^5.0.0",
+    "@types/supertest": "^6.0.2"
+  }
+}
