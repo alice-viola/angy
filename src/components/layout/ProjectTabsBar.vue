@@ -41,6 +41,18 @@
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
       </svg>
     </button>
+
+    <!-- Open in new window button -->
+    <button
+      v-if="ui.activeProjectId"
+      class="w-8 h-8 ml-1 rounded-lg flex items-center justify-center text-[var(--text-muted)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] transition-colors"
+      title="Open in new window (Cmd+Shift+N)"
+      @click="ui.openNewWindow(ui.activeProjectId)"
+    >
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+      </svg>
+    </button>
   </div>
 </template>
 

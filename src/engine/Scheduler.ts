@@ -13,6 +13,7 @@ import type { Epic, SchedulerConfig, SchedulerAction, RepoLock, PriorityHint, Co
 import type { OrchestratorPool } from './OrchestratorPool';
 import type { Database } from './Database';
 import type { EpicRepository, ProjectRepository } from './repositories';
+import { broadcastSync } from './WindowSync';
 import { engineBus } from './EventBus';
 
 // ── Priority & Complexity Score Maps ──────────────────────────────────────
@@ -230,6 +231,41 @@ export class Scheduler {
       await this.stop();
       this.start();
     }
+
+    // Notify other windows so they can re-read the config
+    broadcastSync('scheduler-config');
+    // Notify local UI components that the config changed
+    engineBus.emit('scheduler:configChanged', { config: plain });
+  }
+
+  /**
+   * Re-read scheduler config from the DB (called when another window saves changes).
+   */
+  async reloadConfig(): Promise<void> {
+    const db = this.getDb();
+    if (!db) return;
+    const config = await db.loadSchedulerConfig();
+    if (!config) return;
+
+    const prevTickInterval = this.config?.tickIntervalMs;
+    this.config = config;
+
+    if (this.pool) {
+      this.pool.setMaxDepth(config.maxOrchestratorDepth ?? 3);
+    }
+
+    if (config.enabled && !this.isRunning()) {
+      this.start();
+    } else if (!config.enabled && this.isRunning()) {
+      await this.stop();
+    } else if (this.isRunning() && config.tickIntervalMs !== prevTickInterval) {
+      await this.stop();
+      this.start();
+    }
+
+    // Notify local UI components that the config changed
+    engineBus.emit('scheduler:configChanged', { config });
+    console.log('[Scheduler] Config reloaded from DB, enabled:', config.enabled);
   }
 
   // ── Priority Scoring ──────────────────────────────────────────────────

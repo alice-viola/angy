@@ -295,10 +295,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted } from 'vue';
+import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue';
 import { getModKey } from '@/engine/platform';
 import { ProfileManager, type PersonalityProfile } from '../../engine/ProfileManager';
 import { Scheduler } from '../../engine/Scheduler';
+import { engineBus } from '@/engine/EventBus';
+import type { SchedulerConfig } from '@/engine/KosTypes';
 import InfoTip from '@/components/common/InfoTip.vue';
 import { localVersion, remoteVersion, updateAvailable } from '@/composables/useVersionCheck';
 import { AngyEngine } from '@/engine/AngyEngine';
@@ -336,6 +338,20 @@ const orchestrationSettings = reactive({
   maxConcurrentEpics: 2,
   dailyCostBudget: 50,
   tickIntervalMs: 60000,
+});
+
+// Keep in sync when another window changes the scheduler config
+const onConfigChanged = ({ config }: { config: SchedulerConfig }) => {
+  orchestrationSettings.schedulerEnabled = config.enabled;
+  orchestrationSettings.maxOrchestratorDepth = config.maxOrchestratorDepth ?? 3;
+  orchestrationSettings.maxConcurrentChildren = config.maxConcurrentChildren ?? 3;
+  orchestrationSettings.maxConcurrentEpics = config.maxConcurrentEpics;
+  orchestrationSettings.dailyCostBudget = config.dailyCostBudget;
+  orchestrationSettings.tickIntervalMs = config.tickIntervalMs;
+};
+engineBus.on('scheduler:configChanged', onConfigChanged);
+onUnmounted(() => {
+  engineBus.off('scheduler:configChanged', onConfigChanged);
 });
 
 const tickIntervalOptions = [

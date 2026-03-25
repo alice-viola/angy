@@ -3,6 +3,7 @@ import { ref, computed } from 'vue';
 import type { Epic, EpicBranch, EpicColumn, PriorityHint, BlockingReason } from '@/engine/KosTypes';
 import { getDatabase } from './sessions';
 import { engineBus } from '@/engine/EventBus';
+import { broadcastSync } from '@/engine/WindowSync';
 
 // ── Priority weight map for sorting ──────────────────────────────────────
 
@@ -165,6 +166,7 @@ export const useEpicStore = defineStore('epics', () => {
     const db = getDatabase();
     await db.saveEpic(epic);
     epics.value.push(epic);
+    broadcastSync('epics');
     return epic;
   }
 
@@ -179,6 +181,7 @@ export const useEpicStore = defineStore('epics', () => {
     };
     const db = getDatabase();
     await db.saveEpic(epics.value[idx]);
+    broadcastSync('epics');
   }
 
   async function moveEpic(id: string, column: EpicColumn): Promise<void> {
@@ -202,6 +205,7 @@ export const useEpicStore = defineStore('epics', () => {
     epics.value[idx] = { ...epic, ...patch };
     const db = getDatabase();
     await db.saveEpic(epics.value[idx]);
+    broadcastSync('epics');
 
     if (column === 'done' || column === 'discarded') {
       engineBus.emit('epic:requestWorktreeCleanup', { epicId: id });
@@ -213,6 +217,7 @@ export const useEpicStore = defineStore('epics', () => {
     await db.deleteEpic(id);
     epics.value = epics.value.filter((e) => e.id !== id);
     epicBranches.value.delete(id);
+    broadcastSync('epics');
   }
 
   function wouldCreateCycle(epicId: string, depId: string): boolean {
@@ -266,6 +271,7 @@ export const useEpicStore = defineStore('epics', () => {
     };
     const db = getDatabase();
     await db.saveEpic(epics.value[idx]);
+    broadcastSync('epics');
   }
 
   async function removeDependency(epicId: string, dependsOnId: string): Promise<void> {
@@ -280,6 +286,7 @@ export const useEpicStore = defineStore('epics', () => {
     };
     const db = getDatabase();
     await db.saveEpic(epics.value[idx]);
+    broadcastSync('epics');
   }
 
   async function incrementRejection(id: string): Promise<void> {
@@ -294,6 +301,7 @@ export const useEpicStore = defineStore('epics', () => {
     };
     const db = getDatabase();
     await db.saveEpic(epics.value[idx]);
+    broadcastSync('epics');
   }
 
   async function initialize(): Promise<void> {

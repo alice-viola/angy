@@ -4,6 +4,7 @@ import { type SessionInfo, type MessageRecord } from '../engine/types';
 import { SessionManager } from '../engine/SessionManager';
 import { Database } from '../engine/Database';
 import { engineBus } from '../engine/EventBus';
+import { broadcastSync } from '../engine/WindowSync';
 
 // ── Singleton engines (initialized once, shared across stores) ──────────
 
@@ -24,9 +25,24 @@ export function getSessionManager(): SessionManager {
 
 export function getDatabase(): Database {
   if (!_database) {
+    console.warn('[sessions] getDatabase called before initSessionEngines - creating fallback instance');
     _database = new Database();
+    // Attempt to open the fallback database
+    _database.open().then(ok => {
+      if (!ok) console.error('[sessions] Failed to open fallback database');
+    });
   }
   return _database;
+}
+
+export function isDatabaseInitialized(): boolean {
+  return _database !== null;
+}
+
+/** Ensure database is ready before using stores */
+export async function ensureDatabaseReady(): Promise<boolean> {
+  const db = getDatabase();
+  return db.open();
 }
 
 // ── Sessions Store ──────────────────────────────────────────────────────
@@ -65,6 +81,7 @@ export const useSessionsStore = defineStore('sessions', () => {
       messages.value.set(sessionId, []);
     }
     await persistSession(sessionId);
+    broadcastSync('sessions');
     return sessionId;
   }
 
@@ -77,6 +94,7 @@ export const useSessionsStore = defineStore('sessions', () => {
       messages.value.set(childId, []);
     }
     await persistSession(childId);
+    broadcastSync('sessions');
     engineBus.emit('session:created', { sessionId: childId, parentSessionId: parentId });
     return childId;
   }

@@ -11,6 +11,7 @@ import NewProjectDialog from './NewProjectDialog.vue';
 import ProjectSettingsDialog from './ProjectSettingsDialog.vue';
 
 const projectsStore = useProjectsStore();
+
 const epicStore = useEpicStore();
 const fleetStore = useFleetStore();
 const ui = useUiStore();

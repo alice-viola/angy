@@ -30,6 +30,13 @@ export function useKeyboard() {
       ui.toggleTerminal();
     }
 
+    // Cmd+Shift+N: New window
+    if (meta && e.shiftKey && e.key === 'N') {
+      e.preventDefault();
+      ui.openNewWindow(ui.activeProjectId);
+      return;
+    }
+
     // Cmd+N: New chat (emit event via custom event)
     if (meta && e.key === 'n') {
       e.preventDefault();

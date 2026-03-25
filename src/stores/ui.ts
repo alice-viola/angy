@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import { invoke } from '@tauri-apps/api/core';
 import { useFilterStore } from '@/stores/filter';
 import { useProjectsStore } from '@/stores/projects';
 import { DEFAULT_MODEL_ID } from '@/constants/models';
@@ -180,7 +181,7 @@ export const useUiStore = defineStore('ui', () => {
   function navigateToProject(projectId: string) {
     window.dispatchEvent(new CustomEvent('angy:close-popovers'));
     openProjectTab(projectId);
-    viewMode.value = 'kanban';
+    viewMode.value = 'agents';
   }
 
   function navigateToEpic(epicId: string | null, projectId: string) {
@@ -245,6 +246,19 @@ export const useUiStore = defineStore('ui', () => {
     navRailExpanded.value = !navRailExpanded.value;
   }
 
+  async function openNewWindow(projectId?: string | null) {
+    try {
+      const windowId = await invoke<string>('new_window', {
+        projectId: projectId ?? undefined,
+      });
+      console.log(`[UI] Opened new window: ${windowId}`);
+      return windowId;
+    } catch (err) {
+      console.error('[UI] Failed to open new window:', err);
+      throw err;
+    }
+  }
+
   return {
     viewMode, activeProjectId, activeEpicId, terminalVisible, activeLeftTab,
     workspacePath, currentFile, currentBranch, currentModel, isProcessing,
@@ -260,5 +274,6 @@ export const useUiStore = defineStore('ui', () => {
     navigateHome, navigateToProject, navigateToEpic, navigateToKanban,
     openProjectTab, switchProjectTab, closeProjectTab,
     openCommandPalette, toggleActivityLog, setEpicActivity, toggleNavRail,
+    openNewWindow,
   };
 });

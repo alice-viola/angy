@@ -113,6 +113,7 @@ import { useActivityLogStore } from './stores/activityLog';
 import { DiffEngine } from './engine/DiffEngine';
 import { engineBus } from './engine/EventBus';
 import { AngyEngine } from './engine/AngyEngine';
+import { startSyncListener, stopSyncListener, onSync } from './engine/WindowSync';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { useVersionCheck } from './composables/useVersionCheck';
 
@@ -597,6 +598,14 @@ onMounted(async () => {
   themeStore.loadSavedTheme();
   startVersionCheck();
 
+  // Handle URL params for multi-window support (e.g., ?project=xyz)
+  const urlParams = new URLSearchParams(window.location.search);
+  const projectIdFromUrl = urlParams.get('project');
+  if (projectIdFromUrl) {
+    // Will be applied after stores initialize below
+    ui.activeProjectId = projectIdFromUrl;
+  }
+
   // Wire scheduler events to UI notifications
   onSchedulerError = ({ epicId, title, message }) => {
     ui.addNotification('error', title, message, epicId);
@@ -608,8 +617,16 @@ onMounted(async () => {
   engineBus.on('scheduler:info', onSchedulerInfo);
 
   // ── Initialize AngyEngine (headless core) ────────────────────────────
+  const isMainWindow = getCurrentWindow().label === 'main';
   const engine = AngyEngine.getInstance();
-  await engine.initialize();
+  console.log(`[App] Initializing engine (${isMainWindow ? 'primary' : 'secondary'} window)...`);
+  try {
+    await engine.initialize(undefined, { primaryWindow: isMainWindow });
+    console.log('[App] Engine initialized, DB open:', !!engine.db);
+  } catch (err) {
+    console.error('[App] Engine initialization failed:', err);
+    throw err;
+  }
 
   // Load API keys from DB into UI store
   const savedGeminiKey = await engine.db.getAppSetting('gemini_api_key');
@@ -647,137 +664,158 @@ onMounted(async () => {
   };
   engineBus.on('agent:statusChanged', onAgentStatusBus);
 
-  // Share the engine's ProcessManager with the useEngine composable
-  setProcessManager(engine.processes);
+  // Primary window: wire orchestration control, process management, and lifecycle events.
+  // Secondary windows are view-only — they read from the DB via sync intervals.
+  if (isMainWindow) {
+    // Share the engine's ProcessManager with the useEngine composable
+    setProcessManager(engine.processes);
 
-  // Wire engine into the useOrchestrator composable for session → orchestrator routing
-  setEngine(engine);
+    // Wire engine into the useOrchestrator composable for session → orchestrator routing
+    setEngine(engine);
+
+    // Handle manual epic start requests (from EpicCard/EpicDetailPanel arrow buttons)
+    onEpicRequestStart = async ({ epicId }) => {
+      console.log(`[App] epic:requestStart received for: ${epicId}`);
+      const epic = epicStore.epicById(epicId);
+      if (!epic) {
+        console.error(`[App] Epic not found: ${epicId}`);
+        return;
+      }
+      if (epic.column === 'in-progress') {
+        console.warn(`[App] Epic already in-progress: ${epicId}`);
+        return;
+      }
+      try {
+        await engine.scheduler.executeStart(epic);
+        await epicStore.loadAll();
+      } catch (err) {
+        console.error(`[App] Failed to start epic ${epicId}:`, err);
+        ui.addNotification('error', 'Failed to start epic', err instanceof Error ? err.message : String(err), epicId);
+      }
+    };
+    engineBus.on('epic:requestStart', onEpicRequestStart);
+
+    onEpicRequestStop = async ({ epicId, targetColumn }) => {
+      console.log(`[App] epic:requestStop received for: ${epicId}`);
+      try {
+        await engine.cancelEpicOrchestration(epicId);
+        await epicStore.moveEpic(epicId, targetColumn || 'backlog');
+        console.log(`[App] Epic stopped and moved to ${targetColumn || 'backlog'}: ${epicId}`);
+      } catch (err) {
+        console.error(`[App] Failed to stop epic ${epicId}:`, err);
+      }
+    };
+    engineBus.on('epic:requestStop', onEpicRequestStop);
+
+    onEpicRequestSuspend = async ({ epicId }) => {
+      console.log(`[App] epic:requestSuspend received for: ${epicId}`);
+      try {
+        await engine.suspendEpicOrchestration(epicId);
+        await epicStore.loadAll();
+        ui.addNotification('info', 'Epic suspended', 'The epic has been suspended and can be resumed later.', epicId);
+      } catch (err) {
+        console.error(`[App] Failed to suspend epic ${epicId}:`, err);
+        ui.addNotification('error', 'Failed to suspend epic', err instanceof Error ? err.message : String(err), epicId);
+      }
+    };
+    engineBus.on('epic:requestSuspend', onEpicRequestSuspend);
+
+    // Sync Pinia store when the engine finishes writing epic lifecycle changes.
+    // The engine emits epic:storeSyncNeeded AFTER its DB writes complete —
+    // no timing hacks needed.
+    onEpicStoreSync = async () => {
+      await epicStore.loadAll();
+    };
+    engineBus.on('epic:storeSyncNeeded', onEpicStoreSync);
+
+    // Wire headless file-edit events into the effects/diff chain
+    onAgentFileEdited = ({ sessionId, filePath, toolName, toolInput }) => {
+      onFileEdited(sessionId, filePath, toolName, toolInput);
+    };
+    engineBus.on('agent:fileEdited', onAgentFileEdited);
+
+    // Pipeline phase and internal call visibility
+    const CALL_LABELS: Record<string, string> = {
+      extractVerdict: 'Extracting verdict',
+      extractTodos: 'Extracting todos from plan',
+      extractTestResult: 'Extracting test results',
+      verifyTodo: 'Verifying todo',
+      generateFixTodos: 'Generating fix-todos',
+    };
+    onEpicPhaseChanged = ({ epicId, phase }) => {
+      const isTerminal = phase === 'completed' || phase === 'failed' || phase === 'cancelled';
+      // Legacy single-activity (backward compat)
+      ui.pipelineActivity = isTerminal ? null : phase;
+      if (isTerminal) ui.pipelineTodoProgress = null;
+      // Multi-epic activity tracking
+      ui.setEpicActivity(epicId, isTerminal ? null : phase);
+      // Activity log
+      const epic = epicStore.epicById(epicId);
+      if (epic) {
+        const level = phase === 'completed' ? 'success' : phase === 'failed' ? 'error' : 'info';
+        activityLogStore.append(epic.projectId, level, `Epic "${epic.title}" ${phase}`, epicId);
+      }
+    };
+    onPipelineInternalCall = ({ epicId, callType, status }) => {
+      ui.pipelineActivity = status === 'started'
+        ? (CALL_LABELS[callType] || callType)
+        : null;
+      const label = status === 'started' ? (CALL_LABELS[callType] || callType) : null;
+      ui.setEpicActivity(epicId, label);
+    };
+    onPipelineTodoProgress = ({ epicId, current, total, scope, title }) => {
+      ui.pipelineTodoProgress = { current, total };
+      ui.setEpicActivity(epicId, `${scope}: ${title}`, { current, total });
+      // Log agent completion milestones
+      const epic = epicStore.epicById(epicId);
+      if (epic) {
+        activityLogStore.append(epic.projectId, 'info', `${scope}-${current} of epic "${epic.title}" completed (${current}/${total})`, epicId);
+      }
+    };
+    engineBus.on('epic:phaseChanged', onEpicPhaseChanged);
+    engineBus.on('pipeline:internalCall', onPipelineInternalCall);
+    engineBus.on('pipeline:todoProgress', onPipelineTodoProgress);
+  }
 
   console.log('[App] Engine initialized');
 
-  // Handle manual epic start requests (from EpicCard/EpicDetailPanel arrow buttons)
-  onEpicRequestStart = async ({ epicId }) => {
-    console.log(`[App] epic:requestStart received for: ${epicId}`);
-    const epic = epicStore.epicById(epicId);
-    if (!epic) {
-      console.error(`[App] Epic not found: ${epicId}`);
-      return;
-    }
-    if (epic.column === 'in-progress') {
-      console.warn(`[App] Epic already in-progress: ${epicId}`);
-      return;
-    }
-    try {
-      await engine.scheduler.executeStart(epic);
-      await epicStore.loadAll();
-    } catch (err) {
-      console.error(`[App] Failed to start epic ${epicId}:`, err);
-      ui.addNotification('error', 'Failed to start epic', err instanceof Error ? err.message : String(err), epicId);
-    }
-  };
-  engineBus.on('epic:requestStart', onEpicRequestStart);
-
-  onEpicRequestStop = async ({ epicId, targetColumn }) => {
-    console.log(`[App] epic:requestStop received for: ${epicId}`);
-    try {
-      await engine.cancelEpicOrchestration(epicId);
-      await epicStore.moveEpic(epicId, targetColumn || 'backlog');
-      console.log(`[App] Epic stopped and moved to ${targetColumn || 'backlog'}: ${epicId}`);
-    } catch (err) {
-      console.error(`[App] Failed to stop epic ${epicId}:`, err);
-    }
-  };
-  engineBus.on('epic:requestStop', onEpicRequestStop);
-
-  onEpicRequestSuspend = async ({ epicId }) => {
-    console.log(`[App] epic:requestSuspend received for: ${epicId}`);
-    try {
-      await engine.suspendEpicOrchestration(epicId);
-      await epicStore.loadAll();
-      ui.addNotification('info', 'Epic suspended', 'The epic has been suspended and can be resumed later.', epicId);
-    } catch (err) {
-      console.error(`[App] Failed to suspend epic ${epicId}:`, err);
-      ui.addNotification('error', 'Failed to suspend epic', err instanceof Error ? err.message : String(err), epicId);
-    }
-  };
-  engineBus.on('epic:requestSuspend', onEpicRequestSuspend);
-
-  // Sync Pinia store when the engine finishes writing epic lifecycle changes.
-  // The engine emits epic:storeSyncNeeded AFTER its DB writes complete —
-  // no timing hacks needed.
-  onEpicStoreSync = async () => {
-    await epicStore.loadAll();
-  };
-  engineBus.on('epic:storeSyncNeeded', onEpicStoreSync);
-
-  // Wire headless file-edit events into the effects/diff chain
-  onAgentFileEdited = ({ sessionId, filePath, toolName, toolInput }) => {
-    onFileEdited(sessionId, filePath, toolName, toolInput);
-  };
-  engineBus.on('agent:fileEdited', onAgentFileEdited);
-
-  // Pipeline phase and internal call visibility
-  const CALL_LABELS: Record<string, string> = {
-    extractVerdict: 'Extracting verdict',
-    extractTodos: 'Extracting todos from plan',
-    extractTestResult: 'Extracting test results',
-    verifyTodo: 'Verifying todo',
-    generateFixTodos: 'Generating fix-todos',
-  };
-  onEpicPhaseChanged = ({ epicId, phase }) => {
-    const isTerminal = phase === 'completed' || phase === 'failed' || phase === 'cancelled';
-    // Legacy single-activity (backward compat)
-    ui.pipelineActivity = isTerminal ? null : phase;
-    if (isTerminal) ui.pipelineTodoProgress = null;
-    // Multi-epic activity tracking
-    ui.setEpicActivity(epicId, isTerminal ? null : phase);
-    // Activity log
-    const epic = epicStore.epicById(epicId);
-    if (epic) {
-      const level = phase === 'completed' ? 'success' : phase === 'failed' ? 'error' : 'info';
-      activityLogStore.append(epic.projectId, level, `Epic "${epic.title}" ${phase}`, epicId);
-    }
-  };
-  onPipelineInternalCall = ({ epicId, callType, status }) => {
-    ui.pipelineActivity = status === 'started'
-      ? (CALL_LABELS[callType] || callType)
-      : null;
-    const label = status === 'started' ? (CALL_LABELS[callType] || callType) : null;
-    ui.setEpicActivity(epicId, label);
-  };
-  onPipelineTodoProgress = ({ epicId, current, total, scope, title }) => {
-    ui.pipelineTodoProgress = { current, total };
-    ui.setEpicActivity(epicId, `${scope}: ${title}`, { current, total });
-    // Log agent completion milestones
-    const epic = epicStore.epicById(epicId);
-    if (epic) {
-      activityLogStore.append(epic.projectId, 'info', `${scope}-${current} of epic "${epic.title}" completed (${current}/${total})`, epicId);
-    }
-  };
-  engineBus.on('epic:phaseChanged', onEpicPhaseChanged);
-  engineBus.on('pipeline:internalCall', onPipelineInternalCall);
-  engineBus.on('pipeline:todoProgress', onPipelineTodoProgress);
-
   // Initialize Pinia stores from engine's database (DB is already open via engine)
   const db = getDatabase();
+  console.log('[App] Got database instance, initializing stores...');
   if (db) {
     await projectStore.initialize();
+    console.log('[App] Projects loaded:', projectStore.projects.length);
     await epicStore.initialize();
+    console.log('[App] Epics loaded:', epicStore.epics.length);
     await activityLogStore.load();
 
-    // Initialize the composable-level pool (for standalone orchestrator)
-    const branchManager = engine.branchManager;
-    initPool(branchManager);
+    // If this window was opened with a project param, navigate to it now
+    if (projectIdFromUrl) {
+      console.log('[App] URL project param:', projectIdFromUrl);
+      const project = projectStore.projectById(projectIdFromUrl);
+      if (project) {
+        console.log('[App] Navigating to project:', project.name);
+        ui.navigateToProject(projectIdFromUrl);
+      } else {
+        console.warn('[App] Project not found:', projectIdFromUrl);
+      }
+    }
 
-    const scheduler = engine.scheduler;
-    await scheduler.initialize();
+    // Primary window: start scheduler and orchestrator pool
+    if (isMainWindow) {
+      const branchManager = engine.branchManager;
+      initPool(branchManager);
+
+      const scheduler = engine.scheduler;
+      await scheduler.initialize();
+    }
 
     // Load ALL sessions globally (no workspace filter) so the fleet shows agents from all projects
     await sessionsStore.loadFromDatabase(undefined);
     fleetStore.rebuildFromSessions();
     console.log(`[App] Loaded ${sessionsStore.sessions.size} sessions from database`);
 
-    // Periodically sync sessions from DB so other instances' chats appear
+    // Periodically sync sessions from DB (fallback; cross-window events handle instant sync)
     sessionSyncInterval = window.setInterval(async () => {
       const added = await sessionsStore.syncNewSessions(undefined);
       if (added) {
@@ -785,8 +823,27 @@ onMounted(async () => {
       }
     }, 5000);
 
-    // Periodically sync epics from DB so scheduler-driven changes appear
+    // Periodically sync epics from DB (fallback; cross-window events handle instant sync)
     epicSyncInterval = window.setInterval(() => epicStore.loadAll(), 3000);
+
+    // ── Cross-window sync: instant propagation of shared state ──────────
+    await startSyncListener();
+
+    onSync('projects', async () => {
+      await projectStore.loadAll();
+    });
+    onSync('epics', async () => {
+      await epicStore.loadAll();
+    });
+    onSync('sessions', async () => {
+      const added = await sessionsStore.syncNewSessions(undefined);
+      if (added) fleetStore.rebuildFromSessions();
+    });
+    onSync('scheduler-config', async () => {
+      // Main window: reload & apply (start/stop scheduler).
+      // Secondary windows: reload for UI display.
+      await engine.scheduler.reloadConfig();
+    });
 
     // Auto-select the most recent session
     if (sessionsStore.sessions.size > 0) {
@@ -832,6 +889,7 @@ onUnmounted(() => {
     clearInterval(epicSyncInterval);
     epicSyncInterval = null;
   }
+  stopSyncListener();
   missionControl.dispose();
 });
 </script>
