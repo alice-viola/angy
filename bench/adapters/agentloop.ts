@@ -185,6 +185,11 @@ export async function runAgentLoop(
               trace.agentTextOutput += event.text;
             }
 
+            // Each usage event = one provider round-trip (turn)
+            if (event.type === 'usage') {
+              trace.events.push({ type: 'turn', timestamp });
+            }
+
             // Stop on done or error
             if (event.type === 'done' || event.type === 'error') {
               done = true;

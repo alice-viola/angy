@@ -1,6 +1,27 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { spawn, execSync, type ChildProcess } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import type { Task } from '../task.schema.js';
 import type { RawTrace, RunConfig } from '../types.js';
+
+/** Resolve the full path to the claude binary, or fall back to bare 'claude'. */
+function resolveClaudeBinary(): string {
+  try {
+    return execSync('which claude', { encoding: 'utf-8' }).trim();
+  } catch {
+    // Fallback: try common locations
+    const home = homedir();
+    const candidates = [
+      `${home}/.local/bin/claude`,
+      '/usr/local/bin/claude',
+      '/opt/homebrew/bin/claude',
+    ];
+    for (const c of candidates) {
+      if (existsSync(c)) return c;
+    }
+    return 'claude';
+  }
+}
 
 interface AssistantMessage {
   type: 'assistant';
@@ -82,9 +103,11 @@ export async function runClaudeCode(
       '--max-turns', String(maxTurns),
     ];
 
-    const child: ChildProcess = spawn('claude', args, {
+    const claudeBin = resolveClaudeBinary();
+    const child: ChildProcess = spawn(claudeBin, args, {
       cwd: workDir,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: process.env,
     });
 
     let stdoutBuffer = '';
@@ -147,6 +170,9 @@ export async function runClaudeCode(
             }
 
             if (event.type === 'assistant') {
+              // Each assistant message = one provider round-trip (turn)
+              trace.events.push({ type: 'turn', timestamp });
+
               // Reset tool pairing state for this assistant message
               lastToolUseIds = [];
               toolResultIndex = 0;

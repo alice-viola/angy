@@ -3,7 +3,7 @@ set -euo pipefail
 WORKDIR="$1"
 cd "$WORKDIR"
 npm install --silent 2>/dev/null
-npm test
+npx vitest run --reporter=verbose 2>&1 || npm test -- --run 2>&1 || { echo 'FAIL: tests failed'; exit 1; }
 npx tsc --noEmit
 # Verify at least 5 source modules exist
 SOURCE_COUNT=$(find src -name '*.ts' ! -name '*.test.ts' | wc -l | tr -d ' ')

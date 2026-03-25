@@ -28,12 +28,14 @@ Task selection:
 
 Run options:
   --runs <n>                         Number of runs per task (default: 1)
+  --parallel <n>                     Max tasks to run in parallel (default: 1)
   --tag <string>                     Label for this run
   --keep                             Don't delete temp dirs after run
   --max-turns <n>                    Override task maxTurns
 
 Examples:
   npx tsx bench/runner.ts --adapter claudecode --model claude-sonnet-4-20250514
+  npx tsx bench/runner.ts --adapter claudecode --model claude-sonnet-4-20250514 --parallel 3
   npx tsx bench/runner.ts --adapter agentloop --model gemini-2.0-flash --provider gemini --api-key \$GEMINI_API_KEY
 `;
 
@@ -46,6 +48,7 @@ interface Args {
   tasks?: string;
   task?: string;
   runs?: number;
+  parallel?: number;
   tag?: string;
   keep?: boolean;
   'max-turns'?: number;
@@ -85,11 +88,14 @@ function getApiKey(provider: string | undefined, explicitKey: string | undefined
 }
 
 function printSummary(results: TaskResult[]): void {
+  // Sort by task ID for consistent output regardless of completion order
+  const sorted = [...results].sort((a, b) => a.taskId.localeCompare(b.taskId));
+
   console.log('\n--- Summary ---\n');
   console.log('| Task | Passed | Turns | Cost | Duration |');
   console.log('|------|--------|-------|------|----------|');
 
-  for (const r of results) {
+  for (const r of sorted) {
     const passed = r.passed ? 'Y' : 'N';
     const cost = `$${r.costUsd.toFixed(4)}`;
     const duration = `${(r.durationMs / 1000).toFixed(1)}s`;
@@ -103,6 +109,116 @@ function printSummary(results: TaskResult[]): void {
   console.log(`\nTotal: ${passedCount}/${results.length} passed, $${totalCost.toFixed(4)} cost, ${avgTurns.toFixed(1)} avg turns`);
 }
 
+// ── Concurrency pool ────────────────────────────────────────────────────
+
+async function runPool<T>(
+  items: T[],
+  concurrency: number,
+  fn: (item: T) => Promise<void>,
+): Promise<void> {
+  let index = 0;
+
+  async function worker(): Promise<void> {
+    while (index < items.length) {
+      const i = index++;
+      await fn(items[i]);
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, () => worker());
+  await Promise.all(workers);
+}
+
+// ── Single task execution ───────────────────────────────────────────────
+
+interface TaskJob {
+  task: Task;
+  run: number;
+  numRuns: number;
+}
+
+async function executeTaskJob(
+  job: TaskJob,
+  config: RunConfig,
+  adapter: (task: Task, config: RunConfig) => Promise<RawTrace>,
+  tasksDir: string,
+  resultsDir: string,
+  results: TaskResult[],
+  keep: boolean,
+): Promise<void> {
+  const { task, run, numRuns } = job;
+  const runLabel = numRuns > 1 ? ` (run ${run}/${numRuns})` : '';
+  console.log(`[${task.id}]${runLabel} Starting...`);
+
+  let trace: RawTrace;
+  let tempDir: string | null = null;
+
+  try {
+    // Create temp dir and clone repo — adapter uses this same directory
+    tempDir = makeTempDir(`bench-${config.adapter}-${task.id}-`);
+    const taskRepoPath = join(tasksDir, task.id, task.repoDir);
+    cloneDir(taskRepoPath, tempDir);
+
+    // Run adapter with workDir pointing to the cloned repo
+    trace = await adapter(task, {
+      ...config,
+      timeoutMs: task.maxTimeSeconds * 1000,
+      workDir: tempDir,
+    });
+  } catch (err) {
+    console.error(`[${task.id}] Adapter error:`, err);
+    trace = {
+      adapter: config.adapter,
+      model: config.model,
+      events: [{ type: 'error', timestamp: Date.now(), message: String(err) }],
+      startTime: Date.now(),
+      endTime: Date.now(),
+      timedOut: false,
+      aborted: false,
+      agentTextOutput: '',
+    };
+  }
+
+  // Always run verify.sh, even on timeout
+  const verifyScriptPath = join(tasksDir, task.id, task.verifyScript);
+  const workDir = tempDir ?? makeTempDir(`bench-verify-${task.id}-`);
+
+  // Write agent text output to a temp file so verify.sh can access it as $2
+  // (needed for tasks like large-codebase-nav that check the agent's answer)
+  const agentOutputFile = join(workDir, '.agent-output.txt');
+  writeFileSync(agentOutputFile, trace.agentTextOutput ?? '');
+
+  let verifyResult = { exitCode: 1, stdout: '', stderr: '' };
+  try {
+    verifyResult = await runScript(verifyScriptPath, [workDir, agentOutputFile]);
+  } catch (err) {
+    console.error(`[${task.id}] Verify script error:`, err);
+  }
+
+  // Score the task
+  const result = scoreTask(task, trace, verifyResult.exitCode, verifyResult.stdout);
+  results.push(result);
+
+  // Save trace
+  const traceFile = join(resultsDir, `${task.id}-run${run}-trace.json`);
+  writeFileSync(traceFile, JSON.stringify(trace, null, 2));
+
+  // Clean up temp dir if not keeping
+  if (!keep && tempDir) {
+    try {
+      rmSync(tempDir, { recursive: true, force: true });
+    } catch {
+      // Ignore cleanup errors
+    }
+  }
+
+  const status = result.passed ? 'PASS' : 'FAIL';
+  const timedOutStr = result.timedOut ? ' (timeout)' : '';
+  console.log(`[${task.id}]${runLabel} ${status}${timedOutStr} - ${result.turns} turns, $${result.costUsd.toFixed(4)}, ${(result.durationMs / 1000).toFixed(1)}s`);
+}
+
+// ── Main ────────────────────────────────────────────────────────────────
+
 async function main(): Promise<void> {
   const args = minimist<Args>(process.argv.slice(2), {
     string: ['adapter', 'model', 'provider', 'api-key', 'server', 'tasks', 'task', 'tag'],
@@ -111,6 +227,7 @@ async function main(): Promise<void> {
       server: 'http://127.0.0.1:3000',
       tasks: 'all',
       runs: 1,
+      parallel: 1,
     },
   });
 
@@ -192,83 +309,28 @@ async function main(): Promise<void> {
 
   const adapter = args.adapter === 'agentloop' ? runAgentLoop : runClaudeCode;
   const numRuns = args.runs ?? 1;
+  const parallelism = args.parallel ?? 1;
   const results: TaskResult[] = [];
 
-  console.log(`Running ${allTasks.length} task(s) x ${numRuns} run(s) with ${args.adapter}/${args.model}`);
-  console.log(`Results will be saved to: ${resultsDir}\n`);
-
+  // Build flat list of jobs: task × run
+  const jobs: TaskJob[] = [];
   for (const task of allTasks) {
     for (let run = 1; run <= numRuns; run++) {
-      const runLabel = numRuns > 1 ? ` (run ${run}/${numRuns})` : '';
-      console.log(`[${task.id}]${runLabel} Starting...`);
-
-      let trace: RawTrace;
-      let tempDir: string | null = null;
-
-      try {
-        // Create temp dir and clone repo — adapter uses this same directory
-        tempDir = makeTempDir(`bench-${args.adapter}-${task.id}-`);
-        const taskRepoPath = join(tasksDir, task.id, task.repoDir);
-        cloneDir(taskRepoPath, tempDir);
-
-        // Run adapter with workDir pointing to the cloned repo
-        trace = await adapter(task, {
-          ...config,
-          timeoutMs: task.maxTimeSeconds * 1000,
-          workDir: tempDir,
-        });
-      } catch (err) {
-        console.error(`[${task.id}] Adapter error:`, err);
-        trace = {
-          adapter: args.adapter as 'agentloop' | 'claudecode',
-          model: args.model,
-          events: [{ type: 'error', timestamp: Date.now(), message: String(err) }],
-          startTime: Date.now(),
-          endTime: Date.now(),
-          timedOut: false,
-          aborted: false,
-          agentTextOutput: '',
-        };
-      }
-
-      // Always run verify.sh, even on timeout
-      const verifyScriptPath = join(tasksDir, task.id, task.verifyScript);
-      const workDir = tempDir ?? makeTempDir(`bench-verify-${task.id}-`);
-
-      // Write agent text output to a temp file so verify.sh can access it as $2
-      // (needed for tasks like large-codebase-nav that check the agent's answer)
-      const agentOutputFile = join(workDir, '.agent-output.txt');
-      writeFileSync(agentOutputFile, trace.agentTextOutput ?? '');
-
-      let verifyResult = { exitCode: 1, stdout: '', stderr: '' };
-      try {
-        verifyResult = await runScript(verifyScriptPath, [workDir, agentOutputFile]);
-      } catch (err) {
-        console.error(`[${task.id}] Verify script error:`, err);
-      }
-
-      // Score the task
-      const result = scoreTask(task, trace, verifyResult.exitCode, verifyResult.stdout);
-      results.push(result);
-
-      // Save trace
-      const traceFile = join(resultsDir, `${task.id}-run${run}-trace.json`);
-      writeFileSync(traceFile, JSON.stringify(trace, null, 2));
-
-      // Clean up temp dir if not keeping
-      if (!args.keep && tempDir) {
-        try {
-          rmSync(tempDir, { recursive: true, force: true });
-        } catch {
-          // Ignore cleanup errors
-        }
-      }
-
-      const status = result.passed ? 'PASS' : 'FAIL';
-      const timedOutStr = result.timedOut ? ' (timeout)' : '';
-      console.log(`[${task.id}]${runLabel} ${status}${timedOutStr} - ${result.turns} turns, $${result.costUsd.toFixed(4)}`);
+      jobs.push({ task, run, numRuns });
     }
   }
+
+  const modeLabel = parallelism > 1 ? ` (${parallelism} parallel)` : '';
+  console.log(`Running ${allTasks.length} task(s) x ${numRuns} run(s) with ${args.adapter}/${args.model}${modeLabel}`);
+  console.log(`Results will be saved to: ${resultsDir}\n`);
+
+  const startTime = Date.now();
+
+  await runPool(jobs, parallelism, (job) =>
+    executeTaskJob(job, config, adapter, tasksDir, resultsDir, results, !!args.keep),
+  );
+
+  const wallTime = ((Date.now() - startTime) / 1000).toFixed(1);
 
   // Save metrics
   const metrics: RunMetrics = {
@@ -285,7 +347,8 @@ async function main(): Promise<void> {
   writeFileSync(metricsFile, JSON.stringify(metrics, null, 2));
 
   printSummary(results);
-  console.log(`\nMetrics saved to: ${metricsFile}`);
+  console.log(`\nWall time: ${wallTime}s`);
+  console.log(`Metrics saved to: ${metricsFile}`);
 }
 
 main().catch((err) => {

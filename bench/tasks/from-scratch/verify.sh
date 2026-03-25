@@ -3,7 +3,7 @@ set -euo pipefail
 WORKDIR="$1"
 cd "$WORKDIR"
 npm install --silent 2>/dev/null
-npm test
+npx vitest run --reporter=verbose 2>&1 || npm test -- --run 2>&1 || { echo 'FAIL: tests failed'; exit 1; }
 npx tsc --noEmit
 # Verify all 4 endpoint patterns exist
 grep -r 'GET.*todos\|app.get.*todo' src/ > /dev/null || { echo 'FAIL: GET /api/todos not found'; exit 1; }
