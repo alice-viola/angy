@@ -116,7 +116,7 @@
                 <div
                   v-for="model in group.items"
                   :key="model.id"
-                  :title="isDisabled(model) ? `Add your ${model.provider === 'gemini' ? 'Gemini' : 'Anthropic'} API key in Settings to enable` : undefined"
+                  :title="isDisabled(model) ? disabledReason(model) : undefined"
                   @click="!isDisabled(model) && selectModel(model.id)"
                   class="flex items-center gap-2 px-3 py-1.5 whitespace-nowrap"
                   :class="[
@@ -281,6 +281,12 @@ function isDisabled(model: ModelEntry): boolean {
   if (model.provider === 'gemini') return !ui.geminiApiKey;
   if (model.provider === 'claude') return !ui.anthropicApiKey;
   return false;
+}
+
+function disabledReason(model: ModelEntry): string | undefined {
+  if (model.provider === 'gemini') return 'Add your Gemini API key in Settings to enable';
+  if (model.provider === 'claude') return 'Add your Anthropic API key in Settings to enable';
+  return undefined;
 }
 
 function toggleModelOpen() {
