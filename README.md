@@ -9,7 +9,7 @@
   <a href="https://alice-viola.github.io/angy/">View the website</a>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.6.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-v0.6.2-blue" alt="Version" />
   <img src="https://img.shields.io/badge/platform-macOS-lightgrey" alt="Platform" />
   <a href="LICENSE.md"><img src="https://img.shields.io/badge/license-see%20LICENSE.md-green" alt="License" /></a>
 </p>
@@ -278,7 +278,7 @@ The library is provider-agnostic — swap `'anthropic'` for `'gemini'` and the s
 
 ## Status
 
-**v0.6.1** — active development. macOS and Linux for now. Expect breaking changes.
+**v0.6.2** — active development. macOS and Linux for now. Expect breaking changes.
 
 ---
 

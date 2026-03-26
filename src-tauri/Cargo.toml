@@ -1,6 +1,6 @@
 [package]
 name = "angy"
-version = "0.6.1"
+version = "0.6.2"
 description = "Angy - Agent Fleet Manager"
 authors = ["you"]
 edition = "2021"
