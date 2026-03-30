@@ -15,6 +15,7 @@ import '@xterm/xterm/css/xterm.css';
 
 const props = defineProps<{
   workingDirectory: string;
+  initialCommand?: string;
 }>();
 
 const emit = defineEmits<{
@@ -29,6 +30,7 @@ let ptyId: number | null = null;
 let unlistenData: UnlistenFn | null = null;
 let unlistenExit: UnlistenFn | null = null;
 let resizeObserver: ResizeObserver | null = null;
+let destroyed = false;
 
 onMounted(async () => {
   if (!terminalEl.value) return;
@@ -82,9 +84,18 @@ onMounted(async () => {
     rows,
   });
 
-  // Listen for PTY data
+  // Listen for PTY data — send initialCommand after shell is ready
+  let pendingCommand = props.initialCommand ?? null;
   unlistenData = await listen<string>(`pty-data-${ptyId}`, (event) => {
     terminal?.write(event.payload);
+    if (pendingCommand !== null) {
+      const cmd = pendingCommand;
+      pendingCommand = null;
+      // Defer slightly so the shell's readline is ready to receive input
+      setTimeout(() => {
+        if (!destroyed) invoke('pty_write', { id: ptyId, data: cmd + '\r' }).catch(console.error);
+      }, 200);
+    }
   });
 
   // Listen for PTY exit
@@ -119,6 +130,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+  destroyed = true;
   resizeObserver?.disconnect();
   unlistenData?.();
   unlistenExit?.();

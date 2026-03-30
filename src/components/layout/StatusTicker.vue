@@ -217,6 +217,24 @@ const activeCount = computed(() => fleetStore.activeCount);
       </Teleport>
     </template>
 
+    <!-- Terminal toggle -->
+    <div class="ml-auto flex-shrink-0 flex items-center gap-1 pl-2">
+      <button
+        @click="ui.toggleTerminal()"
+        class="flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded transition-colors"
+        :class="ui.terminalVisible
+          ? 'text-[var(--accent-teal)] bg-white/[0.06]'
+          : 'text-[var(--text-faint)] hover:text-[var(--text-muted)]'"
+        title="Toggle terminal"
+      >
+        <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="1" y="2" width="10" height="8" rx="1"/>
+          <polyline points="3,5 5,6 3,7"/>
+          <line x1="6" y1="7" x2="9" y2="7"/>
+        </svg>
+      </button>
+    </div>
+
     <!-- Right zone: scrolling ticker (only when there are activities) -->
     <template v-if="recentActivities.length > 0">
       <div class="w-px h-3 bg-border-standard flex-shrink-0"></div>

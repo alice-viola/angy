@@ -22,7 +22,14 @@
       </div>
       <div class="flex gap-1">
         <button
-          @click="newTerminal"
+          @click="newClaudeTerminal"
+          class="text-xs px-2 py-0.5 rounded hover:bg-white/[0.05] text-[var(--text-muted)]"
+          title="New Claude Terminal"
+        >
+          claude
+        </button>
+        <button
+          @click="newTerminal()"
           class="text-xs p-1 rounded hover:bg-white/[0.05] text-[var(--text-muted)]"
           title="New Terminal"
         >
@@ -31,9 +38,16 @@
         <button
           @click="closeCurrentTerminal"
           class="text-xs p-1 rounded hover:bg-white/[0.05] text-[var(--text-muted)]"
-          title="Close Terminal"
+          title="Close tab"
         >
-          &times;
+          &#x2715;
+        </button>
+        <button
+          @click="$emit('close')"
+          class="text-xs px-1.5 py-0.5 rounded hover:bg-white/[0.05] text-[var(--text-muted)] border-l border-[var(--border-subtle)] ml-1 pl-2"
+          title="Hide terminal panel"
+        >
+          &#x2304;
         </button>
       </div>
     </div>
@@ -49,8 +63,9 @@
         <TerminalWidget
           :ref="(el: any) => (termRefs[i] = el)"
           :workingDirectory="workingDirectory"
+          :initialCommand="term.initialCommand"
           @title-changed="term.title = $event"
-          @shell-finished="onShellFinished(i)"
+          @shell-finished="removeTerminal(i)"
         />
       </div>
     </div>
@@ -61,13 +76,17 @@
 import { ref, reactive, onMounted } from 'vue';
 import TerminalWidget from './TerminalWidget.vue';
 
-defineProps<{
+const props = defineProps<{
   workingDirectory: string;
+  initialCommand?: string;
 }>();
+
+defineEmits<{ close: [] }>();
 
 interface TerminalInstance {
   id: number;
   title: string;
+  initialCommand?: string;
 }
 
 let nextId = 1;
@@ -75,28 +94,30 @@ const terminals = reactive<TerminalInstance[]>([]);
 const activeTerminal = ref(0);
 const termRefs = ref<any[]>([]);
 
-function newTerminal() {
-  terminals.push({ id: nextId++, title: '' });
+function removeTerminal(index: number) {
+  terminals.splice(index, 1);
+  termRefs.value.splice(index, 1);
+  if (activeTerminal.value >= terminals.length) {
+    activeTerminal.value = Math.max(0, terminals.length - 1);
+  }
+}
+
+function newTerminal(initialCommand?: string) {
+  terminals.push({ id: nextId++, title: '', initialCommand });
   activeTerminal.value = terminals.length - 1;
+}
+
+function newClaudeTerminal() {
+  newTerminal('claude --dangerously-skip-permissions');
 }
 
 function closeCurrentTerminal() {
   if (terminals.length === 0) return;
-  terminals.splice(activeTerminal.value, 1);
-  if (activeTerminal.value >= terminals.length) {
-    activeTerminal.value = Math.max(0, terminals.length - 1);
-  }
-}
-
-function onShellFinished(index: number) {
-  terminals.splice(index, 1);
-  if (activeTerminal.value >= terminals.length) {
-    activeTerminal.value = Math.max(0, terminals.length - 1);
-  }
+  removeTerminal(activeTerminal.value);
 }
 
 onMounted(() => {
-  newTerminal();
+  newTerminal(props.initialCommand);
 });
 
 defineExpose({

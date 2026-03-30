@@ -65,6 +65,7 @@
           <TerminalPanel
             v-if="ui.terminalVisible"
             :workingDirectory="ui.workspacePath || '.'"
+            @close="ui.toggleTerminal()"
           />
         </template>
       </MainSplitter>

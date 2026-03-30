@@ -11,57 +11,150 @@
 
       <Pane :size="paneSizes.center" :min-size="30">
         <div class="flex flex-col h-full bg-window">
-          <!-- Center: inline diff view, file preview, OR chat -->
-          <div v-if="ui.diffView" class="flex flex-col flex-1 min-w-0 h-full">
-            <div
-              class="flex items-center h-8 px-3 border-b border-border-subtle bg-window cursor-pointer flex-shrink-0"
-              @click="ui.closeDiffView()"
-            >
-              <span class="text-[11px] text-teal">← Back to Chat</span>
-              <span class="text-[11px] text-txt-faint mx-2">·</span>
-              <span class="text-[11px] text-txt-primary font-medium">{{ diffFileName }}</span>
+          <!-- Top: diff / preview / chat / intro -->
+          <div class="flex-1 min-h-0 min-w-0 flex flex-col">
+            <div v-if="ui.diffView" class="flex flex-col h-full">
+              <div
+                class="flex items-center h-8 px-3 border-b border-border-subtle bg-window cursor-pointer flex-shrink-0"
+                @click="ui.closeDiffView()"
+              >
+                <span class="text-[11px] text-teal">← Back to Chat</span>
+                <span class="text-[11px] text-txt-faint mx-2">·</span>
+                <span class="text-[11px] text-txt-primary font-medium">{{ diffFileName }}</span>
+              </div>
+              <DiffSplitView
+                :filePath="ui.diffView.filePath"
+                :oldContent="ui.diffView.oldContent"
+                :newContent="ui.diffView.newContent"
+                :leftLabel="ui.diffView.leftLabel"
+                :rightLabel="ui.diffView.rightLabel"
+                @close="ui.closeDiffView()"
+                class="flex-1 min-h-0"
+              />
             </div>
-            <DiffSplitView
-              :filePath="ui.diffView.filePath"
-              :oldContent="ui.diffView.oldContent"
-              :newContent="ui.diffView.newContent"
-              :leftLabel="ui.diffView.leftLabel"
-              :rightLabel="ui.diffView.rightLabel"
-              @close="ui.closeDiffView()"
-              class="flex-1 min-h-0"
+            <div v-else-if="ui.inlinePreviewFile" class="flex flex-col h-full">
+              <div
+                class="flex items-center h-8 px-3 border-b border-border-subtle bg-window cursor-pointer flex-shrink-0"
+                @click="dismissPreview"
+              >
+                <span class="text-[11px] text-teal">← Back to Chat</span>
+                <span class="text-[11px] text-txt-faint mx-2">·</span>
+                <span class="text-[11px] text-txt-primary font-medium">{{ previewFileName }}</span>
+              </div>
+              <CodeViewer ref="inlineViewerRef" class="flex-1 min-h-0" />
+            </div>
+            <OrchestratorChat
+              v-else-if="selectedAgentId"
+              :key="selectedAgentId"
+              :sessionId="selectedAgentId"
+              @file-clicked="onLocalFileClicked"
+              @send="onSend"
+              @stop="onStop"
+              @question-answered="onQuestionAnswered"
             />
-          </div>
-          <div v-else-if="ui.inlinePreviewFile" class="flex flex-col flex-1 min-w-0 h-full">
-            <div
-              class="flex items-center h-8 px-3 border-b border-border-subtle bg-window cursor-pointer flex-shrink-0"
-              @click="dismissPreview"
-            >
-              <span class="text-[11px] text-teal">← Back to Chat</span>
-              <span class="text-[11px] text-txt-faint mx-2">·</span>
-              <span class="text-[11px] text-txt-primary font-medium">{{ previewFileName }}</span>
+            <!-- Introduction panel (no agent selected) -->
+            <div v-else class="flex-1 flex flex-col items-center justify-center h-full overflow-y-auto">
+              <div class="w-full max-w-md px-8 py-10">
+
+              <!-- Header -->
+              <div class="mb-8 text-center">
+                <div class="flex items-center justify-center gap-2.5 mb-2">
+                  <img src="/angy-new-logo.png" class="w-8 h-8 rounded-lg flex-shrink-0" alt="Angy" />
+                  <span class="text-lg font-semibold text-txt-primary">Angy</span>
+                </div>
+                <p class="text-[12px] text-txt-secondary">AI-powered IDE — Claude as your coding partner</p>
+              </div>
+
+              <!-- Steps -->
+              <div class="mb-7">
+                <p class="text-[10px] font-semibold text-txt-faint uppercase tracking-widest mb-3">How it works</p>
+                <div class="flex flex-col gap-2">
+                  <div class="flex items-start gap-3 px-3 py-2.5 rounded-lg border border-border-subtle bg-raised/30">
+                    <span class="w-5 h-5 rounded-full bg-ember/15 text-ember text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-px">1</span>
+                    <div>
+                      <p class="text-[12px] font-medium text-txt-primary">Create a Project</p>
+                      <p class="text-[11px] text-txt-muted mt-0.5">Go to <span class="text-txt-secondary font-medium">Projects</span> and link a local git repo</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3 px-3 py-2.5 rounded-lg border border-border-subtle bg-raised/30">
+                    <span class="w-5 h-5 rounded-full bg-ember/15 text-ember text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-px">2</span>
+                    <div>
+                      <p class="text-[12px] font-medium text-txt-primary">Plan work on the Board</p>
+                      <p class="text-[11px] text-txt-muted mt-0.5">Add <span class="text-txt-secondary font-medium">Epics</span> — each one is a task or feature for Claude</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-3 px-3 py-2.5 rounded-lg border border-border-subtle bg-raised/30">
+                    <span class="w-5 h-5 rounded-full bg-ember/15 text-ember text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-px">3</span>
+                    <div>
+                      <p class="text-[12px] font-medium text-txt-primary">Chat with an Agent</p>
+                      <p class="text-[11px] text-txt-muted mt-0.5">Claude reads code, edits files, and runs commands autonomously</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Nav guide -->
+              <div class="mb-8">
+                <p class="text-[10px] font-semibold text-txt-faint uppercase tracking-widest mb-3">Navigation</p>
+                <div class="grid grid-cols-2 gap-1.5">
+                  <div class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-raised/20 border border-border-subtle/50">
+                    <svg class="w-3.5 h-3.5 text-txt-muted mt-px flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zm0 9.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zm9.75-9.75A2.25 2.25 0 0115.75 3.75H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zm0 9.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25a2.25 2.25 0 01-2.25-2.25v-2.25z" /></svg>
+                    <div>
+                      <p class="text-[11px] font-medium text-txt-secondary">Projects</p>
+                      <p class="text-[10px] text-txt-faint leading-snug">Manage repos &amp; workspace</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-raised/20 border border-border-subtle/50">
+                    <svg class="w-3.5 h-3.5 text-txt-muted mt-px flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 4.5v15m6-15v15m-10.875 0h15.75c.621 0 1.125-.504 1.125-1.125V5.625c0-.621-.504-1.125-1.125-1.125H4.125C3.504 4.5 3 5.004 3 5.625v12.75c0 .621.504 1.125 1.125 1.125z" /></svg>
+                    <div>
+                      <p class="text-[11px] font-medium text-txt-secondary">Board</p>
+                      <p class="text-[10px] text-txt-faint leading-snug">Kanban view for epics</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-raised/20 border border-border-subtle/50">
+                    <svg class="w-3.5 h-3.5 text-txt-muted mt-px flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" /></svg>
+                    <div>
+                      <p class="text-[11px] font-medium text-txt-secondary">Agents</p>
+                      <p class="text-[10px] text-txt-faint leading-snug">Chat with Claude agents</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-raised/20 border border-border-subtle/50">
+                    <svg class="w-3.5 h-3.5 text-txt-muted mt-px flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5" /></svg>
+                    <div>
+                      <p class="text-[11px] font-medium text-txt-secondary">Code</p>
+                      <p class="text-[10px] text-txt-faint leading-snug">Browse &amp; edit the codebase</p>
+                    </div>
+                  </div>
+                  <div class="flex items-start gap-2 px-2.5 py-2 rounded-md bg-raised/20 border border-border-subtle/50 col-span-2">
+                    <svg class="w-3.5 h-3.5 text-txt-muted mt-px flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+                    <div>
+                      <p class="text-[11px] font-medium text-txt-secondary">Git</p>
+                      <p class="text-[10px] text-txt-faint leading-snug">Visual diff viewer &amp; branch switcher</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- CTA -->
+              <div class="flex justify-center">
+                <button
+                  class="px-5 py-2 text-[12px] font-medium rounded-lg bg-ember text-white hover:brightness-110 transition-all"
+                  @click="onNewAgent"
+                >
+                  + New Agent
+                </button>
+              </div>
+
+              </div>
             </div>
-            <CodeViewer ref="inlineViewerRef" class="flex-1 min-h-0" />
           </div>
 
-          <OrchestratorChat
-            v-else-if="selectedAgentId"
-            :key="selectedAgentId"
-            :sessionId="selectedAgentId"
-            @file-clicked="onLocalFileClicked"
-            @send="onSend"
-            @stop="onStop"
-            @question-answered="onQuestionAnswered"
-          />
+          <!-- Bottom: terminal panel (shown when terminalVisible) -->
           <div
-            v-else
-            class="flex-1 flex flex-col items-center justify-center text-center px-6 h-full"
+            v-show="ui.terminalVisible"
+            class="flex-shrink-0 border-t border-border-subtle h-[35%]"
           >
-            <svg class="w-6 h-6 mb-2 opacity-30 text-txt-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3">
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 20c0-4.4 3.6-8 8-8s8 3.6 8 8" />
-            </svg>
-            <span class="text-[11px] text-txt-muted">Select an agent to view conversation</span>
-            <span class="text-[10px] text-txt-faint mt-1">Or press +New Agent to get started</span>
+            <TerminalPanel :workingDirectory="ui.workspacePath || '.'" @close="ui.toggleTerminal()" />
           </div>
         </div>
       </Pane>
@@ -97,6 +190,7 @@ import FleetSidebar from './FleetSidebar.vue';
 import OrchestratorChat from './OrchestratorChat.vue';
 import AgentsEffectsPanel from './AgentsEffectsPanel.vue';
 import AgentsEffectsCollapsed from './AgentsEffectsCollapsed.vue';
+import TerminalPanel from '../terminal/TerminalPanel.vue';
 import CodeViewer from '../editor/CodeViewer.vue';
 import DiffSplitView from '../editor/DiffSplitView.vue';
 import { Splitpanes, Pane } from 'splitpanes';
