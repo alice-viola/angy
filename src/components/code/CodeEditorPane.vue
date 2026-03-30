@@ -49,8 +49,29 @@
       >{{ markdownPreview ? 'Code' : 'Preview' }}</button>
     </div>
 
-    <!-- Editor -->
-    <CodeViewer ref="codeViewerRef" :hideChrome="true" class="flex-1 min-h-0" />
+    <!-- Diff view (takes over the editor area) -->
+    <template v-if="ui.diffView">
+      <div
+        class="flex items-center h-8 px-3 border-b border-[var(--border-subtle)] bg-[var(--bg-window)] cursor-pointer"
+        @click="ui.closeDiffView()"
+      >
+        <span class="text-[11px] text-[var(--accent-teal)]">← Back to Editor</span>
+        <span class="text-[11px] text-[var(--text-faint)] mx-2">·</span>
+        <span class="text-[11px] text-[var(--text-primary)] font-medium">{{ diffFileName }}</span>
+      </div>
+      <DiffSplitView
+        :filePath="ui.diffView.filePath"
+        :oldContent="ui.diffView.oldContent"
+        :newContent="ui.diffView.newContent"
+        :leftLabel="ui.diffView.leftLabel"
+        :rightLabel="ui.diffView.rightLabel"
+        @close="ui.closeDiffView()"
+        class="flex-1 min-h-0"
+      />
+    </template>
+
+    <!-- Normal editor -->
+    <CodeViewer v-else ref="codeViewerRef" :hideChrome="true" class="flex-1 min-h-0" />
   </div>
 </template>
 
@@ -58,9 +79,16 @@
 import { ref, computed, watch } from 'vue';
 import { useUiStore } from '@/stores/ui';
 import CodeViewer from '@/components/editor/CodeViewer.vue';
+import DiffSplitView from '@/components/editor/DiffSplitView.vue';
 
 const ui = useUiStore();
 const codeViewerRef = ref<InstanceType<typeof CodeViewer> | null>(null);
+
+const diffFileName = computed(() => {
+  const full = ui.diffView?.filePath;
+  if (!full) return '';
+  return full.split('/').pop() ?? full;
+});
 
 const tabs = computed(() => codeViewerRef.value?.tabs ?? []);
 const activeFile = computed(() => codeViewerRef.value?.activeFile ?? '');

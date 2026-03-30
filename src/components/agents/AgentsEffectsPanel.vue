@@ -74,7 +74,16 @@
                 class="text-[10px] px-1 rounded flex-shrink-0"
                 :class="changeTypeBadge(change.changeType)"
               >{{ changeTypeLabel(change.changeType) }}</span>
-              <span class="text-[11px] text-txt-secondary truncate font-mono">{{ change.filePath }}</span>
+              <span class="text-[11px] text-txt-secondary truncate font-mono flex-1 min-w-0">{{ change.filePath }}</span>
+              <button
+                @click.stop="$emit('diff-requested', change.filePath)"
+                class="flex-shrink-0 p-0.5 rounded text-txt-faint hover:text-accent-mauve hover:bg-white/[0.05] transition-colors"
+                title="Show diff"
+              >
+                <svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M4 3v10M12 3v10M1 6h6M9 10h6" />
+                </svg>
+              </button>
               <span class="flex-shrink-0 text-[9px] font-mono">
                 <span v-if="change.linesAdded" class="text-emerald-400">+{{ change.linesAdded }}</span>
                 <span v-if="change.linesRemoved" class="text-accent-red ml-0.5">-{{ change.linesRemoved }}</span>
@@ -183,6 +192,7 @@ const props = defineProps<{
 
 defineEmits<{
   'file-clicked': [filePath: string];
+  'diff-requested': [filePath: string];
   approve: [];
   reject: [];
 }>();

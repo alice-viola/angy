@@ -56,6 +56,7 @@
           <EffectsPanel
             ref="effectsPanelRef"
             @file-clicked="onFileClicked"
+            @diff-requested="onEffectsDiffRequested"
             @turn-clicked="onTurnClicked"
           />
         </template>
@@ -582,13 +583,15 @@ function onGitFileDiffReady({ filePath, staged, diff }: { filePath: string; stag
   if (diff.isBinary) return;
   const rightLabel = staged ? 'Staged' : 'Working Tree';
   ui.showDiffView(filePath, diff.oldContent, diff.newContent, 'HEAD', rightLabel);
-  // Ensure code pane is visible in editor mode
-  if (ui.viewMode === 'code') {
-    // TODO: handle diff view in CodeView — currently a no-op for code mode
-  } else {
-    // In agents mode, show as inline preview
-    ui.inlinePreviewFile = filePath;
-  }
+}
+
+function onEffectsDiffRequested(filePath: string) {
+  // Convert absolute path to relative for git
+  const workspace = ui.workspacePath;
+  const relativePath = workspace && filePath.startsWith(workspace + '/')
+    ? filePath.slice(workspace.length + 1)
+    : filePath;
+  gitStore.manager.requestFileDiff(relativePath, false);
 }
 
 // ── Global safety net: prevent webview navigation on link clicks & file drops ──

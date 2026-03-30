@@ -56,6 +56,7 @@ let diffEditor: monaco.editor.IStandaloneDiffEditor | null = null;
 let originalModel: monaco.editor.ITextModel | null = null;
 let modifiedModel: monaco.editor.ITextModel | null = null;
 let currentHunkIdx = -1;
+let pendingDiffDisposable: monaco.IDisposable | null = null;
 
 // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -81,6 +82,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  pendingDiffDisposable?.dispose();
+  pendingDiffDisposable = null;
   diffEditor?.dispose();
   originalModel?.dispose();
   modifiedModel?.dispose();
@@ -109,6 +112,24 @@ function setModels() {
   });
 
   currentHunkIdx = -1;
+
+  // Auto-scroll to first change once Monaco finishes computing the diff
+  waitForDiffAndJump();
+}
+
+function waitForDiffAndJump() {
+  if (!diffEditor) return;
+  pendingDiffDisposable?.dispose();
+  pendingDiffDisposable = diffEditor.onDidUpdateDiff(() => {
+    pendingDiffDisposable?.dispose();
+    pendingDiffDisposable = null;
+    const changes = getLineChanges();
+    if (changes.length > 0) {
+      currentHunkIdx = 0;
+      const line = changes[0].modifiedStartLineNumber;
+      diffEditor?.getModifiedEditor().revealLineInCenter(line);
+    }
+  });
 }
 
 // ── Hunk navigation ───────────────────────────────────────────────────────

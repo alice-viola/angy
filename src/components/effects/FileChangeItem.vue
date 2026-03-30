@@ -25,6 +25,17 @@
       {{ badgeLetter }}
     </span>
 
+    <!-- Diff button -->
+    <button
+      @click.stop="$emit('diff-requested', change.filePath)"
+      class="shrink-0 p-0.5 rounded text-[var(--text-faint)] hover:text-[var(--accent-mauve)] hover:bg-white/[0.05] transition-colors"
+      title="Show diff"
+    >
+      <svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M4 3v10M12 3v10M1 6h6M9 10h6" />
+      </svg>
+    </button>
+
     <!-- Line delta -->
     <div class="flex gap-1 text-[10px] shrink-0">
       <span v-if="change.linesAdded > 0" class="text-[var(--accent-green)]">+{{ change.linesAdded }}</span>
@@ -44,6 +55,7 @@ const props = defineProps<{
 
 defineEmits<{
   click: [filePath: string];
+  'diff-requested': [filePath: string];
 }>();
 
 const fileName = computed(() => {

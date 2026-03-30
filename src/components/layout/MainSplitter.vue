@@ -74,7 +74,7 @@
       <!-- Panel 2: Center (CodeViewer / DiffSplitView / Manager inline preview) -->
       <Pane :size="panelSizes[2]" :min-size="0" :max-size="showCodePane ? 100 : 0">
         <div v-if="showCodePane" class="h-full flex flex-col">
-          <!-- Back bar for inline preview in Manager mode -->
+          <!-- Back bar for inline preview / diff dismiss (Manager mode only) -->
           <div
             v-if="inManager && (ui.inlinePreviewFile || ui.diffView)"
             class="flex items-center h-8 px-3 border-b border-[var(--border-subtle)] bg-[var(--bg-window)] cursor-pointer"

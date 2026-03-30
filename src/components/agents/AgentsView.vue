@@ -11,8 +11,27 @@
 
       <Pane :size="paneSizes.center" :min-size="30">
         <div class="flex flex-col h-full bg-window">
-          <!-- Center: inline file preview OR chat -->
-          <div v-if="ui.inlinePreviewFile" class="flex flex-col flex-1 min-w-0 h-full">
+          <!-- Center: inline diff view, file preview, OR chat -->
+          <div v-if="ui.diffView" class="flex flex-col flex-1 min-w-0 h-full">
+            <div
+              class="flex items-center h-8 px-3 border-b border-border-subtle bg-window cursor-pointer flex-shrink-0"
+              @click="ui.closeDiffView()"
+            >
+              <span class="text-[11px] text-teal">← Back to Chat</span>
+              <span class="text-[11px] text-txt-faint mx-2">·</span>
+              <span class="text-[11px] text-txt-primary font-medium">{{ diffFileName }}</span>
+            </div>
+            <DiffSplitView
+              :filePath="ui.diffView.filePath"
+              :oldContent="ui.diffView.oldContent"
+              :newContent="ui.diffView.newContent"
+              :leftLabel="ui.diffView.leftLabel"
+              :rightLabel="ui.diffView.rightLabel"
+              @close="ui.closeDiffView()"
+              class="flex-1 min-h-0"
+            />
+          </div>
+          <div v-else-if="ui.inlinePreviewFile" class="flex flex-col flex-1 min-w-0 h-full">
             <div
               class="flex items-center h-8 px-3 border-b border-border-subtle bg-window cursor-pointer flex-shrink-0"
               @click="dismissPreview"
@@ -52,6 +71,7 @@
           v-if="selectedAgentId && fleetStore.effectsExpanded"
           :sessionId="selectedAgentId"
           @file-clicked="onLocalFileClicked"
+          @diff-requested="onDiffRequested"
           @approve="onApprove"
           @reject="onReject"
         />
@@ -78,7 +98,9 @@ import OrchestratorChat from './OrchestratorChat.vue';
 import AgentsEffectsPanel from './AgentsEffectsPanel.vue';
 import AgentsEffectsCollapsed from './AgentsEffectsCollapsed.vue';
 import CodeViewer from '../editor/CodeViewer.vue';
+import DiffSplitView from '../editor/DiffSplitView.vue';
 import { Splitpanes, Pane } from 'splitpanes';
+import { useGitStore } from '../../stores/git';
 
 const fleetStore = useFleetStore();
 const sessionsStore = useSessionsStore();
@@ -128,6 +150,13 @@ watch(
 );
 
 const inlineViewerRef = ref<InstanceType<typeof CodeViewer> | null>(null);
+const gitStore = useGitStore();
+
+const diffFileName = computed(() => {
+  const full = ui.diffView?.filePath;
+  if (!full) return '';
+  return full.split('/').pop() ?? full;
+});
 
 const previewFileName = computed(() => {
   const full = ui.inlinePreviewFile;
@@ -144,6 +173,15 @@ async function onLocalFileClicked(filePath: string) {
 
 function dismissPreview() {
   ui.dismissInlinePreview();
+}
+
+function onDiffRequested(filePath: string) {
+  // Convert absolute path to relative for git
+  const workspace = ui.workspacePath;
+  const relativePath = workspace && filePath.startsWith(workspace + '/')
+    ? filePath.slice(workspace.length + 1)
+    : filePath;
+  gitStore.manager.requestFileDiff(relativePath, false);
 }
 
 function onAgentSelected(sessionId: string) {
@@ -438,4 +476,5 @@ function onApprove() {
 function onReject() {
   // TODO: wire to engine — reject pending tool use for the selected agent
 }
+
 </script>

@@ -50,6 +50,7 @@
             :change="change"
             :root-path="rootPath"
             @click="$emit('file-clicked', $event)"
+            @diff-requested="$emit('diff-requested', $event)"
           />
         </template>
       </template>
@@ -69,6 +70,7 @@ import SectionTip from '../common/SectionTip.vue';
 
 defineEmits<{
   'file-clicked': [filePath: string];
+  'diff-requested': [filePath: string];
   'turn-clicked': [turnId: number];
 }>();
 

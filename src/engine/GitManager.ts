@@ -195,6 +195,7 @@ export class GitManager {
         });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
+        console.error('[GitManager] diff error:', msg);
         this.events.emit('errorOccurred', { operation: 'diff', message: msg });
       }
     });
