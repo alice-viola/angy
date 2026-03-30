@@ -1,5 +1,26 @@
 <template>
-  <div class="bg-base border-t border-border-subtle">
+  <div class="relative bg-base border-t border-border-subtle">
+    <!-- Memory pill (#) -->
+    <div v-if="memoryTarget" class="flex items-center gap-1 px-4 pt-2">
+      <div class="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px]" style="background:color-mix(in srgb,var(--accent-teal) 15%,transparent);color:var(--accent-teal)">
+        <svg class="w-2.5 h-2.5" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h10v2H3zM3 7h7M3 11h5"/></svg>
+        <span>{{ memoryTarget.label }}</span>
+        <button @click="memoryTarget = null; draft = draft.startsWith('#') ? draft.slice(1) : draft" class="opacity-60 hover:opacity-100 ml-1">×</button>
+      </div>
+    </div>
+
+    <!-- Context pills (@mentions) -->
+    <div v-if="contexts.length > 0" class="flex flex-wrap gap-1 px-4 pt-2">
+      <div
+        v-for="(ctx, i) in contexts"
+        :key="i"
+        class="flex items-center gap-1 px-2 py-0.5 rounded-full bg-raised text-[11px] text-txt-secondary"
+      >
+        <span class="truncate max-w-[200px]">{{ ctx.displayName }}</span>
+        <button @click="removeContext(i)" class="text-txt-faint hover:text-red-400 transition-colors">×</button>
+      </div>
+    </div>
+
     <!-- Image thumbnails -->
     <div v-if="images.length > 0" class="flex gap-2 px-4 pt-3">
       <div
@@ -22,6 +43,65 @@
       </div>
     </div>
 
+    <!-- Queued messages list -->
+    <div v-if="messageQueue.length > 0" class="px-4 pt-2 flex flex-col gap-1">
+      <div class="text-[9px] text-txt-faint uppercase tracking-wider mb-0.5">Queued</div>
+      <div
+        v-for="(msg, i) in messageQueue"
+        :key="i"
+        class="flex items-center gap-2 px-2 py-1 rounded-md bg-raised border border-border-subtle group"
+      >
+        <span class="flex-1 text-[11px] text-txt-secondary truncate">{{ msg.text || '(image)' }}</span>
+        <button
+          @click="editQueued(i)"
+          class="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-txt-faint hover:text-ember-400 flex-shrink-0"
+          title="Edit"
+        >
+          <svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 2l3 3-8 8H3v-3l8-8z"/>
+          </svg>
+        </button>
+        <button
+          @click="removeQueued(i)"
+          class="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-txt-faint hover:text-red-400 flex-shrink-0"
+          title="Remove"
+        >
+          <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M2 2l8 8M10 2l-8 8"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Memory popup (#) -->
+    <MemoryPopup
+      v-if="showMemoryPopup"
+      ref="memoryPopupRef"
+      :options="memoryOptions"
+      @select="onMemorySelect"
+      @close="showMemoryPopup = false"
+    />
+
+    <!-- Context popup (@) -->
+    <ContextPopup
+      v-if="showContextPopup"
+      ref="contextPopupRef"
+      :query="contextQuery"
+      :workspacePath="ui.workspacePath || ''"
+      @select="onContextSelect"
+      @close="showContextPopup = false"
+    />
+
+    <!-- Slash command popup -->
+    <SlashCommandPopup
+      v-if="showSlashPopup"
+      ref="slashPopupRef"
+      :query="slashQuery"
+      :workspacePath="ui.workspacePath"
+      @select="onSlashSelect"
+      @close="showSlashPopup = false"
+    />
+
     <!-- Textarea -->
     <div
       class="px-4 pt-3"
@@ -34,6 +114,7 @@
         ref="inputEl"
         v-model="draft"
         @keydown="onKeydown"
+        @input="onInput"
         @paste="onPaste"
         @dragover.prevent
         :placeholder="'Send a message...'"
@@ -45,7 +126,6 @@
         class="w-full bg-transparent text-[13px] text-txt-primary placeholder:text-txt-faint resize-none outline-none ring-0 border-0"
         :style="{ maxHeight: MAX_HEIGHT + 'px' }"
         :class="isDragging ? 'opacity-50' : ''"
-        :disabled="processing"
       />
     </div>
 
@@ -185,13 +265,16 @@
       </div>
 
       <div class="flex items-center gap-2">
-        <span v-if="draft.length > 0" class="text-[9px] text-txt-faint tabular-nums">
+        <span v-if="messageQueue.length > 0" class="text-[9px] text-ember-400 tabular-nums" title="Messages queued">
+          +{{ messageQueue.length }}
+        </span>
+        <span v-else-if="draft.length > 0" class="text-[9px] text-txt-faint tabular-nums">
           {{ draft.length }}
         </span>
         <button
           v-if="processing"
           @click="$emit('stop')"
-          class="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--accent-red)] hover:text-[var(--accent-red)] text-txt-faint cursor-pointer transition-all flex-shrink-0"
+          class="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-ember-500 text-ember-500 hover:border-ember-400 hover:text-ember-400 cursor-pointer transition-all flex-shrink-0"
           title="Stop"
         >
           <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
@@ -199,7 +282,17 @@
           </svg>
         </button>
         <button
-          v-else
+          v-if="processing && canSend"
+          @click="sendMessage"
+          class="w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0 bg-gradient-to-br from-ember-500 to-ember-600 hover:brightness-110 cursor-pointer"
+          title="Queue message"
+        >
+          <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 8h10M9 4l4 4-4 4" />
+          </svg>
+        </button>
+        <button
+          v-if="!processing"
           @click="sendMessage"
           :disabled="!canSend"
           class="w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0"
@@ -227,10 +320,15 @@ import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue';
 import { open } from '@tauri-apps/plugin-dialog';
 import { readFile } from '@tauri-apps/plugin-fs';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
+import { homeDir } from '@tauri-apps/api/path';
 import { ProfileManager, type PersonalityProfile } from '../../engine/ProfileManager';
 import type { AttachedImage } from '../../engine/types';
 import { useUiStore } from '@/stores/ui';
-import { MODEL_GROUPS, ALL_MODELS, DEFAULT_MODEL_ID, type ModelEntry } from '@/constants/models';
+import { MODEL_GROUPS, ALL_MODELS, DEFAULT_MODEL_ID, type ModelEntry, findModel } from '@/constants/models';
+import SlashCommandPopup from '../input/SlashCommandPopup.vue';
+import ContextPopup from '../input/ContextPopup.vue';
+import MemoryPopup, { type MemoryOption } from '../input/MemoryPopup.vue';
+import { writeTextFile, readTextFile } from '@tauri-apps/plugin-fs';
 
 const props = defineProps<{
   processing: boolean;
@@ -249,6 +347,28 @@ const draft = ref(props.sessionId ? (draftsBySession.get(props.sessionId) ?? '')
 const inputEl = ref<HTMLTextAreaElement | null>(null);
 const isDragging = ref(false);
 const images = ref<AttachedImage[]>([]);
+
+// Memory (#)
+interface MemoryTarget { label: string; path: string }
+const memoryTarget = ref<MemoryTarget | null>(null);  // chosen location, null = not in memory mode
+const showMemoryPopup = ref(false);
+const memoryPopupRef = ref<InstanceType<typeof MemoryPopup> | null>(null);
+const homeValue = ref('');
+
+const memoryOptions = computed<MemoryOption[]>(() => {
+  const opts: MemoryOption[] = [{ id: 'global', label: 'Global memory', path: `${homeValue.value}/.claude/CLAUDE.md` }];
+  if (ui.workspacePath) opts.push({ id: 'project', label: 'Project memory', path: `${ui.workspacePath}/CLAUDE.md` });
+  return opts;
+});
+
+
+// Context (@mentions)
+interface AttachedContext { displayName: string; fullPath: string }
+const contexts = ref<AttachedContext[]>([]);
+const showContextPopup = ref(false);
+const contextQuery = ref('');
+const contextPopupRef = ref<InstanceType<typeof ContextPopup> | null>(null);
+const atStartPos = ref(-1);
 
 // Mode
 const selectedMode = ref('agent');
@@ -304,9 +424,27 @@ const profileManager = new ProfileManager();
 const MIN_HEIGHT = 28;
 const MAX_HEIGHT = 300; // ~15 lines at 13px / 1.5 line-height
 
+// Message queue (for sending while processing)
+interface QueuedMessage { text: string; images: AttachedImage[]; model: string }
+const messageQueue = ref<QueuedMessage[]>([]);
+
+watch(() => props.processing, (isProcessing) => {
+  if (!isProcessing && messageQueue.value.length > 0) {
+    const next = messageQueue.value.shift()!;
+    emit('send', next.text, next.images, next.model);
+  }
+});
+
+// Slash commands
+const showSlashPopup = ref(false);
+const slashQuery = ref('');
+const slashPopupRef = ref<InstanceType<typeof SlashCommandPopup> | null>(null);
+
+const isClaudeCode = computed(() => findModel(selectedModel.value)?.provider === 'claude-cli');
+
 // ── Computed ──────────────────────────────────────────────────────────
 
-const canSend = computed(() => draft.value.trim().length > 0 || images.value.length > 0);
+const canSend = computed(() => draft.value.trim().length > 0 || images.value.length > 0 || contexts.value.length > 0);
 
 const modelShortName = computed(() =>
   models.value.find((m) => m.id === selectedModel.value)?.name || selectedModel.value,
@@ -330,11 +468,28 @@ watch(draft, (val) => {
 
 // ── Send ──────────────────────────────────────────────────────────────
 
-function sendMessage() {
-  const text = draft.value.trim();
+function buildMessageText(text: string): string {
+  if (contexts.value.length === 0) return text;
+  const mentions = contexts.value.map(c => `@${c.fullPath}`).join(' ');
+  return text ? `${mentions}\n${text}` : mentions;
+}
+
+async function sendMessage() {
+  if (memoryTarget.value) {
+    await flushMemory();
+    draft.value = '';
+    nextTick(() => { const el = inputEl.value; if (el) { el.style.height = MIN_HEIGHT + 'px'; el.style.overflowY = 'hidden'; } });
+    return;
+  }
+  const text = buildMessageText(draft.value.trim());
   if (!text && images.value.length === 0) return;
-  emit('send', text, [...images.value], selectedModel.value);
+  if (props.processing) {
+    messageQueue.value.push({ text, images: [...images.value], model: selectedModel.value });
+  } else {
+    emit('send', text, [...images.value], selectedModel.value);
+  }
   draft.value = '';
+  contexts.value = [];
   if (props.sessionId) draftsBySession.delete(props.sessionId);
   images.value = [];
   nextTick(() => {
@@ -343,9 +498,148 @@ function sendMessage() {
   });
 }
 
+function removeQueued(index: number) {
+  messageQueue.value.splice(index, 1);
+}
+
+function editQueued(index: number) {
+  const msg = messageQueue.value.splice(index, 1)[0];
+  draft.value = msg.text;
+  if (msg.images.length > 0) images.value.push(...msg.images);
+  nextTick(() => { inputEl.value?.focus(); autoGrow(); });
+}
+
+// ── Slash commands ────────────────────────────────────────────────────
+
+function onInput() {
+  const val = draft.value;
+  const el = inputEl.value;
+  const cursorPos = el?.selectionStart ?? val.length;
+  const beforeCursor = val.substring(0, cursorPos);
+
+  // Detect # memory trigger — only when # is the very first character
+  if (val.startsWith('#') && !memoryTarget.value) {
+    showMemoryPopup.value = true;
+    showContextPopup.value = false;
+    showSlashPopup.value = false;
+    return;
+  }
+  if (!val.startsWith('#')) {
+    memoryTarget.value = null;
+    showMemoryPopup.value = false;
+  }
+
+  // Detect @ context trigger
+  const lastAt = beforeCursor.lastIndexOf('@');
+  if (lastAt >= 0) {
+    const afterAt = beforeCursor.substring(lastAt + 1);
+    if (!/\s/.test(afterAt)) {
+      showContextPopup.value = true;
+      contextQuery.value = afterAt;
+      atStartPos.value = lastAt;
+      showSlashPopup.value = false;
+      return;
+    }
+  }
+  showContextPopup.value = false;
+  atStartPos.value = -1;
+
+  // Detect / slash command trigger
+  if (isClaudeCode.value && val.startsWith('/')) {
+    showSlashPopup.value = true;
+    slashQuery.value = val.substring(1).split(/\s/)[0];
+  } else {
+    showSlashPopup.value = false;
+  }
+}
+
+function onMemorySelect(option: MemoryOption) {
+  showMemoryPopup.value = false;
+  memoryTarget.value = { label: option.label, path: option.path };
+  // Remove the leading '#' from draft so user types the note text cleanly
+  if (draft.value.startsWith('#')) draft.value = draft.value.slice(1);
+  nextTick(() => inputEl.value?.focus());
+}
+
+async function flushMemory() {
+  if (!memoryTarget.value) return;
+  const note = draft.value.trim();
+  if (!note) { memoryTarget.value = null; return; }
+  const { path } = memoryTarget.value;
+  try {
+    let existing = '';
+    try { existing = await readTextFile(path); } catch { /* file may not exist yet */ }
+    const separator = existing && !existing.endsWith('\n') ? '\n' : '';
+    await writeTextFile(path, `${existing}${separator}- ${note}\n`);
+  } catch (err) {
+    console.error('Failed to write memory:', err);
+  }
+  memoryTarget.value = null;
+}
+
+function onContextSelect(filePath: string) {
+  showContextPopup.value = false;
+  if (atStartPos.value >= 0) {
+    const el = inputEl.value;
+    const cursorPos = el?.selectionStart ?? draft.value.length;
+    draft.value = draft.value.substring(0, atStartPos.value) + draft.value.substring(cursorPos);
+  }
+  atStartPos.value = -1;
+  const displayName = filePath.split('/').pop() || filePath;
+  contexts.value.push({ displayName, fullPath: filePath });
+  nextTick(() => inputEl.value?.focus());
+}
+
+function removeContext(index: number) {
+  contexts.value.splice(index, 1);
+}
+
+function onSlashSelect(commandName: string) {
+  showSlashPopup.value = false;
+  draft.value = '';
+  emit('send', `/${commandName}`, [], selectedModel.value);
+  nextTick(() => inputEl.value?.focus());
+}
+
 // ── Keydown ───────────────────────────────────────────────────────────
 
 function onKeydown(e: KeyboardEvent) {
+  if (showMemoryPopup.value) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      e.preventDefault();
+      memoryPopupRef.value?.onKeydown(e);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      showMemoryPopup.value = false;
+      return;
+    }
+  }
+  if (showContextPopup.value) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      e.preventDefault();
+      contextPopupRef.value?.onKeydown(e);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      showContextPopup.value = false;
+      return;
+    }
+  }
+  if (showSlashPopup.value) {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      e.preventDefault();
+      slashPopupRef.value?.onKeydown(e);
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      showSlashPopup.value = false;
+      return;
+    }
+  }
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendMessage();
@@ -461,6 +755,7 @@ onMounted(async () => {
   inputEl.value?.focus();
   autoGrow();
   document.addEventListener('click', onClickOutside);
+  homeValue.value = await homeDir().catch(() => '~');
 
   await profileManager.init();
   profiles.value = profileManager.userProfiles();
@@ -510,5 +805,8 @@ textarea {
 }
 textarea::placeholder {
   color: var(--text-faint);
+}
+textarea:focus::placeholder {
+  color: transparent;
 }
 </style>

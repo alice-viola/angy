@@ -68,6 +68,7 @@
       ref="inputBar"
       :processing="isProcessing"
       :workspacePath="ui.workspacePath"
+      :claudeCode="isClaudeCodeModel"
       @send="onSend"
       @stop="onStop"
       @slash-command="onSlashCommand"
@@ -111,6 +112,7 @@ import { useProjectsStore } from '../../stores/projects';
 import { useEpicStore } from '../../stores/epics';
 import { ClaudeProcess } from '../../engine/ClaudeProcess';
 import { sendMessageToEngine, cancelProcess, isAngyCodeModel, sendAngyCodeMessage, cancelAngyCodeProcess, isAngyCodeRunning, type ChatPanelHandle } from '../../composables/useEngine';
+import { findModel } from '../../constants/models';
 import type { AgentStatus, AttachedContext, AttachedImage, MessageRecord } from '../../engine/types';
 import { engineBus } from '../../engine/EventBus';
 import { useOrchestrator } from '../../composables/useOrchestrator';
@@ -198,6 +200,8 @@ const activeMessages = computed((): ChatMsg[] => {
 const isProcessing = computed((): boolean => {
   return activeState.value?.isProcessing ?? false;
 });
+
+const isClaudeCodeModel = computed(() => findModel(ui.currentModel)?.provider === 'claude-cli');
 
 const isThinking = computed((): boolean => {
   return activeState.value?.isThinking ?? false;
@@ -552,6 +556,9 @@ async function onSlashCommand(command: string) {
     await exportChat(sid);
   } else if (command === 'clear') {
     clearChat(sid);
+  } else {
+    // Forward to Claude as a slash command (e.g. /commit-commands:commit)
+    await onSend(`/${command}`, [], []);
   }
 }
 
@@ -796,10 +803,8 @@ function addToolUse(sessionId: string, toolName: string, summary: string, toolIn
 function markDone(sessionId: string) {
   const state = sessionStates.value.get(sessionId);
   if (state) {
-    // Persist the session row (messages are now saved incrementally by SessionMessageBuffer).
     sessionsStore.persistSession(sessionId);
     state.lastPersistedTurnId = state.turnCounter;
-
     state.isProcessing = false;
     state.isThinking = false;
     state.currentAssistantMsgId = null;

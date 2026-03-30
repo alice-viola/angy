@@ -1,5 +1,5 @@
 <template>
-  <div class="input-bar bg-[var(--bg-base)]">
+  <div class="input-bar relative bg-[var(--bg-base)]">
     <!-- Context pills (@ mentions) -->
     <div v-if="contexts.length > 0" class="flex flex-wrap gap-1 px-4 pt-2">
       <div
@@ -37,6 +37,36 @@
       </div>
     </div>
 
+    <!-- Queued messages list -->
+    <div v-if="messageQueue.length > 0" class="px-4 pt-2 flex flex-col gap-1">
+      <div class="text-[9px] text-txt-faint uppercase tracking-wider mb-0.5">Queued</div>
+      <div
+        v-for="(msg, i) in messageQueue"
+        :key="i"
+        class="flex items-center gap-2 px-2 py-1 rounded-md bg-raised border border-border-subtle group"
+      >
+        <span class="flex-1 text-[11px] text-txt-secondary truncate">{{ msg.text || '(image)' }}</span>
+        <button
+          @click="editQueued(i)"
+          class="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-txt-faint hover:text-ember-400 flex-shrink-0"
+          title="Edit"
+        >
+          <svg class="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M11 2l3 3-8 8H3v-3l8-8z"/>
+          </svg>
+        </button>
+        <button
+          @click="removeQueued(i)"
+          class="opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-txt-faint hover:text-red-400 flex-shrink-0"
+          title="Remove"
+        >
+          <svg class="w-3 h-3" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <path d="M2 2l8 8M10 2l-8 8"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
     <!-- Input container -->
     <div
       class="px-4 py-4"
@@ -63,7 +93,7 @@
           @blur="focused = false"
           @dragover.prevent
           @drop="onDrop"
-          :placeholder="placeholder || 'Message Claude...'"
+          :placeholder="processing ? 'Type to queue next message…' : (placeholder || 'Message Claude...')"
           rows="1"
           autocapitalize="none"
           autocomplete="off"
@@ -71,7 +101,6 @@
           spellcheck="false"
           class="textarea-field w-full bg-transparent text-[var(--text-primary)] px-4 py-3 resize-none outline-none ring-0"
           :style="{ height: textareaHeight + 'px', maxHeight: '300px' }"
-          :disabled="processing"
         />
 
         <!-- Footer with controls -->
@@ -80,7 +109,6 @@
             <slot name="footer-left" />
             <button
               @click="openImagePicker"
-              :disabled="processing"
               class="p-1.5 rounded-md text-[var(--text-faint)] hover:text-[var(--text-secondary)] hover:bg-[var(--bg-surface)] transition-colors cursor-pointer"
               title="Attach images"
             >
@@ -93,11 +121,33 @@
             </button>
           </div>
           <div class="flex items-center gap-2">
-            <span v-if="text.length > 0" class="text-[var(--text-xs)] text-[var(--text-faint)]">
+            <span v-if="messageQueue.length > 0" class="text-[9px] text-ember-400 tabular-nums" title="Messages queued">
+              +{{ messageQueue.length }}
+            </span>
+            <span v-else-if="text.length > 0" class="text-[var(--text-xs)] text-[var(--text-faint)]">
               {{ text.length }}
             </span>
             <slot name="footer-right" />
-            <!-- Send / Stop square button -->
+            <button
+              v-if="processing"
+              @click="$emit('stop')"
+              class="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-ember-500 text-ember-500 hover:border-ember-400 hover:text-ember-400 cursor-pointer transition-all flex-shrink-0"
+              title="Stop"
+            >
+              <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
+                <rect x="2" y="2" width="8" height="8" rx="1.5" />
+              </svg>
+            </button>
+            <button
+              v-if="processing && canSend"
+              @click="send"
+              class="w-8 h-8 flex items-center justify-center rounded-lg transition-all flex-shrink-0 bg-gradient-to-br from-ember-500 to-ember-600 hover:brightness-110 cursor-pointer"
+              title="Queue message"
+            >
+              <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 8h10M9 4l4 4-4 4" />
+              </svg>
+            </button>
             <button
               v-if="!processing"
               @click="send"
@@ -110,16 +160,6 @@
             >
               <svg class="w-3.5 h-3.5" :class="canSend ? 'text-white' : 'text-txt-faint'" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M3 8h10M9 4l4 4-4 4" />
-              </svg>
-            </button>
-            <button
-              v-else
-              @click="$emit('stop')"
-              class="w-8 h-8 flex items-center justify-center rounded-lg bg-[var(--bg-surface)] border border-[var(--border-subtle)] hover:border-[var(--accent-red)] hover:text-[var(--accent-red)] text-txt-faint cursor-pointer transition-all flex-shrink-0"
-              title="Stop"
-            >
-              <svg class="w-3 h-3" viewBox="0 0 12 12" fill="currentColor">
-                <rect x="2" y="2" width="8" height="8" rx="1.5" />
               </svg>
             </button>
           </div>
@@ -142,6 +182,7 @@
       v-if="showSlashPopup"
       ref="slashPopupRef"
       :query="slashQuery"
+      :workspacePath="props.workspacePath"
       @select="onSlashSelect"
       @close="showSlashPopup = false"
     />
@@ -157,10 +198,11 @@ import ContextPopup from './ContextPopup.vue';
 import SlashCommandPopup from './SlashCommandPopup.vue';
 import type { AttachedContext, AttachedImage } from '../../engine/types';
 
-defineProps<{
+const props = defineProps<{
   processing: boolean;
   placeholder?: string;
   workspacePath?: string;
+  claudeCode?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -190,6 +232,17 @@ const slashPopupRef = ref<InstanceType<typeof SlashCommandPopup> | null>(null);
 // Track @ position for replacement
 const atStartPos = ref(-1);
 
+// Message queue
+interface QueuedMessage { text: string; contexts: AttachedContext[]; images: AttachedImage[] }
+const messageQueue = ref<QueuedMessage[]>([]);
+
+watch(() => props.processing, (isProcessing) => {
+  if (!isProcessing && messageQueue.value.length > 0) {
+    const next = messageQueue.value.shift()!;
+    emit('send', next.text, next.contexts, next.images);
+  }
+});
+
 const MIN_HEIGHT = 40;
 const MAX_HEIGHT = 300;
 
@@ -218,12 +271,28 @@ watch(text, () => autoGrow());
 function send() {
   const trimmed = text.value.trim();
   if (!trimmed && contexts.value.length === 0 && images.value.length === 0) return;
-  emit('send', trimmed, [...contexts.value], [...images.value]);
+  if (props.processing) {
+    messageQueue.value.push({ text: trimmed, contexts: [...contexts.value], images: [...images.value] });
+  } else {
+    emit('send', trimmed, [...contexts.value], [...images.value]);
+  }
   text.value = '';
   contexts.value = [];
   images.value = [];
   textareaHeight.value = MIN_HEIGHT;
   nextTick(() => autoGrow());
+}
+
+function removeQueued(index: number) {
+  messageQueue.value.splice(index, 1);
+}
+
+function editQueued(index: number) {
+  const msg = messageQueue.value.splice(index, 1)[0];
+  text.value = msg.text;
+  if (msg.contexts.length > 0) contexts.value.push(...msg.contexts);
+  if (msg.images.length > 0) images.value.push(...msg.images);
+  nextTick(() => { inputEl.value?.focus(); autoGrow(); });
 }
 
 // ── Keydown ───────────────────────────────────────────────────────────────
@@ -299,7 +368,7 @@ function detectAtSymbol(val: string, cursorPos: number) {
 }
 
 function detectSlashCommand(val: string) {
-  if (val.startsWith('/')) {
+  if (props.claudeCode && val.startsWith('/')) {
     showSlashPopup.value = true;
     slashQuery.value = val.substring(1).split(/\s/)[0];
   } else {
@@ -494,6 +563,9 @@ defineExpose({ focus, prefill });
 }
 .textarea-field::placeholder {
   color: var(--text-faint);
+}
+.textarea-field:focus::placeholder {
+  color: transparent;
 }
 .transition-border-color {
   transition: border-color var(--transition-fast);

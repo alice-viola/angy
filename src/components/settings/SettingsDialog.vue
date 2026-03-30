@@ -134,6 +134,20 @@
                 />
               </div>
 
+              <div class="flex items-center justify-between">
+                <label class="text-xs text-[var(--text-secondary)]">Bell on task done<InfoTip text="Plays a bell sound when a task finishes, so you can switch back to the editor." /></label>
+                <button
+                  class="relative w-9 h-5 rounded-full transition-colors"
+                  :class="settings.bellOnTaskDone ? 'bg-[var(--accent-green)]' : 'bg-[var(--bg-raised)]'"
+                  @click="settings.bellOnTaskDone = !settings.bellOnTaskDone"
+                >
+                  <div
+                    class="absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                    :class="settings.bellOnTaskDone ? 'translate-x-4' : 'translate-x-0.5'"
+                  />
+                </button>
+              </div>
+
               <div>
                 <label class="text-xs text-[var(--text-secondary)] mb-1 block">Anthropic API Key</label>
                 <div class="relative flex items-center">
@@ -309,7 +323,7 @@ import { MODEL_GROUPS, DEFAULT_MODEL_ID } from '@/constants/models';
 
 
 const props = defineProps<{ visible: boolean }>();
-const emit = defineEmits<{ close: []; saved: [settings: Record<string, string>] }>();
+const emit = defineEmits<{ close: []; saved: [settings: Record<string, unknown>] }>();
 
 const activeTab = ref('General');
 const tabs = ['General', 'Keyboard', 'Orchestration', 'Profiles'];
@@ -329,6 +343,7 @@ const settings = reactive({
   claudePath: '',
   defaultModel: DEFAULT_MODEL_ID,
   defaultWorkspace: '',
+  bellOnTaskDone: false,
 });
 
 const orchestrationSettings = reactive({
