@@ -36,6 +36,7 @@ import { detectTechnologies } from './TechDetector';
 import { HybridPipelineRunner } from './HybridPipelineRunner';
 import { PipelineStateStore } from './PipelineStateStore';
 import { ClaudeHealthMonitor } from './ClaudeHealthMonitor';
+import { CodexHealthMonitor } from './CodexHealthMonitor';
 import { ServerProcess } from './ServerProcess';
 import { AngyCodeProcessManager } from './AngyCodeProcessManager';
 import { setAngyCodeProcessManager } from '../composables/useEngine';
@@ -63,6 +64,7 @@ export class AngyEngine {
   // ── Recovery services ──────────────────────────────────────────────
   readonly pipelineStateStore: PipelineStateStore;
   readonly healthMonitor: ClaudeHealthMonitor;
+  readonly codexHealthMonitor: CodexHealthMonitor;
 
   // ── AngyCode (Gemini) services ────────────────────────────────────
   private serverProcess: ServerProcess;
@@ -84,6 +86,7 @@ export class AngyEngine {
     this.projects = new DatabaseProjectRepository(this.db);
     this.pipelineStateStore = new PipelineStateStore(this.db);
     this.healthMonitor = new ClaudeHealthMonitor();
+    this.codexHealthMonitor = new CodexHealthMonitor();
     this.serverProcess = new ServerProcess();
   }
 
@@ -186,6 +189,7 @@ export class AngyEngine {
   async shutdown(): Promise<void> {
     await this.scheduler.stop();
     this.healthMonitor.cancel();
+    this.codexHealthMonitor.cancel();
     for (const runner of this.hybridRunners.values()) {
       runner.cancel();
     }
@@ -213,6 +217,10 @@ export class AngyEngine {
     options: ProcessOptions,
   ) {
     return this.processes.sendMessage(sessionId, message, handle, options);
+  }
+
+  private selectHealthMonitor(model?: string): ClaudeHealthMonitor | CodexHealthMonitor {
+    return model?.startsWith('codex-') ? this.codexHealthMonitor : this.healthMonitor;
   }
 
   cancelAgent(sessionId: string): void {
@@ -455,7 +463,7 @@ export class AngyEngine {
       complexity: epic.complexity,
       pipelineConfig: epic.pipelineConfig,
       stateStore: this.pipelineStateStore,
-      healthMonitor: this.healthMonitor,
+      healthMonitor: this.selectHealthMonitor(epic.model || undefined),
       pipelineType,
       rejectionContext,
     });
@@ -579,7 +587,7 @@ export class AngyEngine {
       complexity: epic.complexity,
       pipelineConfig: epic.pipelineConfig,
       stateStore: this.pipelineStateStore,
-      healthMonitor: this.healthMonitor,
+      healthMonitor: this.selectHealthMonitor(snapshot.model || epic.model || undefined),
     });
 
     const rootSid = await this.sessions.createSession(workspace, 'orchestrator');
