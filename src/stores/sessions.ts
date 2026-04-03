@@ -72,11 +72,14 @@ export const useSessionsStore = defineStore('sessions', () => {
 
   // ── Actions ────────────────────────────────────────────────────────
 
-  async function createSession(workspace: string, mode = 'agent'): Promise<string> {
+  async function createSession(workspace: string, mode = 'agent', projectId?: string): Promise<string> {
     const mgr = getSessionManager();
     const sessionId = mgr.createSession(workspace, mode);
     const info = mgr.sessionInfo(sessionId);
     if (info) {
+      if (projectId) {
+        info.projectId = projectId;
+      }
       sessions.value.set(sessionId, info);
       messages.value.set(sessionId, []);
     }

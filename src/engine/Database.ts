@@ -112,6 +112,7 @@ export class Database {
       'ALTER TABLE sessions ADD COLUMN delegation_result TEXT DEFAULT \'\'',
       'ALTER TABLE sessions ADD COLUMN epic_id TEXT DEFAULT \'\'',
       'ALTER TABLE sessions ADD COLUMN claude_session_id TEXT DEFAULT \'\'',
+      'ALTER TABLE sessions ADD COLUMN project_id TEXT DEFAULT \'\'',
       'ALTER TABLE messages ADD COLUMN tool_id TEXT DEFAULT \'\'',
     ];
 
@@ -355,8 +356,8 @@ export class Database {
        (session_id, title, workspace, mode, created_at, updated_at, favorite,
         parent_session_id, pipeline_id, pipeline_node_id,
         delegation_task, delegation_status, delegation_result, epic_id,
-        claude_session_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+        claude_session_id, project_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [
         info.sessionId,
         info.title,
@@ -373,6 +374,7 @@ export class Database {
         info.delegationResult ?? '',
         info.epicId ?? '',
         info.claudeSessionId ?? '',
+        info.projectId ?? '',
       ],
     );
   }
@@ -384,12 +386,12 @@ export class Database {
       ? `SELECT session_id, title, workspace, mode, created_at, updated_at, favorite,
                 parent_session_id, pipeline_id, pipeline_node_id,
                 delegation_task, delegation_status, delegation_result, epic_id,
-                claude_session_id
+                claude_session_id, project_id
          FROM sessions WHERE workspace = $1 ORDER BY updated_at DESC`
       : `SELECT session_id, title, workspace, mode, created_at, updated_at, favorite,
                 parent_session_id, pipeline_id, pipeline_node_id,
                 delegation_task, delegation_status, delegation_result, epic_id,
-                claude_session_id
+                claude_session_id, project_id
          FROM sessions ORDER BY updated_at DESC`;
 
     const rows = await this.db.select<any[]>(query, workspace ? [workspace] : []);
@@ -404,7 +406,7 @@ export class Database {
       `SELECT session_id, title, workspace, mode, created_at, updated_at, favorite,
               parent_session_id, pipeline_id, pipeline_node_id,
               delegation_task, delegation_status, delegation_result, epic_id,
-              claude_session_id
+              claude_session_id, project_id
        FROM sessions WHERE session_id = $1 LIMIT 1`,
       [sessionId],
     );
@@ -1434,6 +1436,7 @@ export class Database {
       favorite: r.favorite !== 0,
       parentSessionId: r.parent_session_id || undefined,
       epicId: r.epic_id || undefined,
+      projectId: r.project_id || undefined,
       pipelineId: r.pipeline_id || undefined,
       pipelineNodeId: r.pipeline_node_id || undefined,
       delegationTask: r.delegation_task || undefined,

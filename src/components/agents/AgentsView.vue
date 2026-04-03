@@ -286,12 +286,13 @@ function onAgentSelected(sessionId: string) {
 async function onNewAgent() {
   // Prefer the first repo of the active project so the session resolves to the
   // correct project group in the fleet sidebar. Fall back to the global workspace.
-  const activeProjectId = filterStore.selectedProjectIds[0];
+  const activeProjectId = filterStore.selectedProjectIds[0] || ui.activeProjectId;
   const projectRepo = activeProjectId
     ? projectsStore.reposByProjectId(activeProjectId)[0]?.path
     : null;
   const workspace = projectRepo || ui.workspacePath || '.';
-  const sessionId = await sessionsStore.createSession(workspace);
+  // Pass the projectId so the agent is associated with the project even if no repo matches
+  const sessionId = await sessionsStore.createSession(workspace, 'agent', activeProjectId || undefined);
   fleetStore.rebuildFromSessions();
   fleetStore.selectAgent(sessionId);
 }

@@ -437,7 +437,7 @@ watch(inputText, () => {
 
 async function createNewChat(): Promise<string> {
   const workspace = ui.workspacePath || '.';
-  const sid = await sessionsStore.createSession(workspace);
+  const sid = await sessionsStore.createSession(workspace, 'agent', ui.activeProjectId || undefined);
   fleetStore.rebuildFromSessions();
   sessionId.value = sid;
   messages.value = [];

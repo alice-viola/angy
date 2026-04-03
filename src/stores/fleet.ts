@@ -85,6 +85,7 @@ export const useFleetStore = defineStore('fleet', () => {
         workspace: info.workspace,
         parentSessionId: info.parentSessionId,
         epicId: info.epicId,
+        projectId: info.projectId,
       });
     }
 
@@ -203,7 +204,14 @@ export const useFleetStore = defineStore('fleet', () => {
     for (const agent of hierarchicalAgents.value) {
       let resolved: { id: string; name: string; color: string } | null = null;
 
-      if (agent.epicId) {
+      // Check direct projectId first (set when agent created while project active)
+      if (agent.projectId) {
+        const project = projectsStore.projectById(agent.projectId);
+        if (project) resolved = projectMeta(project);
+      }
+
+      // Fall back to epicId → project resolution
+      if (!resolved && agent.epicId) {
         const epic = epicStore.epicById(agent.epicId);
         if (epic?.projectId) {
           const project = projectsStore.projectById(epic.projectId);

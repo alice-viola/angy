@@ -377,7 +377,18 @@ function selectSession(sessionId: string) {
 }
 
 async function newChat(workspace = ''): Promise<string> {
-  const sessionId = await sessionsStore.createSession(workspace || ui.workspacePath || '.');
+  let effectiveWorkspace = workspace || ui.workspacePath || '.';
+
+  // If a project is active and no explicit workspace given, use the project's first repo path
+  if (ui.activeProjectId && !workspace) {
+    const projectRepos = projectsStore.reposByProjectId(ui.activeProjectId);
+    if (projectRepos.length > 0) {
+      effectiveWorkspace = projectRepos[0].path;
+    }
+  }
+
+  // Pass the active project ID so the agent is associated with the project
+  const sessionId = await sessionsStore.createSession(effectiveWorkspace, 'agent', ui.activeProjectId || undefined);
   getOrCreateState(sessionId);
   sessionsStore.selectSession(sessionId);
   fleetStore.rebuildFromSessions();

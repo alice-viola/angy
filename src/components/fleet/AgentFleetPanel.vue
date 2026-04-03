@@ -172,12 +172,21 @@ const visibleAgents = computed(() => {
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-function resolveAgentProjectId(_sessionId: string, epicId?: string): string | null {
+function resolveAgentProjectId(sessionId: string, epicId?: string): string | null {
   if (epicId) {
     const epic = epicStore.epicById(epicId);
     if (epic) return epic.projectId;
   }
-  // No epic link — can't determine project
+  // Fall back to workspace → project matching via repos
+  const agent = fleetStore.hierarchicalAgents.find(a => a.sessionId === sessionId);
+  const workspace = agent?.workspace;
+  if (workspace) {
+    for (const repo of projectsStore.repos) {
+      if (workspace === repo.path || workspace.startsWith(repo.path + '/') || repo.path.startsWith(workspace + '/')) {
+        return repo.projectId;
+      }
+    }
+  }
   return null;
 }
 

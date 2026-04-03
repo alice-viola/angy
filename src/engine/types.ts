@@ -53,6 +53,7 @@ export interface SessionInfo {
   favorite: boolean;
   parentSessionId?: string;
   epicId?: string;
+  projectId?: string;
   pipelineId?: string;
   pipelineNodeId?: string;
   delegationTask?: string;
@@ -78,6 +79,7 @@ export interface AgentSummary {
   workspace?: string;
   parentSessionId?: string;
   epicId?: string;
+  projectId?: string;
 }
 
 // ── Database Records ──────────────────────────────────────────────────────
