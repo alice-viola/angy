@@ -201,6 +201,7 @@ export class GeminiAdapter implements ProviderAdapter {
 
       let inputTokens = 0;
       let outputTokens = 0;
+      let cachedContentTokens = 0;
       let stopReason = 'end_turn';
       let succeeded = false;
 
@@ -231,6 +232,7 @@ export class GeminiAdapter implements ProviderAdapter {
           if (chunk.usageMetadata) {
             inputTokens = chunk.usageMetadata.promptTokenCount ?? inputTokens;
             outputTokens = chunk.usageMetadata.candidatesTokenCount ?? outputTokens;
+            cachedContentTokens = (chunk.usageMetadata as Record<string, number>).cachedContentTokenCount ?? cachedContentTokens;
           }
 
           const candidate = chunk.candidates?.[0];
@@ -281,7 +283,11 @@ export class GeminiAdapter implements ProviderAdapter {
         yield {
           type: 'message_end',
           stop_reason: stopReason,
-          usage: { input: inputTokens, output: outputTokens },
+          usage: {
+            input: inputTokens,
+            output: outputTokens,
+            cache_read_input: cachedContentTokens || undefined,
+          },
         };
 
         // Stream completed successfully

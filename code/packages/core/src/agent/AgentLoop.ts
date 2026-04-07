@@ -232,6 +232,8 @@ export class AgentLoop {
       let stopReason = 'end_turn' as 'end_turn' | 'max_tokens' | 'error';
       let inputTokens = 0;
       let outputTokens = 0;
+      let cacheCreationInputTokens: number | undefined;
+      let cacheReadInputTokens: number | undefined;
 
       try {
         this.abortController = new AbortController();
@@ -268,6 +270,8 @@ export class AgentLoop {
             stopReason = event.stop_reason as typeof stopReason;
             inputTokens = event.usage.input;
             outputTokens = event.usage.output;
+            cacheCreationInputTokens = event.usage.cache_creation_input;
+            cacheReadInputTokens = event.usage.cache_read_input;
             if (event.stop_reason === 'error' && event.error) {
               this.sessionStore.updateSession(session.id, { status: 'error' });
               this.emit({ type: 'error', message: event.error });
@@ -301,7 +305,7 @@ export class AgentLoop {
       this.messageStore.addMessage(session.id, assistantMessage);
 
       // Record usage
-      const cost = estimateCost(this.model, inputTokens, outputTokens);
+      const cost = estimateCost(this.model, inputTokens, outputTokens, cacheCreationInputTokens, cacheReadInputTokens);
       if (cost !== undefined) this.totalCostUsd += cost;
 
       this.usageStore.recordUsage({
@@ -317,6 +321,8 @@ export class AgentLoop {
         type: 'usage',
         input_tokens: inputTokens,
         output_tokens: outputTokens,
+        cache_creation_input_tokens: cacheCreationInputTokens,
+        cache_read_input_tokens: cacheReadInputTokens,
         cost_usd: cost,
       });
 

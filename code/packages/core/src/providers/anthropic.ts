@@ -233,6 +233,8 @@ export class AnthropicAdapter implements ProviderAdapter {
 
       let inputTokens = 0;
       let outputTokens = 0;
+      let cacheCreationInputTokens = 0;
+      let cacheReadInputTokens = 0;
       const toolBlocks = new Map<number, { id: string; name: string }>();
       let succeeded = false;
 
@@ -240,7 +242,13 @@ export class AnthropicAdapter implements ProviderAdapter {
         const stream = await this.client.messages.create({
           model: params.model,
           max_tokens: params.maxTokens,
-          system: params.system,
+          system: [
+            {
+              type: 'text' as const,
+              text: params.system,
+              cache_control: { type: 'ephemeral' as const },
+            },
+          ],
           messages: toAnthropicMessages(params.messages),
           tools: params.tools.length > 0 ? toAnthropicTools(params.tools) : undefined,
           stream: true,
@@ -255,6 +263,8 @@ export class AnthropicAdapter implements ProviderAdapter {
               if (usage) {
                 inputTokens = usage.input_tokens ?? 0;
                 outputTokens = usage.output_tokens ?? 0;
+                cacheCreationInputTokens = (usage as unknown as Record<string, number>).cache_creation_input_tokens ?? 0;
+                cacheReadInputTokens = (usage as unknown as Record<string, number>).cache_read_input_tokens ?? 0;
               }
               break;
             }
@@ -298,7 +308,12 @@ export class AnthropicAdapter implements ProviderAdapter {
               yield {
                 type: 'message_end',
                 stop_reason: stopReason,
-                usage: { input: inputTokens, output: outputTokens },
+                usage: {
+                  input: inputTokens,
+                  output: outputTokens,
+                  cache_creation_input: cacheCreationInputTokens || undefined,
+                  cache_read_input: cacheReadInputTokens || undefined,
+                },
               };
               break;
             }

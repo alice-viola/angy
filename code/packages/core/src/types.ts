@@ -112,6 +112,8 @@ export interface UsageEvent {
   type: 'usage';
   input_tokens: number;
   output_tokens: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
   cost_usd: number | undefined;
 }
 
@@ -212,7 +214,12 @@ export interface ProviderStreamToolCallEnd {
 export interface ProviderStreamMessageEnd {
   type: 'message_end';
   stop_reason: string;
-  usage: { input: number; output: number };
+  usage: {
+    input: number;
+    output: number;
+    cache_creation_input?: number;
+    cache_read_input?: number;
+  };
   error?: string;
 }
 
