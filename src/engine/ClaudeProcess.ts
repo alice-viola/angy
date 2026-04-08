@@ -101,6 +101,7 @@ export class ClaudeProcess {
       '--verbose',
       '--include-partial-messages',
       '--replay-user-messages',
+      '--effort', 'high',
     ];
 
     if (this.model) {
@@ -204,6 +205,8 @@ export class ClaudeProcess {
   private async buildEnvironment(): Promise<Record<string, string>> {
     const env: Record<string, string> = {
       CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING: '1',
+      CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING: '1',
+      CLAUDE_CODE_AUTO_COMPACT_WINDOW: '400000',
       HOME: (await homeDir()).replace(/\/+$/, ''),
       PATH: await this.buildEnhancedPath(),
     };
