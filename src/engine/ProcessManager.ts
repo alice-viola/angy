@@ -8,11 +8,14 @@
 
 import { Command } from '@tauri-apps/plugin-shell';
 import { ClaudeProcess } from './ClaudeProcess';
+import { CodexProcess } from './CodexProcess';
 import type { AgentHandle, ProcessOptions } from './types';
 import { engineBus } from './EventBus';
 import type { Database } from './Database';
 import { SessionMessageBuffer } from './SessionMessageBuffer';
 import { summarizeTool } from './toolSummary';
+
+type ManagedProcess = ClaudeProcess | CodexProcess;
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -51,7 +54,7 @@ async function runAutoCommit(workingDir: string): Promise<void> {
 // ── ProcessManager ───────────────────────────────────────────────────────
 
 export class ProcessManager {
-  private processes = new Map<string, ClaudeProcess>();
+  private processes = new Map<string, ManagedProcess>();
   private buffer: SessionMessageBuffer;
   /** Generation counter per session — stale finished handlers detect they are outdated. */
   private generations = new Map<string, number>();
@@ -70,14 +73,14 @@ export class ProcessManager {
     text: string,
     handle: AgentHandle,
     options: ProcessOptions,
-  ): ClaudeProcess {
+  ): ManagedProcess {
     // Cancel any existing process for this session
     const existing = this.processes.get(sessionId);
     if (existing?.isRunning()) {
       existing.cancel();
     }
 
-    const proc = new ClaudeProcess();
+    const proc = this.createProcess(options.model);
     proc.setWorkingDirectory(options.workingDir);
     if (options.mode) proc.setMode(options.mode);
     if (options.model) proc.setModel(options.model);
@@ -108,7 +111,7 @@ export class ProcessManager {
     content: string,
     handle: AgentHandle,
     options: ProcessOptions & { resumeSessionId: string },
-  ): ClaudeProcess {
+  ): ManagedProcess {
     const existing = this.processes.get(sessionId);
     if (existing?.isRunning()) {
       // Process is alive and waiting for the tool_result — write directly to its stdin.
@@ -116,7 +119,7 @@ export class ProcessManager {
       return existing;
     }
 
-    const proc = new ClaudeProcess();
+    const proc = this.createProcess(options.model);
     proc.setWorkingDirectory(options.workingDir);
     if (options.mode) proc.setMode(options.mode);
     if (options.model) proc.setModel(options.model);
@@ -145,15 +148,22 @@ export class ProcessManager {
   }
 
   /** Get the active process for a session (if any). */
-  getProcess(sessionId: string): ClaudeProcess | undefined {
+  getProcess(sessionId: string): ManagedProcess | undefined {
     return this.processes.get(sessionId);
+  }
+
+  private createProcess(model?: string): ManagedProcess {
+    if (model?.startsWith('codex-')) {
+      return new CodexProcess();
+    }
+    return new ClaudeProcess();
   }
 
   // ── Event wiring (shared by sendMessage / sendToolResult) ──────────
 
   private wireEvents(
     sessionId: string,
-    proc: ClaudeProcess,
+    proc: ManagedProcess,
     handle: AgentHandle,
     options: ProcessOptions,
     generation: number,

@@ -8,6 +8,7 @@
 
 import { ProcessManager } from '../engine/ProcessManager';
 import { ClaudeProcess } from '../engine/ClaudeProcess';
+import { CodexProcess } from '../engine/CodexProcess';
 import type { AgentHandle, ProcessOptions, AngyCodeProcessOptions } from '../engine/types';
 import { getDatabase } from '../stores/sessions';
 import type { AngyCodeProcessManager } from '../engine/AngyCodeProcessManager';
@@ -50,7 +51,7 @@ export function sendMessageToEngine(
   text: string,
   chatPanel: AgentHandle,
   options: ProcessOptions = { workingDir: '.' },
-): ClaudeProcess {
+): ClaudeProcess | CodexProcess {
   return getProcessManager().sendMessage(sessionId, text, chatPanel, options);
 }
 
@@ -68,7 +69,7 @@ export function sendToolResultToEngine(
     model?: string;
     resumeSessionId: string;
   },
-): ClaudeProcess {
+): ClaudeProcess | CodexProcess {
   return getProcessManager().sendToolResult(sessionId, toolUseId, content, chatPanel, options);
 }
 
@@ -82,7 +83,7 @@ export function cancelProcess(sessionId: string): void {
 /**
  * Get the active process for a session (if any).
  */
-export function getProcess(sessionId: string): ClaudeProcess | undefined {
+export function getProcess(sessionId: string): ClaudeProcess | CodexProcess | undefined {
   return getProcessManager().getProcess(sessionId);
 }
 

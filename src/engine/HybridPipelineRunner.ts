@@ -27,6 +27,8 @@ import type { TechProfile } from './TechDetector';
 import type { PipelineSnapshot, PipelinePhase } from './types';
 import type { PipelineStateStore } from './PipelineStateStore';
 import type { ClaudeHealthMonitor } from './ClaudeHealthMonitor';
+import type { CodexHealthMonitor } from './CodexHealthMonitor';
+import { CODEX_DEFAULT_MODEL_ID } from '../constants/models';
 import { buildTechPromptPrefix } from './TechDetector';
 import { engineBus } from './EventBus';
 
@@ -34,12 +36,14 @@ import { engineBus } from './EventBus';
 
 const VERDICT_SCHEMA = {
   type: 'object',
+  additionalProperties: false,
   properties: {
     verdict: { type: 'string', enum: ['approved', 'challenged', 'approve', 'request_changes'] },
     issues: {
       type: 'array',
       items: {
         type: 'object',
+        additionalProperties: false,
         properties: {
           severity: { type: 'string', enum: ['critical', 'major', 'nit'] },
           description: { type: 'string' },
@@ -48,16 +52,18 @@ const VERDICT_SCHEMA = {
       },
     },
   },
-  required: ['verdict'],
+  required: ['verdict', 'issues'],
 };
 
 const TODO_SCHEMA = {
   type: 'object',
+  additionalProperties: false,
   properties: {
     todos: {
       type: 'array',
       items: {
         type: 'object',
+        additionalProperties: false,
         properties: {
           id: { type: 'string' },
           title: { type: 'string' },
@@ -76,28 +82,30 @@ const TODO_SCHEMA = {
 
 const VERIFY_SCHEMA = {
   type: 'object',
+  additionalProperties: false,
   properties: {
     passed: { type: 'boolean' },
     errors: { type: 'array', items: { type: 'string' } },
   },
-  required: ['passed'],
+  required: ['passed', 'errors'],
 };
 
 const TEST_RESULT_SCHEMA = {
   type: 'object',
+  additionalProperties: false,
   properties: {
     buildPassed: { type: 'boolean' },
     testsPassed: { type: 'boolean' },
     failures: { type: 'array', items: { type: 'string' } },
   },
-  required: ['buildPassed', 'testsPassed'],
+  required: ['buildPassed', 'testsPassed', 'failures'],
 };
 
 // ── Types ────────────────────────────────────────────────────────────────
 
 interface Verdict {
   verdict: 'approved' | 'challenged' | 'approve' | 'request_changes';
-  issues?: Array<{ severity: string; description: string }>;
+  issues: Array<{ severity: string; description: string }>;
 }
 
 interface PipelineTodo {
@@ -123,7 +131,7 @@ interface TodoState {
 
 interface VerifyResult {
   passed: boolean;
-  errors?: string[];
+  errors: string[];
 }
 
 interface PipelineFeatures {
@@ -135,7 +143,14 @@ interface PipelineFeatures {
 interface TestResult {
   buildPassed: boolean;
   testsPassed: boolean;
-  failures?: string[];
+  failures: string[];
+}
+
+interface PipelineFeatures {
+  architectTurns: number;
+  useCounterpart: boolean;
+  useTester: boolean;
+  useDesignSystem: boolean;
 }
 
 export interface RejectionContext {
@@ -143,6 +158,12 @@ export interface RejectionContext {
   lastAttemptFiles?: string[];
   lastValidationResults?: Array<{ command: string; passed: boolean; output: string }>;
   lastArchitectPlan?: string;
+}
+
+interface PipelineHealthMonitor {
+  waitForHealthy(): Promise<void>;
+  classifyError(error: unknown, stderr?: string): 'transient' | 'fatal';
+  cancel(): void;
 }
 
 export interface HybridPipelineOptions {
@@ -157,7 +178,7 @@ export interface HybridPipelineOptions {
   complexity: ComplexityEstimate;
   pipelineConfig?: PipelineConfig;
   stateStore?: PipelineStateStore;
-  healthMonitor?: ClaudeHealthMonitor;
+  healthMonitor?: ClaudeHealthMonitor | CodexHealthMonitor;
   pipelineType?: EpicPipelineType;
   rejectionContext?: RejectionContext;
 }
@@ -180,7 +201,7 @@ export class HybridPipelineRunner {
   private complexity: ComplexityEstimate;
   private pipelineConfig?: PipelineConfig;
   private stateStore: PipelineStateStore | null;
-  private healthMonitor: ClaudeHealthMonitor | null;
+  private healthMonitor: PipelineHealthMonitor | null;
   private pipelineType: EpicPipelineType;
   private rejectionContext: RejectionContext | null;
 
@@ -203,7 +224,12 @@ export class HybridPipelineRunner {
   private designPlan = '';
   private finalizeCycle = 0;
   private replansRemaining = 3;
-  private features: PipelineFeatures = { architectTurns: 2, useCounterpart: true, useTester: true };
+  private features: PipelineFeatures = {
+    architectTurns: 1,
+    useCounterpart: true,
+    useTester: true,
+    useDesignSystem: false,
+  };
 
   static readonly AGENT_TIMEOUT_MS = 120 * 60 * 1000;
   static readonly BUILDER_SESSION_MAX_MS = 25 * 60 * 1000;
@@ -295,7 +321,13 @@ export class HybridPipelineRunner {
 
       this.features = this.getPipelineFeatures();
       const features = this.features;
-      this.log(`Pipeline features for complexity "${this.complexity}": architectTurns=${features.architectTurns}, useCounterpart=${features.useCounterpart}, useTester=${features.useTester}`);
+      this.log(
+        `Pipeline features for complexity "${this.complexity}": ` +
+        `architectTurns=${features.architectTurns}, ` +
+        `useCounterpart=${features.useCounterpart}, ` +
+        `useTester=${features.useTester}, ` +
+        `useDesignSystem=${features.useDesignSystem}`,
+      );
 
       // ── Trivial: skip architect, single builder + tester ─────────
       if (this.complexity === 'trivial') {
@@ -362,6 +394,7 @@ export class HybridPipelineRunner {
     this.finalizeCycle = snapshot.finalizeCycle;
     this.replansRemaining = snapshot.replansRemaining;
     this.childOutputs = [...snapshot.childOutputs];
+    this.features = this.getPipelineFeatures();
 
     // Restore todo queue, resetting in_progress → pending (interrupted work)
     this.todoQueue = snapshot.todoQueue.map(t => ({
@@ -492,7 +525,7 @@ export class HybridPipelineRunner {
 
       if (features.architectTurns >= 3) {
         const hasFrontend = await this.detectFrontendScope(approvedPlan);
-        if (hasFrontend) {
+        if (hasFrontend && features.useDesignSystem) {
           this.setPhase('designing UI');
           this.log('Architect Turn 2: Design system');
           this.designPlan = await this.healthCheckedArchitect(this.architectDesignTask(approvedPlan));
@@ -1092,7 +1125,7 @@ export class HybridPipelineRunner {
     }
   }
 
-  // ── Pipeline feature flags based on config / complexity ───────────────────────
+  // ── Pipeline feature flags based on complexity ───────────────────────
 
   private getPipelineFeatures(): PipelineFeatures {
     if (this.pipelineConfig && this.pipelineConfig.nodes.length > 0) {
@@ -1101,60 +1134,75 @@ export class HybridPipelineRunner {
         architectTurns: nodes.some(n => n.id === 'architect' && n.model !== 'disabled') ? 1 : 0,
         useCounterpart: nodes.some(n => n.id === 'counterpart' && n.model !== 'disabled'),
         useTester: nodes.some(n => n.id === 'tester' && n.model !== 'disabled'),
+        useDesignSystem: false,
       };
     }
 
-    // Fallback to legacy complexity
     const c = this.complexity;
     return {
       architectTurns: (c === 'trivial') ? 0 : (c === 'small' || c === 'medium') ? 1 : 3,
       useCounterpart: c !== 'trivial' && c !== 'small',
       useTester: c !== 'trivial',
+      useDesignSystem: c === 'large' || c === 'epic',
     };
   }
 
-  // ── AngyCode (Gemini/Anthropic) helpers ─────────────────────────────
+  // ── Model routing helpers ───────────────────────────────────────────
+
+  private get useCodex(): boolean {
+    const structuredModel = this.getConfiguredNodeModel('architect') ?? this.model;
+    return structuredModel === CODEX_DEFAULT_MODEL_ID || (structuredModel?.startsWith('codex-') ?? false);
+  }
+
+  private findPipelineNode(role: string): AgentNode | undefined {
+    if (!this.pipelineConfig || this.pipelineConfig.nodes.length === 0) return undefined;
+
+    const roleKey = role.toLowerCase();
+    const aliases = new Set<string>([roleKey]);
+
+    if (roleKey.startsWith('builder-')) {
+      const scope = roleKey.slice('builder-'.length);
+      aliases.add(`builder-${scope}`);
+      if (scope === 'frontend') aliases.add('builder-fe');
+      if (scope === 'backend') aliases.add('builder-be');
+      if (scope === 'scaffold') aliases.add('scaffold');
+    } else if (roleKey.startsWith('tester-')) {
+      aliases.add('tester');
+    }
+
+    return this.pipelineConfig.nodes.find(n => {
+      const id = n.id.toLowerCase();
+      const nodeRole = n.role.toLowerCase();
+      const prompt = n.promptOverride?.toLowerCase();
+      return aliases.has(id) || aliases.has(nodeRole) || (prompt ? aliases.has(prompt) : false);
+    });
+  }
+
+  private getConfiguredNodeModel(role: string): string | undefined {
+    const node = this.findPipelineNode(role);
+    if (node && node.model !== 'disabled') {
+      return node.model;
+    }
+    return this.model;
+  }
+
+  private getNodeModel(role: string): string | undefined {
+    return this.getConfiguredNodeModel(role)?.replace(/^angy-/, '');
+  }
+
+  private isAngyCodeModel(model?: string): boolean {
+    if (!this.acpm || !model) return false;
+    return model.startsWith('gemini') || model.startsWith('angy-');
+  }
+
+  private getProvider(model?: string): 'gemini' | 'anthropic' {
+    return model?.includes('gemini') ? 'gemini' : 'anthropic';
+  }
 
   /** Fetch the API key for the current provider from the database. */
   private async getApiKey(provider: 'gemini' | 'anthropic'): Promise<string> {
     const key = provider === 'gemini' ? 'gemini_api_key' : 'anthropic_api_key';
     return (await this.sessions.db.getAppSetting(key)) ?? '';
-  }
-
-  /** Strip the 'angy-' prefix from model IDs (the server expects raw model names). */
-  private get effectiveModel(): string | undefined {
-    return this.model?.replace(/^angy-/, '');
-  }
-
-  /**
-   * Resolve a pipeline config node for a given role string.
-   *
-   * Resolution order:
-   *  1. Exact role match  (e.g. 'builder-frontend' → node role 'builder-frontend')
-   *  2. Exact id match    (e.g. 'counterpart' → node id 'counterpart')
-   *  3. Prefix match in either direction:
-   *     - node role is prefix of requested role  (e.g. node 'tester' matches 'tester-frontend')
-   *     - requested role is prefix of node role  (e.g. 'builder' matches node 'builder-frontend')
-   */
-  private findPipelineNode(role: string): AgentNode | undefined {
-    if (!this.pipelineConfig || this.pipelineConfig.nodes.length === 0) return undefined;
-    const nodes = this.pipelineConfig.nodes;
-    let node = nodes.find(n => n.role === role);
-    if (!node) node = nodes.find(n => n.id === role);
-    if (!node) {
-      node = nodes.find(n =>
-        n.role.startsWith(role) || role.startsWith(n.role)
-      );
-    }
-    return node;
-  }
-
-  private getNodeModel(role: string): string | undefined {
-    const node = this.findPipelineNode(role);
-    if (node && node.model !== 'disabled') {
-      return node.model.replace(/^angy-/, '');
-    }
-    return this.effectiveModel;
   }
 
   /** Cancel a child process regardless of which process manager owns it. */
@@ -1224,6 +1272,10 @@ export class HybridPipelineRunner {
 
   private async spawnAgent(role: string, task: string, mode = 'agent'): Promise<{ sessionId: string; result: string }> {
     const agentName = this.generateAgentName(role);
+    const configuredModel = this.getConfiguredNodeModel(role);
+    const modelForRole = this.getNodeModel(role);
+    const useAngyCode = this.isAngyCodeModel(configuredModel);
+    const provider = this.getProvider(configuredModel);
 
     this.events.emit('delegationStarted', {
       role,
@@ -1244,11 +1296,6 @@ export class HybridPipelineRunner {
 
     const systemPrompt = this.buildSystemPrompt(role);
 
-    // Determine if it's angy code based on node model
-    const modelForRole = this.getNodeModel(role);
-    const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-'));
-    const provider = modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
-
     const result = await new Promise<string>((resolve, reject) => {
       this.activeProcesses.add(childSid);
 
@@ -1267,7 +1314,7 @@ export class HybridPipelineRunner {
         resolve(r);
       });
 
-      if (isAngyCode) {
+      if (useAngyCode) {
         this.getApiKey(provider).then(apiKey => {
           this.acpm!.sendMessage({
             sessionId: childSid,
@@ -1327,6 +1374,10 @@ export class HybridPipelineRunner {
 
     this.handle.resetForReuse(sid);
     await this.handle.prepareForSend(sid, task);
+    const configuredModel = this.getConfiguredNodeModel(role);
+    const modelForRole = this.getNodeModel(role);
+    const useAngyCode = this.isAngyCodeModel(configuredModel);
+    const provider = this.getProvider(configuredModel);
 
     return new Promise<string>((resolve, reject) => {
       this.activeProcesses.add(sid);
@@ -1346,11 +1397,7 @@ export class HybridPipelineRunner {
         resolve(result);
       });
 
-      const modelForRole = this.getNodeModel(role);
-      const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-'));
-      const provider = modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
-
-      if (isAngyCode) {
+      if (useAngyCode) {
         this.getApiKey(provider).then(apiKey => {
           this.acpm!.sendMessage({
             sessionId: sid,
@@ -1400,6 +1447,10 @@ export class HybridPipelineRunner {
 
     this.handle.resetForReuse(sid);
     await this.handle.prepareForSend(sid, task);
+    const configuredModel = this.getConfiguredNodeModel(role);
+    const modelForRole = this.getNodeModel(role);
+    const useAngyCode = this.isAngyCodeModel(configuredModel);
+    const provider = this.getProvider(configuredModel);
 
     return new Promise<string>((resolve, reject) => {
       this.activeProcesses.add(sid);
@@ -1419,11 +1470,7 @@ export class HybridPipelineRunner {
         resolve(result);
       });
 
-      const modelForRole = this.getNodeModel(role);
-      const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-'));
-      const provider = modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
-
-      if (isAngyCode) {
+      if (useAngyCode) {
         this.getApiKey(provider).then(apiKey => {
           this.acpm!.sendMessage({
             sessionId: sid,
@@ -1487,6 +1534,10 @@ export class HybridPipelineRunner {
 
     this.handle.resetForReuse(sid);
     await this.handle.prepareForSend(sid, task);
+    const configuredModel = this.getConfiguredNodeModel(role);
+    const modelForRole = this.getNodeModel(role);
+    const useAngyCode = this.isAngyCodeModel(configuredModel);
+    const provider = this.getProvider(configuredModel);
 
     return new Promise<string>((resolve, reject) => {
       this.activeProcesses.add(sid);
@@ -1506,11 +1557,7 @@ export class HybridPipelineRunner {
         resolve(result);
       });
 
-      const modelForRole = this.getNodeModel(role);
-      const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-'));
-      const provider = modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
-
-      if (isAngyCode) {
+      if (useAngyCode) {
         this.getApiKey(provider).then(apiKey => {
           this.acpm!.sendMessage({
             sessionId: sid,
@@ -1646,9 +1693,13 @@ ${issues}`,
   }
 
   private async structuredCall<T>(schema: object, prompt: string): Promise<T> {
+    if (this.useCodex) {
+      return this.structuredCallWithCodex<T>(schema, prompt, this.getConfiguredNodeModel('architect'));
+    }
+
     const claudeBin = await this.resolveClaudeBinary();
     const schemaJson = JSON.stringify(schema);
-    const modelForRole = this.getNodeModel('architect');
+    const structuredModel = this.getConfiguredNodeModel('architect') ?? this.model;
 
     const { writeTextFile, remove } = await import('@tauri-apps/plugin-fs');
     const { join, tempDir } = await import('@tauri-apps/api/path');
@@ -1657,20 +1708,11 @@ ${issues}`,
     await writeTextFile(tmpFile, prompt);
 
     try {
-      let modelArgStr = '--model sonnet';
-      if (modelForRole && modelForRole.startsWith('claude-')) {
-        let clean = modelForRole;
-        if (clean.includes('3-5-sonnet')) clean = 'sonnet';
-        else if (clean.includes('3-7-sonnet')) clean = 'claude-3-7-sonnet-20250219';
-        else if (clean.includes('haiku')) clean = 'haiku';
-        modelArgStr = `--model ${clean}`;
-      }
-
       const escapedSchema = schemaJson.replace(/'/g, "'\\''");
       const escapedTmpFile = tmpFile.replace(/'/g, "'\\''");
       const shellCmd =
         `exec '${claudeBin.replace(/'/g, "'\\''")}' ` +
-        `-p --output-format json ${modelArgStr} ` +
+        `-p --output-format json --model ${structuredModel?.startsWith('claude-') ? structuredModel : 'sonnet'} ` +
         `--json-schema '${escapedSchema}' ` +
         `--tools '' ` +
         `< '${escapedTmpFile}'`;
@@ -1696,6 +1738,76 @@ ${issues}`,
       throw new Error(`No structured_output in response: ${output.stdout.substring(0, 300)}`);
     } finally {
       try { await remove(tmpFile); } catch { /* cleanup best-effort */ }
+    }
+  }
+
+  private async structuredCallWithCodex<T>(schema: object, prompt: string, model?: string): Promise<T> {
+    const codexBin = await this.resolveCodexBinary();
+    const { writeTextFile, readTextFile, remove } = await import('@tauri-apps/plugin-fs');
+    const { join, tempDir } = await import('@tauri-apps/api/path');
+
+    const tmpDir = await tempDir();
+    const promptFile = await join(tmpDir, `angy-codex-structured-${Date.now()}.txt`);
+    const schemaFile = await join(tmpDir, `angy-codex-schema-${Date.now()}.json`);
+    const outputFile = await join(tmpDir, `angy-codex-output-${Date.now()}.json`);
+
+    await writeTextFile(promptFile, prompt);
+    await writeTextFile(schemaFile, JSON.stringify(schema));
+
+    try {
+      const home = (await homeDir()).replace(/\/+$/, '');
+      const useDefaultModel = !model || model === CODEX_DEFAULT_MODEL_ID;
+      const rawModel = model?.replace(/^codex-/, '') || '';
+      const wrappedPrompt =
+        'Return only a JSON object that matches the provided output schema exactly. ' +
+        'Do not include markdown, explanations, or code fences. ' +
+        'Do not run shell commands unless absolutely necessary.\n\n' +
+        prompt;
+      const shellCmd =
+        `exec '${codexBin.replace(/'/g, "'\\''")}' ` +
+        `exec --json --skip-git-repo-check --sandbox read-only ` +
+        `-C '${this.workspace.replace(/'/g, "'\\''")}' ` +
+        `${useDefaultModel ? '' : `-m '${rawModel.replace(/'/g, "'\\''")}' `}` +
+        `--output-schema '${schemaFile.replace(/'/g, "'\\''")}' ` +
+        `--output-last-message '${outputFile.replace(/'/g, "'\\''")}' ` +
+        `< '${promptFile.replace(/'/g, "'\\''")}'`;
+
+      await writeTextFile(promptFile, wrappedPrompt);
+
+      const command = Command.create('exec-sh', ['-c', shellCmd], {
+        cwd: this.workspace || undefined,
+        env: {
+          HOME: home,
+          PATH: await this.buildCodexPath(home),
+        },
+      });
+
+      const output = await command.execute();
+
+      try {
+        const text = await readTextFile(outputFile);
+        const parsed = JSON.parse(text) as T;
+        if (parsed && typeof parsed === 'object') {
+          return parsed;
+        }
+      } catch {
+        // Fall through to the exit-code check below.
+      }
+
+      if (output.code !== 0) {
+        const details = [output.stderr, output.stdout]
+          .filter(Boolean)
+          .join('\n')
+          .substring(0, 1000);
+        throw new Error(`Structured Codex call failed (exit ${output.code}): ${details}`);
+      }
+
+      const text = await readTextFile(outputFile);
+      return JSON.parse(text) as T;
+    } finally {
+      try { await remove(promptFile); } catch { /* cleanup best-effort */ }
+      try { await remove(schemaFile); } catch { /* cleanup best-effort */ }
+      try { await remove(outputFile); } catch { /* cleanup best-effort */ }
     }
   }
 
@@ -2099,6 +2211,25 @@ If no explicit acceptance criteria section exists, derive testable requirements 
     return 'claude';
   }
 
+  private async resolveCodexBinary(): Promise<string> {
+    const home = (await homeDir()).replace(/\/+$/, '');
+    const candidates = [
+      `${home}/.local/bin/codex`,
+      `${home}/.linuxbrew/bin/codex`,
+      `${home}/.nix-profile/bin/codex`,
+      '/home/linuxbrew/.linuxbrew/bin/codex',
+      '/opt/homebrew/bin/codex',
+      '/usr/local/bin/codex',
+      '/usr/bin/codex',
+    ];
+    for (const candidate of candidates) {
+      try {
+        if (await exists(candidate)) return candidate;
+      } catch { /* ignore */ }
+    }
+    return 'codex';
+  }
+
   private async buildPath(home: string): Promise<string> {
     const extraPaths: string[] = [];
     const nvmBase = `${home}/.nvm/versions/node`;
@@ -2120,5 +2251,19 @@ If no explicit acceptance criteria section exists, derive testable requirements 
       '/sbin',
     );
     return extraPaths.join(':');
+  }
+
+  private async buildCodexPath(home: string): Promise<string> {
+    return [
+      `${home}/.local/bin`,
+      `${home}/.linuxbrew/bin`,
+      `${home}/.nix-profile/bin`,
+      '/home/linuxbrew/.linuxbrew/bin',
+      '/opt/homebrew/bin',
+      '/opt/homebrew/sbin',
+      '/usr/local/bin',
+      '/usr/bin',
+      '/bin',
+    ].join(':');
   }
 }
