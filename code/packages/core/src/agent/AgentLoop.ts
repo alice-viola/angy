@@ -33,6 +33,10 @@ const CONTEXT_WINDOWS: Record<string, number> = {
   'gemini-2.5-pro':         2_000_000,
   'gemini-2.0-flash':       1_000_000,
   'gemini-2.0-pro':         1_000_000,
+  'gemma4':                    128_000,
+  'gemma4:e2b':                128_000,
+  'gemma4:26b':                256_000,
+  'gemma4:31b':                256_000,
 };
 
 export class AgentLoop {

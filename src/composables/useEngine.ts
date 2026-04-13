@@ -100,7 +100,27 @@ export function getAngyCodeProcessManager(): AngyCodeProcessManager {
 }
 
 export function isAngyCodeModel(modelId: string): boolean {
-  return modelId.startsWith('gemini') || modelId.startsWith('angy-');
+  return modelId.startsWith('gemini') || modelId.startsWith('angy-') || modelId.startsWith('ollama-');
+}
+
+/**
+ * Resolve the provider name from a model ID.
+ * Ollama models use 'ollama-' prefix, Gemini use 'gemini', rest are 'anthropic'.
+ */
+export function resolveProvider(modelId: string): 'gemini' | 'anthropic' | 'ollama' {
+  if (modelId.startsWith('ollama-')) return 'ollama';
+  if (modelId.includes('gemini')) return 'gemini';
+  return 'anthropic';
+}
+
+/**
+ * Strip the provider prefix from model ID to get the actual model name
+ * sent to the backend. e.g. 'ollama-gemma4' → 'gemma4', 'angy-claude-sonnet-4-6' → 'claude-sonnet-4-6'
+ */
+export function stripModelPrefix(modelId: string): string {
+  if (modelId.startsWith('ollama-')) return modelId.slice(7);
+  if (modelId.startsWith('angy-')) return modelId.slice(5);
+  return modelId;
 }
 
 export async function sendAngyCodeMessage(options: AngyCodeProcessOptions, handle: AgentHandle): Promise<void> {

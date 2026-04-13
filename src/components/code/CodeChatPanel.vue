@@ -220,7 +220,7 @@ import type { ToolCallInfo } from '@/components/chat/ToolCallGroup.vue';
 import { useUiStore } from '@/stores/ui';
 import { useSessionsStore, getDatabase } from '@/stores/sessions';
 import { useFleetStore } from '@/stores/fleet';
-import { sendMessageToEngine, cancelProcess, isAngyCodeModel, sendAngyCodeMessage, cancelAngyCodeProcess, isAngyCodeRunning } from '@/composables/useEngine';
+import { sendMessageToEngine, cancelProcess, isAngyCodeModel, sendAngyCodeMessage, cancelAngyCodeProcess, isAngyCodeRunning, resolveProvider, stripModelPrefix } from '@/composables/useEngine';
 import type { AgentHandle, MessageRecord, AttachedImage } from '@/engine/types';
 import { MODEL_GROUPS, ALL_MODELS, type ModelEntry } from '@/constants/models';
 import { ProfileManager, type PersonalityProfile } from '@/engine/ProfileManager';
@@ -603,9 +603,9 @@ async function doSend(text: string) {
       ? engineImages.map(img => ({ data: img.data, mimeType: img.mediaType }))
       : undefined;
       
-    const provider = ui.currentModel.includes('gemini') ? 'gemini' : 'anthropic';
-    const apiKey = provider === 'gemini' ? ui.geminiApiKey : ui.anthropicApiKey;
-    
+    const provider = resolveProvider(ui.currentModel);
+    const apiKey = provider === 'gemini' ? ui.geminiApiKey : provider === 'anthropic' ? ui.anthropicApiKey : (ui.ollamaBaseUrl || 'http://localhost:11434');
+
     try {
       await sendAngyCodeMessage({
         sessionId: sid,
@@ -613,7 +613,7 @@ async function doSend(text: string) {
         goal: text,
         provider,
         apiKey,
-        model: ui.currentModel.replace(/^angy-/, ''),
+        model: stripModelPrefix(ui.currentModel),
         images: angyImages,
       }, handle);
     } catch (err) {

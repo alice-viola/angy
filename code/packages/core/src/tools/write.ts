@@ -20,8 +20,14 @@ async function execute(
   ctx: ToolContext,
 ): Promise<ToolResult> {
   try {
+    if (!input.file_path || typeof input.file_path !== 'string') {
+      return { content: 'Error: file_path is required (e.g. "index.html")', is_error: true };
+    }
+    if (input.content === undefined || input.content === null) {
+      return { content: 'Error: content is required', is_error: true };
+    }
     const filePath = path.resolve(ctx.workingDir, input.file_path as string);
-    const content = input.content as string;
+    const content = String(input.content);
 
     // filesRead guard: if file exists, must have been read first
     let fileExists = false;

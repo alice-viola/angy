@@ -86,10 +86,11 @@ Connect to different LLM backends through a unified streaming interface.
 |----------|---------|--------|
 | Anthropic | `AnthropicAdapter` | `claude-opus-4-6`, `claude-sonnet-4-6`, `claude-haiku-4-5-20251001` |
 | Gemini | `GeminiAdapter` | `gemini-2.0-pro`, `gemini-2.0-flash`, `gemini-1.5-pro`, `gemini-1.5-flash` |
+| Ollama (local) | `OllamaAdapter` | Any model served by Ollama — Gemma 4, Llama, Mistral, Qwen, etc. |
 | Mock | `MockAdapter` | (for testing) |
 
 ```typescript
-import { createProvider, AnthropicAdapter, GeminiAdapter } from '@angycode/core';
+import { createProvider, AnthropicAdapter, GeminiAdapter, OllamaAdapter } from '@angycode/core';
 
 // Using the factory
 const provider = createProvider({
@@ -101,9 +102,131 @@ const provider = createProvider({
 // Or construct directly
 const anthropic = new AnthropicAdapter({ apiKey: process.env.ANTHROPIC_API_KEY! });
 const gemini = new GeminiAdapter({ apiKey: process.env.GEMINI_API_KEY! });
+const ollama = new OllamaAdapter({ baseUrl: 'http://localhost:11434' });
 ```
 
 All providers implement the `ProviderAdapter` interface and return an `AsyncIterable<ProviderStreamEvent>` from `streamMessage()`.
+
+#### Local Models with Ollama
+
+The `OllamaAdapter` connects to an [Ollama](https://ollama.com) server running on your machine (or network), allowing you to use open models like **Gemma 4**, **Llama**, **Mistral**, **Qwen**, and others — completely free with no API keys required.
+
+**Prerequisites**
+
+1. Install Ollama:
+   ```bash
+   # macOS
+   brew install ollama
+
+   # Linux
+   curl -fsSL https://ollama.com/install.sh | sh
+   ```
+
+2. Start the server:
+   ```bash
+   ollama serve
+   ```
+
+3. Pull a model:
+   ```bash
+   # Gemma 4 variants (Google)
+   ollama pull gemma4          # E4B — 9.6 GB, 4.5B active params, 128K context
+   ollama pull gemma4:e2b      # E2B — 7.2 GB, 2.3B active params, 128K context (fastest)
+   ollama pull gemma4:26b      # MoE — 18 GB, 3.8B active params, 256K context (best quality)
+   ollama pull gemma4:31b      # Dense — 20 GB, 30.7B active params, 256K context
+
+   # Other popular models
+   ollama pull llama3.3        # Llama 3.3 70B
+   ollama pull qwen3:32b       # Qwen 3 32B
+   ollama pull mistral-small   # Mistral Small 24B
+   ```
+
+**Using with `createProvider`**
+
+```typescript
+const provider = createProvider({
+  name: 'ollama',
+  apiKey: 'http://localhost:11434',  // apiKey is used as the Ollama base URL
+  model: 'gemma4',
+});
+```
+
+For the `OllamaAdapter`, the `apiKey` field is repurposed as the **Ollama server URL** (default: `http://localhost:11434`). No API key is needed for local inference.
+
+**Using the adapter directly**
+
+```typescript
+import { OllamaAdapter } from '@angycode/core';
+
+const adapter = new OllamaAdapter({
+  baseUrl: 'http://localhost:11434',   // optional, this is the default
+});
+
+for await (const event of adapter.streamMessage({
+  model: 'gemma4',
+  system: 'You are a helpful assistant.',
+  messages: [{ role: 'user', content: [{ type: 'text', text: 'Hello!' }] }],
+  tools: [],
+  maxTokens: 200,
+})) {
+  if (event.type === 'text_delta') process.stdout.write(event.text);
+}
+```
+
+**Full agent loop with local models**
+
+```typescript
+import { AgentLoop, createProvider, createDefaultRegistry, DatabaseImpl } from '@angycode/core';
+
+const agent = new AgentLoop({
+  provider: createProvider({ name: 'ollama', apiKey: 'http://localhost:11434', model: 'gemma4' }),
+  tools: createDefaultRegistry(),
+  db: new DatabaseImpl('/tmp/local-agent.db'),
+  workingDir: process.cwd(),
+  maxTokens: 8192,
+  maxTurns: 20,
+  providerName: 'ollama',
+  model: 'gemma4',
+});
+
+agent.on('event', (event) => {
+  if (event.type === 'text') process.stdout.write(event.text);
+  if (event.type === 'done') console.log('\nDone!');
+});
+
+await agent.run('List the files in this directory and explain the project structure.');
+```
+
+**Features supported**
+
+| Feature | Supported | Notes |
+|---------|-----------|-------|
+| Text streaming | Yes | Via Ollama's `/api/chat` streaming |
+| Tool/function calling | Yes | Native Gemma 4 tool support via Ollama |
+| Vision (images) | Yes | Gemma 4 E2B/E4B support image inputs |
+| Retry with backoff | Yes | Retries on connection errors, timeouts |
+| Abort/cancel | Yes | Via `AbortSignal` |
+
+**Hardware recommendations for Gemma 4**
+
+| Model | VRAM/RAM needed | Apple Silicon | Notes |
+|-------|----------------|---------------|-------|
+| `gemma4:e2b` | ~7 GB | M1/M2/M3/M4 (8GB+) | Fastest, good for simple tasks |
+| `gemma4` (E4B) | ~10 GB | M1/M2/M3/M4 (16GB+) | Good balance of speed and quality |
+| `gemma4:26b` (MoE) | ~18 GB | M-series (24GB+) | Best quality, only 3.8B active params |
+| `gemma4:31b` (Dense) | ~20 GB | M-series (32GB+) | Largest, needs ample memory |
+
+On Apple Silicon, Ollama uses **Metal GPU acceleration** automatically. You can verify with `ollama ps` which shows `100% GPU` when the model is fully loaded in GPU memory.
+
+To keep a model warm in GPU memory (avoids cold-start delay on next request):
+
+```bash
+# Keep loaded indefinitely (until manual unload or server restart)
+curl http://localhost:11434/api/chat -d '{"model":"gemma4","keep_alive":-1,"messages":[]}'
+
+# Unload when done
+curl http://localhost:11434/api/chat -d '{"model":"gemma4","keep_alive":0,"messages":[]}'
+```
 
 ### Built-in Tools
 
@@ -312,11 +435,28 @@ const agent = new AgentLoop({
 | `workingDir` | `string` | ✅ | Working directory for tool operations |
 | `maxTokens` | `number` | ✅ | Max tokens per LLM response |
 | `maxTurns` | `number` | ✅ | Max agent loop turns before auto-pause |
-| `providerName` | `ProviderName` | | Provider identifier (`'anthropic'`, `'gemini'`, `'mock'`) |
+| `providerName` | `ProviderName` | | Provider identifier (`'anthropic'`, `'gemini'`, `'ollama'`, `'mock'`) |
 | `model` | `string` | | Model identifier (defaults to `claude-opus-4-6`) |
 | `systemPromptExtra` | `string` | | Extra text appended to the system prompt |
 | `disabledTools` | `string[]` | | Tool names to exclude from the session |
 | `sessionId` | `string` | | Custom session ID (auto-generated if omitted) |
+
+## Examples
+
+See the [`examples/`](../../examples/) directory for runnable scripts:
+
+- **[`ollama-gemma4.ts`](../../examples/ollama-gemma4.ts)** — Simple chat, tool calling round-trip, and full agent loop with Gemma 4 via Ollama
+- **[`ollama-generate.ts`](../../examples/ollama-generate.ts)** — CLI tool that takes a prompt and output directory, runs a local model agent to generate files
+
+```bash
+# Simple demo: chat + tools + agent loop
+cd code && npx tsx examples/ollama-gemma4.ts
+
+# Generate files from a prompt
+cd code && npx tsx examples/ollama-generate.ts \
+  --output /tmp/my-site \
+  "Build a landing page for a SaaS product called Flowboard"
+```
 
 ## License
 

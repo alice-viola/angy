@@ -1115,15 +1115,18 @@ export class HybridPipelineRunner {
 
   // ── AngyCode (Gemini/Anthropic) helpers ─────────────────────────────
 
-  /** Fetch the API key for the current provider from the database. */
-  private async getApiKey(provider: 'gemini' | 'anthropic'): Promise<string> {
+  /** Fetch the API key (or base URL for ollama) for the current provider from the database. */
+  private async getApiKey(provider: 'gemini' | 'anthropic' | 'ollama'): Promise<string> {
+    if (provider === 'ollama') {
+      return (await this.sessions.db.getAppSetting('ollama_base_url')) || 'http://localhost:11434';
+    }
     const key = provider === 'gemini' ? 'gemini_api_key' : 'anthropic_api_key';
     return (await this.sessions.db.getAppSetting(key)) ?? '';
   }
 
-  /** Strip the 'angy-' prefix from model IDs (the server expects raw model names). */
+  /** Strip the 'angy-'/'ollama-' prefix from model IDs (the server expects raw model names). */
   private get effectiveModel(): string | undefined {
-    return this.model?.replace(/^angy-/, '');
+    return this.model?.replace(/^angy-/, '').replace(/^ollama-/, '');
   }
 
   /**
@@ -1152,7 +1155,7 @@ export class HybridPipelineRunner {
   private getNodeModel(role: string): string | undefined {
     const node = this.findPipelineNode(role);
     if (node && node.model !== 'disabled') {
-      return node.model.replace(/^angy-/, '');
+      return node.model.replace(/^angy-/, '').replace(/^ollama-/, '');
     }
     return this.effectiveModel;
   }
@@ -1246,8 +1249,8 @@ export class HybridPipelineRunner {
 
     // Determine if it's angy code based on node model
     const modelForRole = this.getNodeModel(role);
-    const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-'));
-    const provider = modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
+    const isAngyCode = !!this.acpm && !!modelForRole && (modelForRole.startsWith('gemini') || modelForRole.startsWith('angy-') || modelForRole.startsWith('ollama-'));
+    const provider: 'gemini' | 'anthropic' | 'ollama' = modelForRole?.startsWith('ollama-') ? 'ollama' : modelForRole?.includes('gemini') ? 'gemini' : 'anthropic';
 
     const result = await new Promise<string>((resolve, reject) => {
       this.activeProcesses.add(childSid);

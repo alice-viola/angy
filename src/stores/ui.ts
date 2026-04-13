@@ -36,6 +36,7 @@ export const useUiStore = defineStore('ui', () => {
   const autoCommitEnabled = ref(false);
   const geminiApiKey = ref('');
   const anthropicApiKey = ref('');
+  const ollamaBaseUrl = ref('http://localhost:11434');
 
   const openProjectIds = ref<string[]>([]);
   const notifications = ref<AppNotification[]>([]);
@@ -265,7 +266,7 @@ export const useUiStore = defineStore('ui', () => {
     inlinePreviewFile, effectsPanelVisible, editorChatVisible, rightPanelMode, diffView,
     missionControlFilter, autoCommitEnabled, openProjectIds, notifications, repoSwitchOnly,
     managerSizes, editorSizes, kanbanFilterText, pipelineActivity, pipelineTodoProgress,
-    epicActivities, activityLogVisible, geminiApiKey, anthropicApiKey, navRailExpanded,
+    epicActivities, activityLogVisible, geminiApiKey, anthropicApiKey, ollamaBaseUrl, navRailExpanded,
     switchToMode, toggleViewMode, toggleTerminal, dismissInlinePreview,
     toggleEffectsPanel, toggleEditorChat, toggleRightPanelMode, setRightPanelMode,
     showDiffView, closeDiffView,

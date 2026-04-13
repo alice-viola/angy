@@ -111,7 +111,7 @@ import { useUiStore } from '../../stores/ui';
 import { useProjectsStore } from '../../stores/projects';
 import { useEpicStore } from '../../stores/epics';
 import { ClaudeProcess } from '../../engine/ClaudeProcess';
-import { sendMessageToEngine, cancelProcess, isAngyCodeModel, sendAngyCodeMessage, cancelAngyCodeProcess, isAngyCodeRunning, type ChatPanelHandle } from '../../composables/useEngine';
+import { sendMessageToEngine, cancelProcess, isAngyCodeModel, sendAngyCodeMessage, cancelAngyCodeProcess, isAngyCodeRunning, resolveProvider, stripModelPrefix, type ChatPanelHandle } from '../../composables/useEngine';
 import { findModel } from '../../constants/models';
 import type { AgentStatus, AttachedContext, AttachedImage, MessageRecord } from '../../engine/types';
 import { engineBus } from '../../engine/EventBus';
@@ -529,9 +529,9 @@ async function onSend(text: string, _contexts?: AttachedContext[], _images?: Att
       ? imagePayload.map(img => ({ data: img.data, mimeType: img.mediaType }))
       : undefined;
       
-    const provider = ui.currentModel.includes('gemini') ? 'gemini' : 'anthropic';
-    const apiKey = provider === 'gemini' ? ui.geminiApiKey : ui.anthropicApiKey;
-    
+    const provider = resolveProvider(ui.currentModel);
+    const apiKey = provider === 'gemini' ? ui.geminiApiKey : provider === 'anthropic' ? ui.anthropicApiKey : (ui.ollamaBaseUrl || 'http://localhost:11434');
+
     try {
       await sendAngyCodeMessage({
         sessionId: sid,
@@ -539,7 +539,7 @@ async function onSend(text: string, _contexts?: AttachedContext[], _images?: Att
         goal: engineMessage,
         provider,
         apiKey,
-        model: ui.currentModel.replace(/^angy-/, ''),
+        model: stripModelPrefix(ui.currentModel),
         systemPrompt,
         images: angyImages,
       }, chatPanelHandle);

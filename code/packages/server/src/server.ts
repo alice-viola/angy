@@ -13,6 +13,7 @@ import { sseHandler } from './sse.js';
 const DEFAULT_MODELS: Record<string, string> = {
   anthropic: 'claude-opus-4-6',
   gemini: 'gemini-2.5-flash',
+  ollama: 'gemma4',
   mock: 'mock',
 };
 
@@ -21,6 +22,10 @@ const MODEL_MAX_TOKENS: Record<string, number> = {
   'claude-sonnet-4-6': 8192,
   'gemini-2.5-flash': 16384,
   'gemini-2.5-pro': 32768,
+  'gemma4': 8192,
+  'gemma4:e2b': 8192,
+  'gemma4:26b': 8192,
+  'gemma4:31b': 8192,
 };
 
 export function createApp(db: Database): Hono {
@@ -38,7 +43,7 @@ export function createApp(db: Database): Hono {
     }
     if (!body.goal) return c.json({ error: 'goal is required' }, 400);
     if (!body.provider) return c.json({ error: 'provider is required' }, 400);
-    if (!body.apiKey) return c.json({ error: 'apiKey is required' }, 400);
+    if (body.provider !== 'ollama' && !body.apiKey) return c.json({ error: 'apiKey is required' }, 400);
     if (!body.workingDir) return c.json({ error: 'workingDir is required' }, 400);
 
     const model = body.model ?? DEFAULT_MODELS[body.provider] ?? 'claude-opus-4-6';

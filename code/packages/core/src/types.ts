@@ -1,6 +1,6 @@
 // ── Shared Types ──────────────────────────────────────────────────────
 
-export type ProviderName = 'anthropic' | 'gemini' | 'mock';
+export type ProviderName = 'anthropic' | 'gemini' | 'ollama' | 'mock';
 
 // ── JSON Schema (for tool input schemas) ─────────────────────────────
 

@@ -277,7 +277,7 @@ export interface AngyCodeProcessOptions {
   sessionId: string;
   workingDir: string;
   goal: string;
-  provider: 'gemini' | 'anthropic';
+  provider: 'gemini' | 'anthropic' | 'ollama';
   apiKey: string;
   model?: string;
   systemPrompt?: string;

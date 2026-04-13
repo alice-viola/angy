@@ -73,6 +73,7 @@ function toggleOpen() {
 function isDisabled(model: ModelEntry): boolean {
   if (model.provider === 'gemini') return !ui.geminiApiKey;
   if (model.provider === 'claude') return !ui.anthropicApiKey;
+  if (model.provider === 'ollama') return false; // Local — always available
   return false;
 }
 

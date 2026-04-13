@@ -182,7 +182,7 @@ import { useUiStore } from '../../stores/ui';
 import { useEpicStore } from '../../stores/epics';
 import { useProjectsStore } from '../../stores/projects';
 import { useFilterStore } from '../../stores/filter';
-import { sendMessageToEngine, cancelProcess, isAngyCodeModel, sendAngyCodeMessage, cancelAngyCodeProcess } from '../../composables/useEngine';
+import { sendMessageToEngine, cancelProcess, isAngyCodeModel, sendAngyCodeMessage, cancelAngyCodeProcess, resolveProvider, stripModelPrefix } from '../../composables/useEngine';
 import { engineBus } from '../../engine/EventBus';
 import type { AgentHandle, MessageRecord, AttachedImage } from '../../engine/types';
 import AgentsHeader from './AgentsHeader.vue';
@@ -508,9 +508,9 @@ async function onSend(message: string, images: AttachedImage[] = [], model?: str
       : undefined;
     
     // Determine provider and api key
-    const provider = effectiveModel.includes('gemini') ? 'gemini' : 'anthropic';
-    const apiKey = provider === 'gemini' ? ui.geminiApiKey : ui.anthropicApiKey;
-    
+    const provider = resolveProvider(effectiveModel);
+    const apiKey = provider === 'gemini' ? ui.geminiApiKey : provider === 'anthropic' ? ui.anthropicApiKey : (ui.ollamaBaseUrl || 'http://localhost:11434');
+
     try {
       await sendAngyCodeMessage({
         sessionId: sid,
@@ -518,7 +518,7 @@ async function onSend(message: string, images: AttachedImage[] = [], model?: str
         goal: effectiveMessage,
         provider,
         apiKey,
-        model: effectiveModel.replace(/^angy-/, ''),
+        model: stripModelPrefix(effectiveModel),
         images: angyImages,
       }, storeHandle);
     } catch (err) {
