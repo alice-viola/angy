@@ -21,6 +21,7 @@ export const MODEL_GROUPS: ModelGroup[] = [
       { id: 'claude-sonnet-4-6', name: 'CC Sonnet 4.6', desc: 'Claude CLI', provider: 'claude-cli' },
       { id: 'claude-opus-4-5', name: 'CC Opus 4.5', desc: 'Claude CLI', provider: 'claude-cli' },
       { id: 'claude-opus-4-6', name: 'CC Opus 4.6', desc: 'Claude CLI', provider: 'claude-cli' },
+      { id: 'claude-opus-4-7', name: 'CC Opus 4.7', desc: 'Claude CLI', provider: 'claude-cli' },
       { id: 'claude-haiku-4-5-20251001', name: 'CC Haiku 4.5', desc: 'Claude CLI', provider: 'claude-cli' },
     ],
   },
@@ -29,6 +30,7 @@ export const MODEL_GROUPS: ModelGroup[] = [
     items: [
       { id: 'angy-claude-sonnet-4-6', name: 'Sonnet 4.6', desc: 'Anthropic API', provider: 'claude' },
       { id: 'angy-claude-opus-4-6', name: 'Opus 4.6', desc: 'Anthropic API', provider: 'claude' },
+      { id: 'angy-claude-opus-4-7', name: 'Opus 4.7', desc: 'Anthropic API', provider: 'claude' },
       { id: 'angy-claude-haiku-4-5-20251001', name: 'Haiku 4.5', desc: 'Anthropic API', provider: 'claude' },
     ],
   },
